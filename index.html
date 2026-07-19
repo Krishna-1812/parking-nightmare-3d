@@ -1531,11 +1531,11 @@ class InputSys {
     else raw = e.gamma;                  // portrait
     if (this.tiltRaw === null) { this.tiltSmooth = raw; this.tiltZero = clamp(raw, -45, 45); }
     this.tiltRaw = raw;
-    this.tiltSmooth += (raw - this.tiltSmooth) * 0.3; // low-pass sensor jitter
+    this.tiltSmooth += (raw - this.tiltSmooth) * 0.22; // low-pass sensor jitter
     const t = this.tiltSmooth - this.tiltZero;
-    const dead = 1.2, span = 17;         // degrees: deadzone → full lock
+    const dead = 2, span = 26;           // degrees: deadzone → full lock
     const mag = clamp((Math.abs(t) - dead) / (span - dead), 0, 1);
-    this.tiltSteer = Math.sign(t) * Math.pow(mag, 1.3); // gentle near center
+    this.tiltSteer = Math.sign(t) * Math.pow(mag, 1.55); // gentle near center
     const on = this.tiltOn;
     if (on !== this._lastTiltOn) { this._lastTiltOn = on; this.applyTiltUI(); }
     if (on && this._tiltDot) this._tiltDot.style.transform = `translate(calc(-50% + ${(this.tiltSteer * 52).toFixed(1)}px), -50%)`;
@@ -6316,7 +6316,7 @@ class Vehicle3D {
     // keyboard steer arrives as a hard ±1; sweep the command toward it so
     // the wheel turns like a hand is on it (slower attack, quicker return)
     const steerRaw = inp ? inp.steer : 0;
-    const steerLam = Math.abs(steerRaw) > Math.abs(this.steerCmd) ? 5.2 : 8.0;
+    const steerLam = Math.abs(steerRaw) > Math.abs(this.steerCmd) ? 3.9 : 8.0;
     this.steerCmd += (steerRaw - this.steerCmd) * (1 - Math.exp(-steerLam * dt));
     if (Math.abs(this.steerCmd) < 0.001 && steerRaw === 0) this.steerCmd = 0;
     const steerIn = this.steerCmd;
@@ -6382,7 +6382,7 @@ class Vehicle3D {
       let vF = this.vx * c + this.vy * s;
       let vL = -this.vx * s + this.vy * c;
       const vF0 = vF;
-      const steerScale = 1 / (1 + Math.abs(vF) * 0.082);
+      const steerScale = 1 / (1 + Math.abs(vF) * 0.098);
       const target = steerIn * this.maxSteer * steerScale;
       const ds = clamp(target - this.steer, -d.steerSpeed * dt, d.steerSpeed * dt);
       this.steer += ds;
