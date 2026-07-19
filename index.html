@@ -164,6 +164,7 @@ body.rm #press-any{animation:none}
 .d2{background:linear-gradient(120deg,#2e3350,#3a3f63);border-color:#191b28} .d2 h3{color:#fff}
 .d3{background:linear-gradient(120deg,#ffe3d0,#f7c7ec)}
 .d4{background:linear-gradient(120deg,#ffeed6,#ffd9c2)}
+.d5{background:linear-gradient(120deg,#eaf3fc,#d7e7f6)}
 .node:hover:not(.locked){transform:translateY(-3px);box-shadow:0 9px 0 rgba(43,45,54,.22)}
 .nodes{display:flex;gap:14px;flex-wrap:wrap}
 .node{
@@ -720,7 +721,7 @@ body.rm #motes span{animation:none;display:none}
       </div>
     </div>
     <div id="cat">🐈‍⬛</div>
-    <div id="title-footer">v3.0 — honk responsibly &nbsp;·&nbsp; <a id="play-classic">play the 2D classic</a> &nbsp;·&nbsp; <a id="open-privacy">privacy</a></div>
+    <div id="title-footer">v4.0 — honk responsibly &nbsp;·&nbsp; <a id="play-classic">play the 2D classic</a> &nbsp;·&nbsp; <a id="open-privacy">privacy</a></div>
   </div>
 
   <!-- ============ MISSION SELECT ============ -->
@@ -1545,28 +1546,94 @@ class AudioEngine {
   }
   jingleStop() { if (this.jingleTimer) { clearInterval(this.jingleTimer); this.jingleTimer = null; } }
   // ---------- district music ----------
+  // Layered step sequencer at 16th-note resolution: chord pads sustain per
+  // bar (16 steps), bass walks a per-bar pattern of chord tones, an optional
+  // arp shimmers on top, a lead melody loops over 32 steps, and a tiny drum
+  // kit (kick / hat / rim) keeps time. One distinct mood per district.
   musicStart(district) {
     if (!this.ready) return;
     if (this.musicDistrict === district && this.musicTimer) return;
     this.musicStop();
     this.musicDistrict = district;
-    const P = [
-      { mel: [392, 0, 440, 494, 392, 0, 330, 0, 392, 0, 440, 523, 494, 440, 392, 0], bass: [98, 98, 131, 131, 110, 110, 98, 98], tempo: 260, type: 'triangle' },
-      { mel: [330, 392, 440, 0, 494, 440, 392, 0, 330, 392, 523, 0, 494, 0, 440, 392], bass: [82, 82, 110, 110, 98, 98, 73, 73], tempo: 220, type: 'square' },
-      { mel: [523, 0, 587, 659, 0, 587, 523, 0, 440, 0, 523, 587, 0, 523, 440, 0], bass: [131, 131, 110, 110, 87, 87, 98, 98], tempo: 240, type: 'triangle' },
-      { mel: [294, 0, 294, 349, 330, 0, 262, 0, 294, 0, 392, 0, 349, 330, 294, 0], bass: [73, 73, 65, 65, 87, 87, 73, 73], tempo: 300, type: 'sawtooth' },
+    const THEMES = [
+      { // D1 SLEEPY SUBURBS — front-porch major, easy sway
+        tempo: 138, padType: 'triangle', padVol: 0.034, melType: 'triangle', melVol: 0.05,
+        chords: [[262, 330, 392], [220, 262, 330], [175, 220, 262], [196, 247, 294]],
+        bassPat: [0, -1, 2, -1, 0, -1, 1, 2], arp: 0, kick: true, rim: false, hatEvery: 4,
+        mel: [523, 0, 659, 0, 587, 523, 0, 440, 523, 0, 392, 0, 440, 494, 523, 0,
+              659, 0, 587, 0, 523, 0, 440, 392, 440, 0, 523, 587, 523, 0, 0, 0],
+      },
+      { // D2 DOWNTOWN CRUNCH — walking jazz-ish shuffle
+        tempo: 128, padType: 'triangle', padVol: 0.03, melType: 'square', melVol: 0.032,
+        chords: [[220, 262, 330], [175, 220, 262], [196, 247, 294], [165, 208, 247]],
+        bassPat: [0, 2, 1, 2, 0, 2, 1, -1], arp: 0, kick: true, rim: true, hatEvery: 2,
+        mel: [440, 0, 494, 523, 0, 494, 440, 0, 392, 0, 440, 0, 330, 0, 392, 0,
+              440, 494, 523, 0, 587, 0, 523, 494, 440, 0, 392, 330, 392, 0, 0, 0],
+      },
+      { // D3 NEON NIGHTS — minor synthwave, driving arps
+        tempo: 118, padType: 'sawtooth', padVol: 0.02, melType: 'square', melVol: 0.035,
+        chords: [[220, 262, 330], [175, 220, 262], [131, 165, 196], [196, 247, 294]],
+        bassPat: [0, 0, -1, 0, 0, -1, 0, 0], arp: 2, kick: true, rim: true, hatEvery: 2,
+        mel: [0, 0, 440, 0, 523, 0, 440, 0, 0, 0, 392, 440, 0, 0, 330, 0,
+              0, 0, 440, 0, 587, 0, 523, 0, 0, 440, 0, 392, 0, 0, 0, 0],
+      },
+      { // D4 TOTAL NIGHTMARE — lopsided waltz through the weird
+        tempo: 148, padType: 'sawtooth', padVol: 0.018, melType: 'sawtooth', melVol: 0.03,
+        chords: [[233, 294, 349], [208, 262, 311], [220, 277, 330], [185, 233, 277]],
+        bassPat: [0, -1, -1, 1, -1, 0, 2, -1], arp: 0, kick: true, rim: false, hatEvery: 8,
+        mel: [294, 0, 0, 349, 330, 0, 262, 0, 294, 0, 392, 0, 370, 0, 294, 0,
+              311, 0, 0, 370, 349, 0, 277, 0, 311, 0, 415, 0, 392, 349, 311, 0],
+      },
+      { // D5 SUNSET MARINA — bossa major-7ths, salt air
+        tempo: 142, padType: 'triangle', padVol: 0.036, melType: 'triangle', melVol: 0.045,
+        chords: [[175, 220, 262, 330], [165, 196, 247, 294], [147, 175, 220, 262], [131, 165, 196, 247]],
+        bassPat: [0, -1, -1, 3, -1, 0, -1, 3], arp: 0, kick: true, rim: true, hatEvery: 4,
+        mel: [523, 0, 0, 494, 0, 440, 0, 0, 392, 0, 440, 0, 494, 0, 0, 0,
+              523, 0, 587, 0, 523, 0, 494, 0, 440, 0, 0, 392, 0, 0, 0, 0],
+      },
+      { // D6 FROSTPEAK — airy bells over slow lydian pads
+        tempo: 168, padType: 'triangle', padVol: 0.042, melType: 'sine', melVol: 0.055,
+        chords: [[262, 330, 392, 494], [294, 370, 440], [220, 277, 330], [247, 294, 370]],
+        bassPat: [0, -1, -1, -1, 1, -1, -1, -1], arp: 3, kick: false, rim: false, hatEvery: 8,
+        mel: [784, 0, 0, 0, 659, 0, 0, 0, 587, 0, 659, 0, 494, 0, 0, 0,
+              784, 0, 880, 0, 659, 0, 0, 0, 587, 0, 0, 0, 0, 0, 0, 0],
+      },
     ];
-    const p = P[clamp(district, 0, 3)];
+    const p = THEMES[clamp(district, 0, THEMES.length - 1)];
+    const stepSec = p.tempo / 1000;
     this.musicStepIdx = 0;
     this.musicTimer = setInterval(() => {
       const i = this.musicStepIdx++;
-      const m = p.mel[i % p.mel.length];
-      if (m > 0) this.tone({ type: p.type, f0: m, dur: 0.18, vol: 0.055, dest: this.musicGain });
-      if (i % 2 === 0) {
-        const b = p.bass[(i / 2) % p.bass.length];
-        this.tone({ type: 'triangle', f0: b, dur: 0.3, vol: 0.09, dest: this.musicGain });
+      const chord = p.chords[Math.floor(i / 16) % p.chords.length];
+      // sustained pad, one voice per chord tone, refreshed each bar
+      if (i % 16 === 0) {
+        for (let v = 0; v < chord.length; v++) {
+          this.tone({ type: p.padType, f0: chord[v], dur: stepSec * 15.4, vol: p.padVol, attack: 0.5, dest: this.musicGain });
+          if (p.padType === 'sawtooth') // subtle detune thickens synth pads
+            this.tone({ type: p.padType, f0: chord[v] * 1.006, dur: stepSec * 15.4, vol: p.padVol * 0.7, attack: 0.5, dest: this.musicGain });
+        }
       }
-      if (i % 4 === 0) this.noise({ filter: 'highpass', f0: 6000, dur: 0.04, vol: 0.02, dest: this.musicGain });
+      // bass: chord-tone pattern, one octave down
+      if (i % 2 === 0) {
+        const bi = p.bassPat[(i / 2) % p.bassPat.length];
+        if (bi >= 0 && chord[bi]) this.tone({ type: 'triangle', f0: chord[bi] / 2, dur: stepSec * 1.9, vol: 0.1, dest: this.musicGain });
+      }
+      // arp: rolling chord tones up top (arp = octave multiplier)
+      if (p.arp) {
+        const an = chord[i % chord.length] * p.arp;
+        this.tone({ type: 'triangle', f0: an, dur: stepSec * 1.1, vol: 0.024, dest: this.musicGain });
+      }
+      // lead
+      const m = p.mel[i % p.mel.length];
+      if (m > 0) {
+        this.tone({ type: p.melType, f0: m, dur: 0.22, vol: p.melVol, dest: this.musicGain });
+        if (district === 5) // bell partial for the frost theme
+          this.tone({ type: 'sine', f0: m * 3, dur: 0.3, vol: p.melVol * 0.22, dest: this.musicGain });
+      }
+      // drums
+      if (p.kick && i % 8 === 0) this.tone({ type: 'sine', f0: 120, f1: 44, dur: 0.13, vol: 0.12, dest: this.musicGain });
+      if (i % p.hatEvery === 0) this.noise({ filter: 'highpass', f0: 6800, dur: 0.035, vol: i % 8 === 4 ? 0.028 : 0.016, dest: this.musicGain });
+      if (p.rim && i % 16 === 8) this.noise({ filter: 'bandpass', f0: 1900, dur: 0.06, vol: 0.04, q: 3, dest: this.musicGain });
     }, p.tempo);
   }
   musicStop() {
@@ -2959,6 +3026,89 @@ const Assets = {
     c.fillText(text, 256, 84);
     const tex = new THREE.CanvasTexture(cv);
     tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  },
+
+  // ---------- water: tiling wave streaks for the marina ----------
+  waterTex() {
+    const tex = this.canvas(256, 256, (c, W, H) => {
+      const g = c.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#1e6fa4'); g.addColorStop(0.5, '#1a679c'); g.addColorStop(1, '#1e6fa4');
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      // layered horizontal wave crests, brighter toward random peaks
+      for (let i = 0; i < 90; i++) {
+        const y = rand(0, H), w = rand(20, 90), a = rand(0.05, 0.2);
+        c.strokeStyle = `rgba(190,230,250,${a})`;
+        c.lineWidth = rand(1, 2.4);
+        c.beginPath();
+        const x0 = rand(0, W);
+        c.moveTo(x0, y);
+        c.quadraticCurveTo(x0 + w / 2, y - rand(1, 4), x0 + w, y);
+        c.stroke();
+      }
+      for (let i = 0; i < 34; i++) { // dark troughs
+        const y = rand(0, H);
+        c.strokeStyle = `rgba(10,40,70,${rand(0.08, 0.2)})`;
+        c.lineWidth = rand(1.5, 3);
+        c.beginPath(); c.moveTo(rand(0, W), y); c.lineTo(rand(0, W), y + rand(-2, 2)); c.stroke();
+      }
+    });
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  },
+
+  // ---------- aurora curtain: vertical streaks, green -> violet ----------
+  auroraTex() {
+    if (this.texs.aurora) return this.texs.aurora;
+    const tex = this.canvas(512, 256, (c, W, H) => {
+      c.clearRect(0, 0, W, H);
+      for (let i = 0; i < 90; i++) {
+        const x = rand(0, W), w = rand(4, 26);
+        const hue = pick([140, 155, 170, 185, 275]);
+        const g = c.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, `hsla(${hue},90%,70%,0)`);
+        g.addColorStop(rand(0.15, 0.35), `hsla(${hue},95%,66%,${rand(0.1, 0.3)})`);
+        g.addColorStop(rand(0.55, 0.75), `hsla(${hue + 30},85%,60%,${rand(0.05, 0.16)})`);
+        g.addColorStop(1, 'hsla(280,80%,60%,0)');
+        c.fillStyle = g;
+        c.fillRect(x - w / 2, 0, w, H);
+      }
+    });
+    tex.wrapS = THREE.RepeatWrapping;
+    this.texs.aurora = tex;
+    return tex;
+  },
+
+  // ---------- lighthouse: red/white bands ----------
+  lightStripeTex() {
+    if (this.texs.lhStripe) return this.texs.lhStripe;
+    const tex = this.canvas(64, 256, (c, W, H) => {
+      for (let i = 0; i < 5; i++) {
+        c.fillStyle = i % 2 === 0 ? '#f4f1ea' : '#d9403a';
+        c.fillRect(0, (i / 5) * H, W, H / 5 + 1);
+      }
+      for (let i = 0; i < 160; i++) { // weathering
+        c.fillStyle = `rgba(90,70,60,${rand(0.03, 0.1)})`;
+        c.fillRect(rand(0, W), rand(0, H), rand(1, 3), rand(2, 8));
+      }
+    });
+    this.texs.lhStripe = tex;
+    return tex;
+  },
+
+  // ---------- distant gliding bird silhouette ----------
+  gullTex() {
+    if (this.texs.gull) return this.texs.gull;
+    const tex = this.canvas(64, 40, (c) => {
+      c.clearRect(0, 0, 64, 40);
+      c.strokeStyle = 'rgba(40,44,56,.95)';
+      c.lineWidth = 4.5; c.lineCap = 'round';
+      c.beginPath();
+      c.moveTo(6, 26); c.quadraticCurveTo(20, 10, 32, 22);
+      c.quadraticCurveTo(44, 10, 58, 26);
+      c.stroke();
+    });
+    this.texs.gull = tex;
     return tex;
   },
 };
@@ -4421,6 +4571,226 @@ const PropFactory = {
     );
     return m;
   },
+
+  // ---------- winter: layered pine, optional snow caps ----------
+  pine(scale, snowy) {
+    const g = new THREE.Group();
+    const trunk = new THREE.Mesh(
+      Assets.geo('pineTrunk', () => new THREE.CylinderGeometry(0.14, 0.26, 1.6, 7)),
+      this.barkMat()
+    );
+    trunk.position.y = 0.8;
+    trunk.castShadow = true;
+    g.add(trunk);
+    const layers = [[1.7, 1.9, 1.15], [1.35, 1.6, 2.15], [1.0, 1.4, 3.05], [0.62, 1.2, 3.9]];
+    for (let i = 0; i < layers.length; i++) {
+      const [r, h, y] = layers[i];
+      const cone = new THREE.Mesh(
+        Assets.geo('pineL' + i, () => new THREE.ConeGeometry(r, h, 9)),
+        Assets.lambert('pineG' + (i % 2), { color: i % 2 === 0 ? 0x2c5c3c : 0x346a48 })
+      );
+      cone.position.y = y;
+      cone.castShadow = true;
+      g.add(cone);
+      if (snowy) {
+        const cap = new THREE.Mesh(
+          Assets.geo('pineS' + i, () => new THREE.ConeGeometry(r * 0.82, h * 0.45, 9)),
+          Assets.lambert('pineSnow', { color: 0xf2f7fc })
+        );
+        cap.position.y = y + h * 0.3;
+        g.add(cap);
+      }
+    }
+    g.scale.setScalar(scale || 1);
+    return g;
+  },
+
+  snowman() {
+    const g = new THREE.Group();
+    const white = Assets.lambert('snowmanW', { color: 0xf4f8fd });
+    const balls = [[0.52, 0.45], [0.38, 1.18], [0.27, 1.7]];
+    for (let i = 0; i < 3; i++) {
+      const [r, y] = balls[i];
+      const b = new THREE.Mesh(Assets.geo('snowB' + i, () => new THREE.SphereGeometry(r, 12, 10)), white);
+      b.position.y = y;
+      b.castShadow = true;
+      g.add(b);
+    }
+    const nose = new THREE.Mesh(
+      Assets.geo('snowNose', () => new THREE.ConeGeometry(0.06, 0.34, 7)),
+      Assets.lambert('carrot', { color: 0xe8792e })
+    );
+    nose.rotation.x = Math.PI / 2;
+    nose.position.set(0, 1.72, 0.36);
+    g.add(nose);
+    const hatMat = Assets.lambert('snowHat', { color: 0x23252e });
+    const brim = new THREE.Mesh(Assets.geo('snowBrim', () => new THREE.CylinderGeometry(0.3, 0.3, 0.04, 12)), hatMat);
+    brim.position.y = 1.92;
+    g.add(brim);
+    const top = new THREE.Mesh(Assets.geo('snowTop', () => new THREE.CylinderGeometry(0.19, 0.2, 0.3, 12)), hatMat);
+    top.position.y = 2.08;
+    g.add(top);
+    for (const sgn of [-1, 1]) { // stick arms
+      const arm = CarFactory.boxMesh(0.05, 0.05, 0.62, 0x6b4a2e);
+      arm.position.set(sgn * 0.58, 1.28, 0);
+      arm.rotation.x = Math.PI / 2;
+      arm.rotation.z = sgn * 0.5;
+      g.add(arm);
+    }
+    return g;
+  },
+
+  // ---------- marina: sailboat / small yacht, bobbed by updateAmbient ----------
+  boat(kind, color) {
+    const g = new THREE.Group();
+    const isYacht = kind === 'yacht';
+    const len = isYacht ? 9 : 6, wid = isYacht ? 2.6 : 1.9;
+    const hullC = color || (isYacht ? '#f4f6f8' : pick(['#d95a4e', '#3a76b8', '#3f8f5c', '#e8a33a', '#f4f6f8']));
+    // tapered hull: box scaled narrower at bow via simple wedge stack
+    const hull = CarFactory.boxMesh(len, 1.0, wid, hullC);
+    hull.position.y = 0.5;
+    hull.castShadow = true;
+    g.add(hull);
+    const bow = new THREE.Mesh(
+      Assets.geo('boatBow' + (isYacht ? 'Y' : 'S'), () => new THREE.ConeGeometry(1, 2.2, 4)),
+      new THREE.MeshLambertMaterial({ color: hullC })
+    );
+    bow.scale.set(wid / 2, 1, 1.0);
+    bow.rotation.z = -Math.PI / 2;
+    bow.rotation.x = Math.PI / 4;
+    bow.position.set(len / 2 + 0.9, 0.5, 0);
+    g.add(bow);
+    const deck = CarFactory.boxMesh(len - 0.5, 0.14, wid - 0.4, 0xdcc9a0);
+    deck.position.y = 1.05;
+    g.add(deck);
+    // waterline stripe
+    const stripe = CarFactory.boxMesh(len + 0.04, 0.14, wid + 0.04, 0x23252e);
+    stripe.position.y = 0.18;
+    g.add(stripe);
+    if (isYacht) {
+      const cabin = CarFactory.boxMesh(len * 0.42, 1.0, wid * 0.72, 0xf4f6f8);
+      cabin.position.set(-len * 0.08, 1.6, 0);
+      g.add(cabin);
+      const win = CarFactory.boxMesh(len * 0.42 + 0.06, 0.34, wid * 0.72 - 0.2, 0x2e4a66);
+      win.position.set(-len * 0.08, 1.72, 0);
+      g.add(win);
+      const arch = CarFactory.boxMesh(0.16, 0.9, wid * 0.6, 0xe8eaee);
+      arch.position.set(-len * 0.34, 2.4, 0);
+      g.add(arch);
+    } else {
+      const mast = new THREE.Mesh(
+        Assets.geo('boatMast', () => new THREE.CylinderGeometry(0.05, 0.07, 6.4, 7)),
+        Assets.lambert('mastC', { color: 0xd8d4c8 })
+      );
+      mast.position.set(len * 0.1, 4.1, 0);
+      g.add(mast);
+      // main sail (triangle) + jib
+      const sailMat = Assets.mats.sail || (Assets.mats.sail = new THREE.MeshLambertMaterial({ color: 0xfbfaf4, side: THREE.DoubleSide }));
+      const sailGeo = Assets.geo('sailMain', () => {
+        const sh = new THREE.Shape();
+        sh.moveTo(0, 0); sh.lineTo(0, 5.4); sh.lineTo(-2.6, 0); sh.closePath();
+        return new THREE.ShapeGeometry(sh);
+      });
+      const sail = new THREE.Mesh(sailGeo, sailMat);
+      sail.position.set(len * 0.1 - 0.06, 1.35, 0);
+      g.add(sail);
+      const jibGeo = Assets.geo('sailJib', () => {
+        const sh = new THREE.Shape();
+        sh.moveTo(0, 0); sh.lineTo(0, 4.2); sh.lineTo(1.9, 0); sh.closePath();
+        return new THREE.ShapeGeometry(sh);
+      });
+      const jib = new THREE.Mesh(jibGeo, sailMat);
+      jib.position.set(len * 0.1 + 0.12, 1.35, 0);
+      g.add(jib);
+      const flag = CarFactory.boxMesh(0.5, 0.28, 0.03, 0xd9403a);
+      flag.position.set(len * 0.1 - 0.28, 7.15, 0);
+      g.add(flag);
+    }
+    return g;
+  },
+
+  buoy() {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(
+      Assets.geo('buoyB', () => new THREE.SphereGeometry(0.5, 10, 8)),
+      Assets.lambert('buoyR', { color: 0xd9403a })
+    );
+    body.position.y = 0.3;
+    g.add(body);
+    const pole = new THREE.Mesh(
+      Assets.geo('buoyP', () => new THREE.CylinderGeometry(0.05, 0.05, 1.1, 6)),
+      Assets.lambert('buoyW', { color: 0xf4f1ea })
+    );
+    pole.position.y = 1.0;
+    g.add(pole);
+    const lamp = CarFactory.lightBox(0.16, 0.16, 0.16, 0xffe14d);
+    lamp.position.y = 1.6;
+    lamp.material.emissiveIntensity = 1.6;
+    g.add(lamp);
+    return g;
+  },
+
+  // returns { group, beam } — beam is a Group of two additive fans, rotated by updateAmbient
+  lighthouse() {
+    const g = new THREE.Group();
+    const tower = new THREE.Mesh(
+      Assets.geo('lhTower', () => new THREE.CylinderGeometry(1.5, 2.3, 15, 14)),
+      new THREE.MeshLambertMaterial({ map: Assets.lightStripeTex() })
+    );
+    tower.position.y = 7.5;
+    tower.castShadow = true;
+    g.add(tower);
+    const gallery = new THREE.Mesh(
+      Assets.geo('lhGal', () => new THREE.CylinderGeometry(1.9, 1.9, 0.4, 14)),
+      Assets.lambert('lhDark', { color: 0x2e3038 })
+    );
+    gallery.position.y = 15.2;
+    g.add(gallery);
+    const lampRoom = new THREE.Mesh(
+      Assets.geo('lhLamp', () => new THREE.CylinderGeometry(1.1, 1.1, 1.6, 10)),
+      new THREE.MeshStandardMaterial({ color: 0xfff2b8, emissive: 0xffdf80, emissiveIntensity: 1.8, roughness: 0.3 })
+    );
+    lampRoom.position.y = 16.2;
+    g.add(lampRoom);
+    const roof = new THREE.Mesh(
+      Assets.geo('lhRoof', () => new THREE.ConeGeometry(1.5, 1.3, 10)),
+      Assets.lambert('lhRed', { color: 0xd9403a })
+    );
+    roof.position.y = 17.6;
+    g.add(roof);
+    // rotating light fans
+    const beam = new THREE.Group();
+    const fanGeo = Assets.geo('lhFan', () => {
+      const geo = new THREE.PlaneGeometry(30, 3.2);
+      geo.translate(15, 0, 0); // pivot at lamp, fan reaches outward
+      return geo;
+    });
+    const fanMat = new THREE.MeshBasicMaterial({
+      map: Assets.radialSprite('rgba(255,236,170,.8)'), transparent: true, opacity: 0.4,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
+    });
+    for (const rot of [0, Math.PI]) {
+      const fan = new THREE.Mesh(fanGeo, fanMat);
+      fan.rotation.y = rot;
+      beam.add(fan);
+    }
+    beam.position.y = 16.2;
+    g.add(beam);
+    return { group: g, beam };
+  },
+
+  icePatch(r) {
+    const m = new THREE.Mesh(
+      new THREE.CircleGeometry(r, 18),
+      new THREE.MeshPhongMaterial({
+        color: 0xcfe9f8, shininess: 210, specular: 0xffffff,
+        transparent: true, opacity: 0.5,
+      })
+    );
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = 0.026;
+    return m;
+  },
 };
 
 // ============================================================
@@ -4690,19 +5060,35 @@ class Rain {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
     this.pts = new THREE.Points(geo, new THREE.PointsMaterial({
       color: 0x9db8d9, size: 0.14, transparent: true, opacity: 0.6, sizeAttenuation: true,
+      map: Assets.radialSprite('rgba(255,255,255,1)'), depthWrite: false, // soft round drops/flakes
     }));
     this.pts.frustumCulled = false;
     this.pts.visible = false;
+    this.mode = 'rain';
     scene.add(this.pts);
+  }
+  // 'rain' (fast blue streak-dots) or 'snow' (slow white drifting flakes)
+  setMode(mode) {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    const m = this.pts.material;
+    if (mode === 'snow') { m.color.set(0xffffff); m.size = 0.22; m.opacity = 0.9; }
+    else { m.color.set(0x9db8d9); m.size = 0.14; m.opacity = 0.6; }
   }
   update(dt, cx, cz) {
     if (!this.pts.visible) return;
     const pos = this.pts.geometry.attributes.position.array;
+    const snow = this.mode === 'snow';
+    const t = performance.now() / 1000;
     for (let i = 0; i < this.n; i++) {
-      pos[i * 3 + 1] -= 22 * dt;
+      pos[i * 3 + 1] -= (snow ? 2.6 + (i % 5) * 0.35 : 22) * dt;
+      if (snow) { // lazy sideways drift, phase per flake
+        pos[i * 3] += Math.sin(t * 1.2 + i * 0.7) * dt * 1.1;
+        pos[i * 3 + 2] += Math.cos(t * 0.9 + i * 1.3) * dt * 0.8;
+      }
       if (pos[i * 3 + 1] < 0) {
         pos[i * 3] = cx + rand(-40, 40);
-        pos[i * 3 + 1] = rand(20, 26);
+        pos[i * 3 + 1] = snow ? rand(12, 22) : rand(20, 26);
         pos[i * 3 + 2] = cz + rand(-40, 40);
       }
     }
@@ -4855,7 +5241,15 @@ const DISTRICTS = [
     hemi: [0xf0e4d0, 0xa89c78, 1.0], sun: [0xffe8c0, 2.3, [70, 80, 40]],
     ground: ['#c9b083', '#d6c194'], night: false,
     bWall: ['#f7ead8', '#f0dce8', '#d8ecf0', '#ffe9c8', '#e4f0dc'], bWin: '#8ab8d0',
-    houses: true, treeEvery: 15, lampEvery: 26, birds: true,
+    houses: true, treeEvery: 15, lampEvery: 26, birds: true, marina: true,
+  },
+  {
+    name: 'FROSTPEAK VILLAGE', tag: 'D6',
+    sky: ['#7fb2de', '#c2ddf1', '#f2f7fc'], fog: '#dde9f2', fogFar: 250,
+    hemi: [0xeaf4ff, 0xb0becf, 1.08], sun: [0xfff6e4, 2.2, [70, 75, 40]],
+    ground: ['#e6edf4', '#f3f8fc'], night: false,
+    bWall: ['#8a5a3c', '#7a4f34', '#9c6844', '#6e563e', '#a86e48'], bWin: '#ffd890',
+    houses: true, treeEvery: 11, lampEvery: 26, snow: true,
   },
 ];
 
@@ -5025,6 +5419,48 @@ const LEVELS = [
     segs: [{ t: 'S', len: 130 }, { t: 'X', lights: false }, { t: 'S', len: 100, zone: 'school' }, { t: 'L', r: 42, a: 90 }, { t: 'S', len: 120 }, { t: 'R', r: 40, a: 60 }, { t: 'S', len: 90 }, { t: 'X', lights: false }, { t: 'S', len: 100 }, { t: 'R', r: 40, a: 45 }, { t: 'S', len: 150 }],
     s2: 1400, s3: 2200,
   },
+  {
+    id: 19, district: 5, name: 'First Frost', veh: 'hatch', lanes: 1, snow: true, ice: 6,
+    brief: 'Overnight the village froze solid and your driveway became a luge track. Black ice doesn\'t honk before it gets you. Ease into it.',
+    par: 120, traffic: 0.45, peds: 6, park: 'parallel', margin: 2.4,
+    segs: [{ t: 'S', len: 120 }, { t: 'R', r: 40, a: 45 }, { t: 'S', len: 100 }, { t: 'L', r: 38, a: 60 }, { t: 'S', len: 90 }, { t: 'X', lights: false }, { t: 'S', len: 140 }],
+    s2: 1300, s3: 2000,
+  },
+  {
+    id: 20, district: 5, name: 'The School Run', veh: 'bus', lanes: 1, snow: true, ice: 8,
+    brief: 'Snow day was CANCELLED and nobody is happy about it, least of all the bus. Eleven icy meters of yellow through a school zone. Gently now.',
+    par: 155, traffic: 0.6, peds: 10, park: 'parallel', margin: 3.2,
+    segs: [{ t: 'S', len: 130 }, { t: 'L', r: 44, a: 60 }, { t: 'S', len: 110, zone: 'school' }, { t: 'R', r: 46, a: 90 }, { t: 'S', len: 100 }, { t: 'X', lights: false }, { t: 'S', len: 150 }],
+    s2: 1300, s3: 2050,
+  },
+  {
+    id: 21, district: 5, name: 'Powder Express', veh: 'wagon', lanes: 1, snow: true, ice: 10,
+    brief: 'Six sleds, four thermoses, one wagon, zero grip. The kids rated your last stop "meh" online. The mountain is watching. Deliver.',
+    par: 135, traffic: 0.7, peds: 9, park: 'bay', margin: 1.4, cones: 8,
+    segs: [{ t: 'S', len: 110 }, { t: 'R', r: 36, a: 90 }, { t: 'S', len: 100 }, { t: 'L', r: 36, a: 60 }, { t: 'S', len: 90 }, { t: 'L', r: 38, a: 45 }, { t: 'S', len: 140 }],
+    s2: 1350, s3: 2100,
+  },
+  {
+    id: 22, district: 5, name: 'Avalanche Avenue', veh: 'monster', lanes: 2, snow: true, ice: 12,
+    brief: 'The plow broke. The village called the next best thing: you, and wheels taller than the snowbanks. Big tires, bigger ice, biggest responsibility.',
+    par: 145, traffic: 0.8, peds: 8, park: 'bay', margin: 1.7, cones: 6,
+    segs: [{ t: 'S', len: 120 }, { t: 'X', lights: false }, { t: 'S', len: 100 }, { t: 'R', r: 42, a: 90 }, { t: 'S', len: 110 }, { t: 'L', r: 42, a: 45 }, { t: 'S', len: 150 }],
+    s2: 1300, s3: 2000,
+  },
+  {
+    id: 23, district: 5, name: 'Cold Scoop', veh: 'icecream', lanes: 2, time: 'dusk', snow: true, ice: 10,
+    brief: 'Selling ice cream in a snowstorm at dusk. Your accountant quit. The jingle echoes weirdly off the ice. And yet — a line is forming.',
+    par: 150, traffic: 0.9, peds: 13, park: 'parallel', margin: 1.6,
+    segs: [{ t: 'S', len: 130 }, { t: 'L', r: 40, a: 45 }, { t: 'S', len: 100 }, { t: 'X', lights: false }, { t: 'S', len: 90 }, { t: 'R', r: 40, a: 90 }, { t: 'S', len: 150 }],
+    s2: 1350, s3: 2100,
+  },
+  {
+    id: 24, district: 5, name: 'Aurora Nights', veh: 'limo', lanes: 2, time: 'night', snow: true, ice: 12,
+    brief: 'The northern lights came out and so did everyone who owns a camera. Nine meters of limousine, a sky on fire, and one impossibly tight spot at the lookout.',
+    par: 205, traffic: 1.1, peds: 12, park: 'parallel', margin: 1.3, cones: 6,
+    segs: [{ t: 'S', len: 130 }, { t: 'X', lights: false }, { t: 'S', len: 110 }, { t: 'R', r: 44, a: 90 }, { t: 'S', len: 100 }, { t: 'L', r: 40, a: 60 }, { t: 'S', len: 90 }, { t: 'L', r: 40, a: 45 }, { t: 'S', len: 160 }],
+    s2: 1400, s3: 2250,
+  },
 ];
 
 // Shared seeded-mission generator: dailies, weeklies and friend challenges
@@ -5059,12 +5495,14 @@ function seededMission(seedStr, opts) {
   dist += 140;
   const park = rng() < 0.5 ? 'parallel' : 'bay';
   const margin = park === 'parallel' ? 1.4 + rng() * 1.2 : 1.2 + rng() * 0.8;
+  const snowD = !!DISTRICTS[district].snow;
   return {
     district, veh, lanes,
     par: Math.round(dist / 9 + 55) + (big ? 25 : 0),
     traffic: (big ? 0.7 : 0.5) + rng() * 1.0, peds: 6 + Math.floor(rng() * 8),
     park, margin, cones: rng() < (big ? 0.7 : 0.4) ? 6 : 0,
-    rain: big ? rng() < 0.35 : (district === 2 && rng() < 0.5),
+    rain: snowD ? false : (big ? rng() < 0.35 : (district === 2 && rng() < 0.5)),
+    snow: snowD || undefined, ice: snowD ? (big ? 12 : 8) : undefined,
     time: big && rng() < 0.4 ? 'night' : undefined,
     segs, s2: big ? 1450 : 1300, s3: big ? 2300 : 2000, seed: seedStr,
   };
@@ -5147,7 +5585,9 @@ function freeRoamLevel(cfg) {
     brief: 'No timer. No fail. Just you, the open road, and a suspicious amount of loose change floating over it. Park whenever you reach the bay.',
     par: 9999, traffic: 0.45 + rng() * 0.5, peds: 8, park: 'bay', margin: 3.2,
     segs, s2: 900, s3: 1500, free: true,
-    rain: cfg.wx ? cfg.wx === 'rain' : (district === 2 && rng() < 0.4),
+    rain: DISTRICTS[district].snow ? false : (cfg.wx ? cfg.wx === 'rain' : (district === 2 && rng() < 0.4)),
+    snow: DISTRICTS[district].snow || undefined,
+    ice: DISTRICTS[district].snow ? 8 : undefined,
     time: cfg.time, seed: seedStr,
   };
 }
@@ -5171,6 +5611,7 @@ class World {
     this.potholes = [];
     this.bumps = [];
     this.puddles = [];
+    this.icePatches = [];                     // {x,y,r} — low-grip zones (snow district)
     this.lights = [];                         // traffic-light controllers per intersection
     this.trafficLightMeshes = [];
     this.rng = mulberry32((level.seed || level.id * 7919) >>> 0);
@@ -5516,6 +5957,31 @@ class World {
     // ---------- buildings, trees, lamps ----------
     this.buildScenery();
 
+    // ---------- district set pieces ----------
+    if (D.marina) this.buildWaterfront();
+    if (D.snow) this.buildWinter();
+
+    // ---------- gliding birds (day districts flagged birds, plus the marina) ----------
+    this.gulls = null;
+    if (D.birds && !night) {
+      this.gulls = [];
+      const gtex = Assets.gullTex();
+      for (let i = 0; i < 7; i++) {
+        const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: gtex, transparent: true, opacity: 0.85, depthWrite: false, fog: false,
+        }));
+        const sc = this.rr(1.6, 2.6);
+        spr.scale.set(sc, sc * 0.6, 1);
+        this.group.add(spr);
+        const cs = this.rr(20, route.length - 20);
+        const cp = routePos(route, cs, this.rr(-60, 60));
+        this.gulls.push({
+          spr, cx: cp.x, cz: cp.y, r: this.rr(14, 34), alt: this.rr(18, 38),
+          ph: this.rr(0, TAU), sp: this.rr(0.14, 0.3) * (this.r() < 0.5 ? -1 : 1),
+        });
+      }
+    }
+
     // ---------- hazards from level ----------
     if (L.cones) {
       // slalom cones in player lane on a straight mid-route
@@ -5640,15 +6106,171 @@ class World {
     this.bumps.push({ s, cd: 0 });
   }
 
+  // ---------- SUNSET MARINA: ocean, beach, pier, boats, lighthouse ----------
+  // The waterfront hugs the LEFT (-t) side of the route in contiguous runs;
+  // runs are broken wherever the route doubles back over the water band.
+  buildWaterfront() {
+    const route = this.route, RW = this.RW;
+    const wallT = RW + 0.35 + SIDEWALK_W;
+    // water sits a hair ABOVE the giant ground plane (y -0.01) so it reads,
+    // but below the sand (0.014) and road (0.02)
+    const waterIn = wallT + 8, waterOut = wallT + 240, waterY = 0.004;
+    // shared animated water material
+    const wtex = Assets.waterTex();
+    wtex.repeat.set(7, 1);
+    this.waterTexs = [wtex];
+    const waterMat = new THREE.MeshPhongMaterial({
+      map: wtex, color: 0xdff2ff, shininess: 170, specular: 0xa8d8f0,
+      transparent: true, opacity: 0.96,
+    });
+    const sandMat = new THREE.MeshLambertMaterial({ map: Assets.grassTexture('#e2cd9c', '#d6bd88') });
+    // find clear runs
+    const runs = [];
+    let runStart = null;
+    const probeOk = (s) => {
+      const pA = routePos(route, s, -(wallT + 20));
+      const pB = routePos(route, s, -(wallT + 60));
+      return this.clearOfRoad(pA.x, pA.y, wallT + 20, 12) && this.clearOfRoad(pB.x, pB.y, wallT + 60, 52);
+    };
+    for (let s = 0; s <= route.length; s += 6) {
+      if (s < route.length && probeOk(s)) {
+        if (runStart === null) runStart = s;
+      } else if (runStart !== null) {
+        if (s - runStart > 36) runs.push([runStart, s - 6]);
+        runStart = null;
+      }
+    }
+    // a run reaching the end of the route never hits the else branch above
+    if (runStart !== null && route.length - runStart > 36) runs.push([runStart, route.length - 2]);
+    this.boats = [];
+    let pierBuilt = false, lhBuilt = false;
+    for (const [s0, s1] of runs) {
+      // beach strip easing down to the waterline, then the water sheet
+      this.ribbon(s0, s1, -(wallT + 2.2), -(waterIn + 2), 0.014, sandMat, 10, waterY - 0.002);
+      this.ribbon(s0, s1, -waterIn, -waterOut, waterY, waterMat, 20);
+      // boats bobbing offshore
+      for (let s = s0 + 18; s < s1 - 14; s += this.rr(38, 62)) {
+        const t = -(wallT + this.rr(18, 46));
+        const p = routePos(route, s, t);
+        if (!this.clearOfRoad(p.x, p.y, Math.abs(t), 10)) continue;
+        const kind = this.r() < 0.35 ? 'yacht' : 'sail';
+        const b = PropFactory.boat(kind);
+        this.place(b, p.x, p.y, this.rr(0, TAU), 0.02);
+        this.boats.push({ g: b, base: 0.02, ph: this.rr(0, TAU) });
+      }
+      // buoys near the swim line
+      for (let s = s0 + 10; s < s1 - 8; s += this.rr(30, 46)) {
+        const p = routePos(route, s, -(wallT + this.rr(10, 14)));
+        const bu = PropFactory.buoy();
+        this.place(bu, p.x, p.y, 0, -0.02);
+        this.boats.push({ g: bu, base: -0.02, ph: this.rr(0, TAU) });
+      }
+      // one wooden pier out into the bay
+      if (!pierBuilt && s1 - s0 > 80) {
+        pierBuilt = true;
+        const ps = (s0 + s1) / 2;
+        const pc = routePos(route, ps, -(wallT + 16)); // deck center, 26m long over t 3..29
+        const deck = new THREE.Mesh(
+          new THREE.BoxGeometry(26, 0.3, 3.4),
+          new THREE.MeshLambertMaterial({ map: Assets.woodTex() })
+        );
+        deck.castShadow = true;
+        // long axis along the t (offshore) direction
+        this.place(deck, pc.x, pc.y, pc.h + Math.PI / 2, 0.55);
+        // piles marching out under the deck edges
+        for (let k = 0; k <= 5; k++) {
+          for (const so of [-1.4, 1.4]) {
+            const pp = routePos(route, ps + so, -(wallT + 4 + k * 4.8));
+            const pile = new THREE.Mesh(
+              Assets.geo('pierPile', () => new THREE.CylinderGeometry(0.14, 0.16, 1.8, 7)),
+              PropFactory.woodMat()
+            );
+            pile.position.set(pp.x, -0.15, pp.y);
+            this.group.add(pile);
+          }
+        }
+        // moored sailboat at the pier tip
+        const tipP = routePos(route, ps + 5, -(wallT + 28));
+        const moored = PropFactory.boat('sail');
+        this.place(moored, tipP.x, tipP.y, pc.h + Math.PI / 2 + this.rr(-0.3, 0.3), 0.02);
+        this.boats.push({ g: moored, base: 0.02, ph: this.rr(0, TAU) });
+      }
+      // lighthouse guards the last stretch of water before the destination
+      if (!lhBuilt && s1 > route.length * 0.6) {
+        lhBuilt = true;
+        const ls = Math.min(s1 - 12, route.length - 50);
+        const lp = routePos(route, ls, -(wallT + 24));
+        const lh = PropFactory.lighthouse();
+        this.place(lh.group, lp.x, lp.y, 0, 0);
+        this.lhBeam = lh.beam;
+      }
+    }
+  }
+
+  // ---------- FROSTPEAK: ice patches, snowmen, aurora at night ----------
+  buildWinter() {
+    const route = this.route, RW = this.RW, L = this.level, D = this.dist;
+    const wallT = RW + 0.35 + SIDEWALK_W;
+    // ice patches — the road hazard that defines the district
+    const nIce = L.ice !== undefined ? L.ice : 8;
+    for (let i = 0; i < nIce; i++) {
+      const s = this.rr(45, route.length - 70);
+      if (this.nearInter(s, 10)) continue;
+      const t = this.rr(-RW + 1.3, RW - 1.3);
+      const p = routePos(route, s, t);
+      const r = this.rr(1.7, 3.0);
+      const ice = PropFactory.icePatch(r);
+      ice.position.set(p.x, 0.026, p.y);
+      this.group.add(ice);
+      this.icePatches.push({ x: p.x, y: p.y, r });
+    }
+    // snowmen guarding front yards
+    for (let s = 30; s < route.length - 40; s += this.rr(55, 85)) {
+      if (this.nearInter(s, 12)) continue;
+      const sgn = this.r() < 0.5 ? 1 : -1;
+      const t = sgn * (wallT + this.rr(1.0, 3.5));
+      const p = routePos(route, s, t);
+      if (!this.clearOfRoad(p.x, p.y, Math.abs(t), 2)) continue;
+      const sm = PropFactory.snowman();
+      sm.scale.setScalar(this.rr(0.8, 1.15));
+      this.place(sm, p.x, p.y, this.rr(0, TAU));
+      this.statics.push({ x: p.x, y: p.y, h: 0, hl: 0.5, hw: 0.5, type: 'snowman' });
+    }
+    // aurora curtains ripple across the night sky
+    this.auroras = null;
+    if (D.night || this.level.time === 'night') {
+      this.auroras = [];
+      const mid = route.sampleAt(route.length / 2);
+      for (let i = 0; i < 3; i++) {
+        const tex = Assets.auroraTex().clone();
+        tex.needsUpdate = true;
+        tex.repeat.set(this.rr(0.8, 1.4), 1);
+        const mat = new THREE.MeshBasicMaterial({
+          map: tex, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+        });
+        const mesh = new THREE.Mesh(
+          new THREE.CylinderGeometry(560 + i * 70, 560 + i * 70, 200 + i * 40, 40, 1, true, this.rr(0, TAU), this.rr(1.4, 2.2)),
+          mat
+        );
+        mesh.position.set(mid.x, 210 + i * 45, mid.y);
+        this.group.add(mesh);
+        this.auroras.push({ mesh, sp: this.rr(0.004, 0.012) * (i % 2 === 0 ? 1 : -1), ph: this.rr(0, TAU) });
+      }
+    }
+  }
+
   buildScenery() {
     const D = this.dist, route = this.route, RW = this.RW;
     const wallT = RW + 0.35 + SIDEWALK_W;
+    this.chimSmoke = []; // cozy chimney smoke (snow district)
     // ---- buildings ----
     if (D.houses) {
       // suburbs: cute houses with pyramid roofs
       for (let s = 12; s < route.length - 30; s += 17) {
         if (this.nearInter(s, 20)) continue;
         for (const sgn of [1, -1]) {
+          if (D.marina && sgn === -1) continue; // ocean side stays open water
           if (this.r() < 0.18) continue;
           const depth = this.rr(6, 8), wide = this.rr(7, 10);
           const hT = wallT + depth / 2 + 1.5;
@@ -5666,7 +6288,8 @@ class World {
           body.receiveShadow = true;
           g.add(body);
           // shingled gable roof with eave overhang (ridge parallel to street)
-          const shingC = pick(['#7a4438', '#5c4632', '#43507a', '#4c6244', '#585450']);
+          // snow district: every roof carries a clean white blanket
+          const shingC = D.snow ? pick(['#e9eff7', '#e2eaf3', '#eef3f9']) : pick(['#7a4438', '#5c4632', '#43507a', '#4c6244', '#585450']);
           const gableC = '#' + new THREE.Color(wallC).multiplyScalar(0.92).getHexString();
           const roof = PropFactory.gableRoof(wide + 0.8, depth + 0.9, this.rr(1.5, 2.1), shingC, gableC);
           roof.position.y = bodyH - 0.02;
@@ -5722,15 +6345,32 @@ class World {
               }
             }
           }
-          if (this.r() < 0.4) {
+          let chimLocal = null;
+          if (this.r() < (D.snow ? 0.85 : 0.4)) {
             const chim = CarFactory.boxMesh(0.7, 1.8, 0.7, 0x9a5a44);
             chim.position.set(wide * 0.28, bodyH + 1.1, depth * 0.15);
             g.add(chim);
             const cap = CarFactory.boxMesh(0.82, 0.1, 0.82, 0x6e6a64);
             cap.position.set(wide * 0.28, bodyH + 2.02, depth * 0.15);
             g.add(cap);
+            chimLocal = [wide * 0.28, bodyH + 2.1, depth * 0.15];
           }
           this.place(g, p.x, p.y, p.h);
+          // cozy smoke drifting from cabin chimneys
+          if (D.snow && chimLocal && this.chimSmoke.length < 18) {
+            const [lx, ly, lz] = chimLocal;
+            const ch = Math.cos(p.h), sh = Math.sin(p.h);
+            const wx = p.x + lx * ch - lz * sh;
+            const wz = p.y + lx * sh + lz * ch;
+            for (let k = 0; k < 2; k++) {
+              const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: Assets.radialSprite('rgba(225,230,240,.55)'),
+                transparent: true, opacity: 0, depthWrite: false,
+              }));
+              this.group.add(spr);
+              this.chimSmoke.push({ spr, x: wx, y: ly, z: wz, t: k * 0.5, sp: this.rr(0.14, 0.22), ph: this.rr(0, TAU) });
+            }
+          }
           this.statics.push({ x: p.x, y: p.y, h: p.h, hl: wide / 2, hw: depth / 2, type: 'building' });
           // front yard dressing: bushes, flower beds, mailbox, trash bin
           if (this.r() < 0.5) {
@@ -5886,7 +6526,7 @@ class World {
           const p = routePos(route, s + this.rr(-3, 3), sgn * (wallT - 0.9));
           if (!this.clearOfRoad(p.x, p.y, wallT - 0.9, 2)) continue;
           const tint = this.dist.weird ? pick([0xb85ac0, 0xe08a3a, 0x5abfc0]) : pick([0x4a9c4a, 0x5aa855, 0x3f8f46, 0x6aae4f, 0x578f3e, 0x72a844]);
-          const tree = PropFactory.tree(this.rr(0.8, 1.3), tint);
+          const tree = D.snow ? PropFactory.pine(this.rr(0.8, 1.5), true) : PropFactory.tree(this.rr(0.8, 1.3), tint);
           this.place(tree, p.x, p.y, this.rr(0, TAU));
           this.statics.push({ x: p.x, y: p.y, h: 0, hl: 0.25, hw: 0.25, type: 'tree' });
         }
@@ -6093,6 +6733,83 @@ class World {
       }
       p.needsUpdate = true;
       this.fireflies.material.opacity = 0.55 + Math.sin(t * 2.4) * 0.35;
+    }
+    // marina: rolling water, bobbing hulls, sweeping lighthouse
+    if (this.waterTexs) {
+      for (const wt of this.waterTexs) {
+        wt.offset.y -= dt * 0.05;
+        wt.offset.x = Math.sin(t * 0.35) * 0.03;
+      }
+    }
+    if (this.boats) {
+      for (const b of this.boats) {
+        b.g.position.y = b.base + Math.sin(t * 0.85 + b.ph) * 0.12;
+        b.g.rotation.z = Math.sin(t * 0.65 + b.ph) * 0.045;
+        b.g.rotation.x = Math.sin(t * 0.5 + b.ph * 2) * 0.03;
+      }
+    }
+    if (this.lhBeam) this.lhBeam.rotation.y = t * 1.1;
+    // gliding birds: lazy circles, wing-flap via vertical squash
+    if (this.gulls) {
+      for (const gl of this.gulls) {
+        const a = t * gl.sp * TAU * 0.16 + gl.ph;
+        gl.spr.position.set(
+          gl.cx + Math.cos(a) * gl.r,
+          gl.alt + Math.sin(t * 0.7 + gl.ph) * 1.6,
+          gl.cz + Math.sin(a) * gl.r);
+        const flap = 0.6 + Math.abs(Math.sin(t * 6 + gl.ph)) * 0.4;
+        gl.spr.scale.y = gl.spr.scale.x * 0.6 * flap;
+      }
+    }
+    // frostpeak: aurora shimmer + chimney smoke
+    if (this.auroras) {
+      for (const a of this.auroras) {
+        a.mesh.material.map.offset.x += a.sp * dt * 8;
+        a.mesh.material.opacity = 0.42 + Math.sin(t * 0.45 + a.ph) * 0.2;
+        a.mesh.rotation.y += a.sp * dt * 0.5;
+      }
+    }
+    if (this.chimSmoke) {
+      for (const s of this.chimSmoke) {
+        s.t += dt * s.sp;
+        if (s.t > 1) s.t -= 1;
+        const k = s.t;
+        s.spr.position.set(s.x + Math.sin(k * 6 + s.ph) * (0.3 + k * 0.9), s.y + k * 5.2, s.z);
+        s.spr.material.opacity = 0.5 * Math.sin(Math.min(1, k * 4) * Math.PI / 2) * (1 - k);
+        const sc = 0.9 + k * 2.6;
+        s.spr.scale.set(sc, sc, 1);
+      }
+    }
+    // night skies: the occasional shooting star
+    if (this.dist.stars) {
+      if (!this.shootSpr) {
+        this.shootSpr = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: Assets.radialSprite('rgba(235,242,255,.95)'), transparent: true, opacity: 0,
+          depthWrite: false, fog: false, blending: THREE.AdditiveBlending,
+        }));
+        this.shootSpr.scale.set(11, 1.1, 1);
+        this.group.add(this.shootSpr);
+        this._shootT = this.rr(3, 7);
+        this._shootLife = 0;
+      }
+      if (this._shootLife > 0) {
+        this._shootLife -= dt;
+        this.shootSpr.position.x += this._shootVx * dt;
+        this.shootSpr.position.y += this._shootVy * dt;
+        this.shootSpr.material.opacity = Math.max(0, Math.min(1, this._shootLife * 2.2)) * 0.9;
+        if (this._shootLife <= 0) this._shootT = this.rr(5, 12);
+      } else {
+        this._shootT -= dt;
+        if (this._shootT <= 0) {
+          const mid = this.route.sampleAt(this.route.length / 2);
+          const a = this.rr(0, TAU);
+          this.shootSpr.position.set(mid.x + Math.cos(a) * this.rr(200, 500), this.rr(280, 460), mid.y + Math.sin(a) * this.rr(200, 500));
+          this._shootVx = this.rr(-1, 1) < 0 ? -this.rr(120, 200) : this.rr(120, 200);
+          this._shootVy = -this.rr(40, 80);
+          this.shootSpr.material.rotation = Math.atan2(-this._shootVy, this._shootVx);
+          this._shootLife = 0.8;
+        }
+      }
     }
   }
 
@@ -7129,7 +7846,8 @@ class Game {
     const start = routePos(this.world.route, 14, (level.lanes - 0.5) * LANE_W);
     this.player = new Vehicle3D(this.vehKey, start.x, start.y, start.h, this.scene);
     this.playerProj = this.world.route.project(start.x, start.y);
-    this.rain.pts.visible = !!level.rain;
+    this.rain.setMode(level.snow ? 'snow' : 'rain');
+    this.rain.pts.visible = !!(level.rain || level.snow);
     // night/dusk headlights — bright, wide, long, plus a soft near-field
     // fill so the road directly ahead always reads clearly in the dark
     if (this.world.dist.night || level.time === 'dusk') {
@@ -7383,8 +8101,18 @@ class Game {
     const road = absT < RW;
     const sidewalk = absT >= RW && absT < RW + 0.35 + SIDEWALK_W;
     const spd = this.playerSpeedAbs;
-    // surface grip
-    this.player.surfaceGrip = road || sidewalk ? (this.level.rain ? 0.78 : 1) : 0.55;
+    // surface grip: rain slicks the road, snow more so, off-road is loose
+    this.player.surfaceGrip = road || sidewalk ? (this.level.rain ? 0.78 : (this.level.snow ? 0.88 : 1)) : 0.55;
+    // black ice: near-zero lateral grip while any wheel is over a patch
+    this._onIce = false;
+    for (const ice of this.world.icePatches) {
+      if (dist2(ice.x, ice.y, this.player.x, this.player.y) < (ice.r + 0.5) * (ice.r + 0.5)) {
+        this.player.surfaceGrip *= 0.3;
+        this._onIce = true;
+        if (spd > 5 && chance(0.05)) this.comic.spawn('ICE!', this.player.x, 2.2, this.player.y, '#9fdcff');
+        break;
+      }
+    }
     // curb hop
     const wasRoad = Math.abs(this._lastT !== undefined ? this._lastT : proj.t) < RW;
     if (road !== wasRoad && spd > 1.5 && this.curbCd <= 0 && this.state !== 'settle') {
@@ -9002,7 +9730,7 @@ class UIManager {
     // weekly gauntlet card
     const wlvl = weeklyLevel();
     const wk = S.weekly[weekKey()];
-    $('weekly-desc').textContent = `${VEH_DEFS[wlvl.veh].name} · ${DISTRICTS[wlvl.district].name.toLowerCase()} · ${(Math.round(compileRouteLength(wlvl.segs) / 100) / 10)} km${wlvl.rain ? ' · rain' : ''}${wlvl.time === 'night' ? ' · night' : ''}`;
+    $('weekly-desc').textContent = `${VEH_DEFS[wlvl.veh].name} · ${DISTRICTS[wlvl.district].name.toLowerCase()} · ${(Math.round(compileRouteLength(wlvl.segs) / 100) / 10)} km${wlvl.rain ? ' · rain' : ''}${wlvl.snow ? ' · snow' : ''}${wlvl.time === 'night' ? ' · night' : ''}`;
     $('weekly-best').textContent = wk ? `Your week's best: ${wk.score} pts ${'★'.repeat(wk.stars)}` : 'Not attempted yet — all week to set a score';
   }
   shareChallenge() {
