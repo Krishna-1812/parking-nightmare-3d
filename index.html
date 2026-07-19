@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Parking Nightmare 3D</title>
+<meta name="description" content="Drive, dodge, park — don't go viral. A chaotic 3D parking game that plays anywhere.">
+<meta name="theme-color" content="#12131a">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Parking N3D">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -154,6 +163,8 @@ body.rm #press-any{animation:none}
 .d0{background:linear-gradient(120deg,#e8f6e4,#d5ecd0)} .d1{background:linear-gradient(120deg,#dfe9ff,#cfd9f5)}
 .d2{background:linear-gradient(120deg,#2e3350,#3a3f63);border-color:#191b28} .d2 h3{color:#fff}
 .d3{background:linear-gradient(120deg,#ffe3d0,#f7c7ec)}
+.d4{background:linear-gradient(120deg,#ffeed6,#ffd9c2)}
+.node:hover:not(.locked){transform:translateY(-3px);box-shadow:0 9px 0 rgba(43,45,54,.22)}
 .nodes{display:flex;gap:14px;flex-wrap:wrap}
 .node{
   width:158px;background:var(--paper);border:3px solid var(--ink);border-radius:14px;padding:10px 12px;cursor:pointer;
@@ -319,6 +330,63 @@ body.rm #shame-wrap.pulse #shame-tube{animation:none}
 #tilt-dot{position:absolute;left:50%;top:50%;width:30px;height:30px;border-radius:50%;background:linear-gradient(180deg,#ffd23e,#f0a51f);
   border:2px solid var(--ink);transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,.35)}
 #tilt-ind.flash{background:rgba(255,210,62,.3)}
+
+/* ---------- BOOT SPLASH ---------- */
+#boot{position:fixed;inset:0;z-index:100;background:radial-gradient(120% 120% at 50% 20%,#232a44 0%,#12131a 62%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .55s ease}
+#boot.bye{opacity:0;pointer-events:none}
+#boot .bl1{font-family:var(--font);font-size:34px;font-weight:800;color:#fff;letter-spacing:2px;text-shadow:0 4px 0 rgba(0,0,0,.35)}
+#boot .bl1 em{font-style:normal;color:var(--coral)}
+#boot .bspin{width:52px;height:52px;border-radius:50%;border:5px solid rgba(255,255,255,.14);border-top-color:var(--gold);animation:bspin 1s linear infinite}
+#boot .bhint{font-family:var(--font);font-size:13px;font-weight:700;color:rgba(255,255,255,.45);letter-spacing:1px}
+@keyframes bspin{to{transform:rotate(360deg)}}
+
+/* ---------- TUTORIAL CARD ---------- */
+#tut-card{position:absolute;top:64px;left:50%;transform:translateX(-50%);z-index:9;width:min(480px,92vw);
+  background:var(--glass);border:1.5px solid var(--glass-b);border-radius:16px;padding:10px 14px 12px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 10px 26px rgba(0,0,0,.4);
+  display:flex;align-items:center;gap:12px;color:#fff}
+#tut-card.hidden{display:none}
+#tut-card.pulse{animation:tutIn .45s cubic-bezier(.34,1.56,.64,1)}
+@keyframes tutIn{0%{transform:translateX(-50%) scale(.85);opacity:0}100%{transform:translateX(-50%) scale(1);opacity:1}}
+#tut-icon{font-size:30px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.4))}
+#tut-text{flex:1;font-size:14.5px;font-weight:700;line-height:1.25}
+#tut-dots{position:absolute;top:-7px;left:50%;transform:translateX(-50%);display:flex;gap:5px}
+#tut-dots i{width:10px;height:10px;border-radius:50%;background:#3a3f52;border:2px solid var(--ink);display:block}
+#tut-dots i.done{background:var(--green)}
+#tut-dots i.now{background:var(--gold);animation:dotPul 1s ease infinite}
+@keyframes dotPul{50%{transform:scale(1.35)}}
+#tut-skip{background:none;border:1.5px solid rgba(255,255,255,.3);border-radius:9px;color:rgba(255,255,255,.65);
+  font-family:var(--font);font-weight:700;font-size:11px;padding:3px 9px;cursor:pointer}
+
+/* ---------- WEEKLY + CHALLENGE (daily hub) ---------- */
+#daily-streak{font-size:13.5px;font-weight:700;color:var(--ink2);background:#fff3dd;border:2px solid var(--gold-d);
+  border-radius:11px;padding:5px 10px;margin:6px 0}
+#weekly-card{background:linear-gradient(120deg,#2e3350,#453a63);border:3px solid var(--ink);border-radius:14px;
+  padding:10px 14px;margin:10px 0 4px;color:#fff;text-align:left;position:relative;overflow:hidden}
+#weekly-card:before{content:'';position:absolute;inset:0;background:radial-gradient(80% 140% at 100% 0%,rgba(255,194,62,.22),transparent 60%)}
+#weekly-card h3{font-size:17px;margin:0 0 2px;letter-spacing:.5px}
+#weekly-desc{font-size:12.5px;font-weight:700;color:rgba(255,255,255,.72)}
+#weekly-best{font-size:12.5px;font-weight:800;color:var(--gold);margin-top:3px}
+#weekly-play{position:absolute;right:10px;top:50%;transform:translateY(-50%)}
+#chal-row{display:flex;gap:8px;margin-top:10px;align-items:center}
+#chal-code{flex:1;font-family:ui-monospace,Consolas,monospace;font-size:14px;font-weight:700;border:2.5px solid var(--ink);
+  border-radius:11px;padding:7px 10px;background:var(--paper);color:var(--ink);min-width:0}
+#chal-code:focus{outline:none;border-color:var(--blue)}
+
+/* ---------- title polish: logo shine + install ---------- */
+#logo .l2{position:relative;overflow:hidden}
+#logo .l2:after{content:'';position:absolute;top:0;bottom:0;width:34%;left:-40%;
+  background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.38) 50%,transparent 100%);
+  animation:shine 5.5s ease-in-out infinite}
+@keyframes shine{0%,72%{left:-40%}88%,100%{left:130%}}
+body.rm #logo .l2:after{animation:none}
+#btn-install{border-color:var(--green)}
+
+/* ---------- privacy ---------- */
+#privacy-panel{max-width:560px;text-align:left}
+#privacy-panel p{font-size:14.5px;line-height:1.5;margin:8px 0;color:var(--ink2);font-weight:600}
+#privacy-panel b{color:var(--ink)}
 
 /* ---------- touch-mode HUD layout ---------- */
 body.touch-mode .hbtn{width:54px;height:54px;font-size:22px}
@@ -530,6 +598,11 @@ body.rm #motes span{animation:none;display:none}
 </style>
 </head>
 <body>
+<div id="boot">
+  <div class="bl1">PARKING <em>NIGHTMARE</em> 3D</div>
+  <div class="bspin"></div>
+  <div class="bhint">building your nightmare…</div>
+</div>
 <div id="app">
   <canvas id="game"></canvas>
   <div id="vignette"></div>
@@ -579,6 +652,12 @@ body.rm #motes span{animation:none;display:none}
     <div id="threshold-banner"></div>
     <div id="zone-banner"></div>
     <div id="tut-tip" class="hidden"></div>
+    <div id="tut-card" class="hidden">
+      <div id="tut-dots"></div>
+      <span id="tut-icon">🚗</span>
+      <div id="tut-text"></div>
+      <button id="tut-skip">skip</button>
+    </div>
   </div>
 
   <!-- ============ TOUCH ============ -->
@@ -637,10 +716,11 @@ body.rm #motes span{animation:none;display:none}
         <button class="btn" data-menu="settings">⚙️ &nbsp;Settings</button>
         <button class="btn" data-menu="howto">❓ &nbsp;How to Play</button>
         <button class="btn" data-menu="credits">🎬 &nbsp;Credits</button>
+        <button class="btn hidden" id="btn-install">📲 &nbsp;Install App</button>
       </div>
     </div>
     <div id="cat">🐈‍⬛</div>
-    <div id="title-footer">v2.0 — honk responsibly &nbsp;·&nbsp; <a id="play-classic">play the 2D classic</a></div>
+    <div id="title-footer">v3.0 — honk responsibly &nbsp;·&nbsp; <a id="play-classic">play the 2D classic</a> &nbsp;·&nbsp; <a id="open-privacy">privacy</a></div>
   </div>
 
   <!-- ============ MISSION SELECT ============ -->
@@ -738,6 +818,7 @@ body.rm #motes span{animation:none;display:none}
       <div id="res-btns">
         <button class="btn small" id="res-replay">🎬 Replay</button>
         <button class="btn small" id="res-photo">📸 Postcard</button>
+        <button class="btn small" id="res-challenge">⚔️ Challenge</button>
         <button class="btn small" id="res-retry">↺ Retry</button>
         <button class="btn small" id="res-map">Map</button>
         <button class="btn primary small" id="res-next">Next →</button>
@@ -778,6 +859,7 @@ body.rm #motes span{animation:none;display:none}
       <div class="set-row"><label>Tilt steering (mobile)</label><div class="toggle on" id="set-tilt" tabindex="0" role="switch" aria-checked="true"></div></div>
       <div class="set-row"><label>Force touch controls</label><div class="toggle" id="set-touch" tabindex="0" role="switch" aria-checked="false"></div></div>
       <div class="set-row"><label>Ice cream jingle</label><div class="toggle on" id="set-jingle" tabindex="0" role="switch" aria-checked="true"></div></div>
+      <div class="set-row"><label>Vibration (mobile)</label><div class="toggle on" id="set-vib" tabindex="0" role="switch" aria-checked="true"></div></div>
       <details style="margin-top:8px">
         <summary style="font-weight:800;cursor:pointer;font-size:16px">Controls</summary>
         <table id="controls-table">
@@ -791,9 +873,26 @@ body.rm #motes span{animation:none;display:none}
           <tr><td>Pause</td><td><kbd>P</kbd> / <kbd>Esc</kbd></td></tr>
         </table>
       </details>
-      <div style="text-align:center;margin-top:14px">
+      <div style="text-align:center;margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button class="btn small" id="set-bug">🐞 Copy Bug Report</button>
         <button class="btn small" id="set-reset" style="background:#ffd9d4">🗑 Reset Save Data</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ============ PRIVACY ============ -->
+  <div id="screen-privacy" class="screen">
+    <div class="backdrop"></div>
+    <div class="panel card" id="privacy-panel">
+      <div class="screen-title-bar" style="margin-bottom:8px">
+        <button class="btn small back-btn" data-back>← Back</button>
+        <h2 style="color:var(--ink);text-shadow:none">Privacy</h2>
+      </div>
+      <p><b>Everything stays on your device.</b> Your progress, scores, streaks and settings live in your browser's local storage — nothing is uploaded anywhere, ever.</p>
+      <p><b>No accounts. No tracking. No ads.</b> The game has no analytics, no cookies, no third-party scripts, and never asks for personal information.</p>
+      <p><b>Motion &amp; vibration</b> are used only for tilt steering and gameplay feedback, only while you play, and can be switched off in Settings.</p>
+      <p><b>Sharing is manual.</b> Daily results and friend-challenge codes are only copied to your clipboard when you tap Share — you decide who sees them.</p>
+      <p><b>Deleting your data:</b> Settings → Reset Save Data wipes everything. Uninstalling or clearing site data does the same.</p>
     </div>
   </div>
 
@@ -823,11 +922,22 @@ body.rm #motes span{animation:none;display:none}
       </div>
       <div id="daily-date">2026-07-13</div>
       <div id="daily-desc"></div>
+      <div id="daily-streak"></div>
       <h3 style="font-size:16px;margin:6px 0 2px">Today's Local Leaderboard</h3>
       <div id="daily-board"></div>
       <div style="display:flex;gap:10px;justify-content:center;margin-top:6px">
         <button class="btn small" id="daily-share">📋 Share Result</button>
         <button class="btn primary" id="daily-play">Attempt →</button>
+      </div>
+      <div id="weekly-card">
+        <h3>🗓️ WEEKLY GAUNTLET</h3>
+        <div id="weekly-desc"></div>
+        <div id="weekly-best"></div>
+        <button class="btn small gold" id="weekly-play">Attempt →</button>
+      </div>
+      <div id="chal-row">
+        <input id="chal-code" placeholder="⚔️ paste a friend's challenge code…" spellcheck="false" autocomplete="off">
+        <button class="btn small primary" id="chal-go">Fight</button>
       </div>
     </div>
   </div>
@@ -965,6 +1075,38 @@ function todayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+function dateKeyOffset(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function weekKey() {
+  // ISO week: Thursday of the current week determines the year/week number
+  const d = new Date();
+  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day = (t.getDay() + 6) % 7; // Mon=0
+  t.setDate(t.getDate() - day + 3);
+  const jan4 = new Date(t.getFullYear(), 0, 4);
+  const wk = 1 + Math.round(((t - jan4) / 86400000 - 3 + ((jan4.getDay() + 6) % 7)) / 7);
+  return `${t.getFullYear()}-W${String(wk).padStart(2, '0')}`;
+}
+// haptics — no-op on desktop or when the setting is off
+function buzz(pattern) {
+  try {
+    if (navigator.vibrate && typeof Save !== 'undefined' && Save.data.settings.vibrate) navigator.vibrate(pattern);
+  } catch (e) { /* ignore */ }
+}
+// crash log ring buffer — surfaced via Settings → Copy bug report
+const ERRLOG_KEY = 'ppn3d_errlog';
+function logError(msg, src, line) {
+  try {
+    const log = JSON.parse(localStorage.getItem(ERRLOG_KEY) || '[]');
+    log.push({ t: new Date().toISOString(), msg: String(msg).slice(0, 300), src: String(src || '').slice(0, 80), line: line || 0 });
+    localStorage.setItem(ERRLOG_KEY, JSON.stringify(log.slice(-12)));
+  } catch (e) { /* storage full/blocked — nothing to do */ }
+}
+window.addEventListener('error', e => logError(e.message, e.filename, e.lineno));
+window.addEventListener('unhandledrejection', e => logError('Promise: ' + (e.reason && e.reason.message || e.reason), '', 0));
 const $ = id => document.getElementById(id);
 
 // ---------- OBB collision (SAT with MTV) — 2D ground plane ----------
@@ -1030,7 +1172,7 @@ function defaultSave() {
     settings: {
       master: 0.8, music: 0.6, sfx: 0.8,
       hq: true, shake: true, colorblind: false, reducedMotion: false,
-      forceTouch: false, jingle: true, tilt: true,
+      forceTouch: false, jingle: true, tilt: true, vibrate: true,
     },
     stats: {
       parks: 0, collisions: 0, propsDestroyed: 0, pedsScandalized: 0,
@@ -1040,6 +1182,11 @@ function defaultSave() {
     },
     achievements: {},
     daily: {},           // dateKey -> {board:[{score,stars,time}], shared:false}
+    weekly: {},          // weekKey -> {score, stars, time}
+    tutorialDone: false, // driving school completed once
+    streak: 0,           // consecutive daily-challenge days
+    streakLast: '',      // dateKey of last daily completion
+    lastGift: '',        // dateKey of last login gift
   };
 }
 class SaveManager {
@@ -1700,6 +1847,22 @@ const VEH_DEFS = {
     stats: { size: 45, speed: 65, hand: 8, chaos: 90 },
     unlock: { type: 'stars', n: 30 }, price: 7500,
     body: '#c8cede', roof: '#9ba3b8',
+  },
+  kart: {
+    name: 'Go-Kart', horn: 'hatch', drive: 'car',
+    flavor: '"Technically street legal. Emotionally unhinged. Your knees ARE the crumple zone."',
+    len: 2.3, wid: 1.35, hgt: 1.0, wb: 1.6, maxSpeed: 17, accel: 9.5, steerSpeed: 4.4, grip: 1.05, mass: 0.45, fragility: 1.7,
+    stats: { size: 6, speed: 58, hand: 98, chaos: 45 },
+    unlock: { type: 'stars', n: 12 }, price: 1500,
+    body: '#ffd23e', roof: '#2b2d36',
+  },
+  monster: {
+    name: 'Monster Pickup', horn: 'bus', drive: 'car',
+    flavor: '"The suspension is taller than your first car. Parking spots fear it. Physics respects it."',
+    len: 5.7, wid: 2.7, hgt: 3.1, wb: 3.6, maxSpeed: 16, accel: 8, steerSpeed: 2.7, grip: 0.9, mass: 4.2, fragility: 0.4,
+    stats: { size: 64, speed: 46, hand: 42, chaos: 88 },
+    unlock: { type: 'level', lv: 14 }, price: 5000,
+    body: '#7a3fd4', roof: '#5c2ba8',
   },
 };
 function vehicleUnlocked(key) {
@@ -3475,6 +3638,81 @@ const CarFactory = {
         refs.hover = true;
         return refs;
       }
+      case 'kart': {
+        // open-wheel go-kart: low box hull, no canopy, roll hoop + helmet driver
+        const r = this.standard({ len: d.len, wid: d.wid, bodyH: 0.3, cabLen: 0.01, cabH: 0.01, cabOff: 0, body: d.body, roof: d.roof, wheelR: 0.2 });
+        const seat = this.boxMesh(0.5, 0.45, 0.55, 0x2b2d36);
+        seat.position.set(-d.len * 0.14, 0.52, 0);
+        r.group.add(seat);
+        // driver: helmet + torso
+        const torso = this.boxMesh(0.4, 0.34, 0.44, 0xd95a4e);
+        torso.position.set(-d.len * 0.1, 0.72, 0);
+        r.group.add(torso);
+        const helmet = new THREE.Mesh(
+          Assets.geo('kartHelm', () => new THREE.SphereGeometry(0.19, 10, 8)),
+          Assets.lambert('kartHelmW', { color: 0xf2f2f2 })
+        );
+        helmet.position.set(-d.len * 0.1, 1.0, 0);
+        r.group.add(helmet);
+        // roll hoop behind the driver
+        const hoop = this.boxMesh(0.06, 0.55, 0.5, 0x3a3d47);
+        hoop.position.set(-d.len * 0.28, 0.7, 0);
+        r.group.add(hoop);
+        // steering column + tiny wheel
+        const col = this.boxMesh(0.3, 0.05, 0.05, 0x3a3d47);
+        col.position.set(d.len * 0.14, 0.55, 0);
+        col.rotation.z = -0.5;
+        r.group.add(col);
+        const sw = new THREE.Mesh(
+          Assets.geo('kartWheel', () => new THREE.TorusGeometry(0.13, 0.03, 6, 12)),
+          Assets.lambert('kartSw', { color: 0x23252c })
+        );
+        sw.position.set(d.len * 0.2, 0.62, 0);
+        sw.rotation.y = Math.PI / 2;
+        sw.rotation.x = 0.5;
+        r.group.add(sw);
+        return r;
+      }
+      case 'monster': {
+        // lifted pickup on comically large wheels — big wheelR raises the hull
+        const r = this.standard({ len: d.len, wid: d.wid * 0.82, bodyH: 0.85, cabLen: d.len * 0.34, cabH: 0.55, cabOff: d.len * 0.08, body: d.body, roof: d.roof, wheelR: 0.72 });
+        // swap wheels for monster rubber — wheelR 0.72 is already tall, so only
+        // a touch more diameter (scaling past the axle height sinks them)
+        for (const w of r.wheels) {
+          w.scale.set(1.08, 1.08, 1.75);
+        }
+        // cargo bed walls at the back
+        const bedFloor = this.boxMesh(d.len * 0.36, 0.1, d.wid * 0.76, 0x2b2d36);
+        bedFloor.position.set(-d.len * 0.28, 1.35, 0);
+        r.group.add(bedFloor);
+        for (const z of [d.wid * 0.36, -d.wid * 0.36]) {
+          const wall = this.boxMesh(d.len * 0.36, 0.3, 0.06, new THREE.Color(d.body).multiplyScalar(0.8).getHex());
+          wall.position.set(-d.len * 0.28, 1.52, z);
+          r.group.add(wall);
+        }
+        const tail = this.boxMesh(0.06, 0.3, d.wid * 0.76, new THREE.Color(d.body).multiplyScalar(0.8).getHex());
+        tail.position.set(-d.len * 0.46, 1.52, 0);
+        r.group.add(tail);
+        // roof light bar
+        const bar = this.boxMesh(0.14, 0.1, d.wid * 0.5, 0x23252c);
+        bar.position.set(d.len * 0.16, 2.35, 0);
+        r.group.add(bar);
+        for (let i = -2; i <= 2; i++) {
+          const lamp = this.lightBox(0.1, 0.09, 0.12, 0xffe08a);
+          lamp.position.set(d.len * 0.16 + 0.06, 2.36, i * d.wid * 0.09);
+          r.group.add(lamp);
+        }
+        // side exhaust stacks
+        for (const z of [d.wid * 0.3, -d.wid * 0.3]) {
+          const stack = new THREE.Mesh(
+            Assets.geo('mtStack', () => new THREE.CylinderGeometry(0.07, 0.09, 0.9, 8)),
+            Assets.lambert('mtChrome', { color: 0xb8bec8 })
+          );
+          stack.position.set(-d.len * 0.06, 1.7, z);
+          r.group.add(stack);
+        }
+        return r;
+      }
       default: {
         return this.standard({ len: d.len, wid: d.wid, bodyH: 0.62, cabLen: d.len * 0.5, cabH: 0.52, cabOff: -d.len * 0.05, body: d.body, roof: d.roof });
       }
@@ -4611,6 +4849,14 @@ const DISTRICTS = [
     bWall: ['#8a5a8a', '#a5694a', '#5c6e9e', '#9e5c5c', '#6e8a5a'], bWin: '#3d2e50',
     houses: false, treeEvery: 26, lampEvery: 30, weird: true,
   },
+  {
+    name: 'SUNSET MARINA', tag: 'D5',
+    sky: ['#6ab4e8', '#b0dcf4', '#ffe4c0'], fog: '#dcd4c0', fogFar: 310,
+    hemi: [0xf0e4d0, 0xa89c78, 1.0], sun: [0xffe8c0, 2.3, [70, 80, 40]],
+    ground: ['#c9b083', '#d6c194'], night: false,
+    bWall: ['#f7ead8', '#f0dce8', '#d8ecf0', '#ffe9c8', '#e4f0dc'], bWin: '#8ab8d0',
+    houses: true, treeEvery: 15, lampEvery: 26, birds: true,
+  },
 ];
 
 // Time-of-day + weather override (Free Roam): derives an effective district
@@ -4737,20 +4983,69 @@ const LEVELS = [
     segs: [{ t: 'S', len: 140 }, { t: 'X' }, { t: 'S', len: 110, zone: 'school' }, { t: 'R', r: 44, a: 90 }, { t: 'S', len: 130 }, { t: 'X' }, { t: 'S', len: 100 }, { t: 'L', r: 40, a: 60 }, { t: 'S', len: 90 }, { t: 'R', r: 40, a: 60 }, { t: 'S', len: 160 }],
     s2: 1400, s3: 2200,
   },
+  {
+    id: 13, district: 4, name: 'Boardwalk Breakfast', veh: 'hatch', lanes: 1, time: 'dusk',
+    brief: 'Sunrise shift at the marina café. The seagulls have unionized, the joggers have opinions, and the croissants will not deliver themselves.',
+    par: 110, traffic: 0.5, peds: 9, park: 'parallel', margin: 2.2,
+    segs: [{ t: 'S', len: 120 }, { t: 'R', r: 40, a: 45 }, { t: 'S', len: 100 }, { t: 'X', lights: false }, { t: 'S', len: 90 }, { t: 'L', r: 38, a: 60 }, { t: 'S', len: 140 }],
+    s2: 1300, s3: 2000,
+  },
+  {
+    id: 14, district: 4, name: 'Kart Courier', veh: 'kart', lanes: 1, time: 'dusk',
+    brief: 'The go-kart is "borrowed" from the boardwalk track. It weighs nothing, it turns on a thought, and one solid bonk folds it like a beach chair.',
+    par: 100, traffic: 0.7, peds: 10, park: 'bay', margin: 1.0, cones: 8,
+    segs: [{ t: 'S', len: 100 }, { t: 'L', r: 34, a: 60 }, { t: 'S', len: 90 }, { t: 'R', r: 34, a: 90 }, { t: 'S', len: 110 }, { t: 'R', r: 36, a: 45 }, { t: 'S', len: 130 }],
+    s2: 1350, s3: 2050,
+  },
+  {
+    id: 15, district: 4, name: 'Something Borrowed', veh: 'limo', lanes: 2, time: 'dusk',
+    brief: 'The bride is at the pier. The rings are in the limo. The photographer is ALREADY FILMING. Do not become the wedding story.',
+    par: 140, traffic: 1.1, peds: 13, park: 'parallel', margin: 1.8,
+    segs: [{ t: 'S', len: 130 }, { t: 'X', lights: false }, { t: 'S', len: 100 }, { t: 'R', r: 46, a: 90 }, { t: 'S', len: 120 }, { t: 'L', r: 44, a: 45 }, { t: 'S', len: 150 }],
+    s2: 1350, s3: 2100,
+  },
+  {
+    id: 16, district: 4, name: 'Monster Bay', veh: 'monster', lanes: 2, time: 'dusk',
+    brief: 'Someone entered a monster truck in the marina boat parade. That someone is you. The wheels are taller than the mayor. Park it like you mean it.',
+    par: 135, traffic: 0.9, peds: 10, park: 'bay', margin: 1.6, cones: 6,
+    segs: [{ t: 'S', len: 120 }, { t: 'R', r: 42, a: 60 }, { t: 'S', len: 110 }, { t: 'X', lights: false }, { t: 'S', len: 100 }, { t: 'L', r: 42, a: 60 }, { t: 'S', len: 140 }],
+    s2: 1300, s3: 2000,
+  },
+  {
+    id: 17, district: 4, name: 'Last Scoop of Summer', veh: 'icecream', lanes: 2, time: 'dusk', rain: true,
+    brief: 'A storm rolls in off the water on the season\'s final evening. Warm rain, cold sprinkles, and every kid on the boardwalk knows your jingle.',
+    par: 150, traffic: 1.0, peds: 14, park: 'bay', margin: 1.3,
+    segs: [{ t: 'S', len: 130 }, { t: 'L', r: 40, a: 45 }, { t: 'S', len: 110 }, { t: 'X', lights: false }, { t: 'S', len: 90 }, { t: 'R', r: 40, a: 90 }, { t: 'S', len: 100 }, { t: 'L', r: 38, a: 45 }, { t: 'S', len: 140 }],
+    s2: 1350, s3: 2100,
+  },
+  {
+    id: 18, district: 4, name: 'The Regatta Gauntlet', veh: 'monster', lanes: 2, time: 'night',
+    brief: 'Regatta night. The whole marina is out, the cones are out, the kart kids are out. One perfect park to end the season — or one very viral splash.',
+    par: 190, traffic: 1.4, peds: 15, park: 'parallel', margin: 1.4, cones: 10,
+    segs: [{ t: 'S', len: 130 }, { t: 'X', lights: false }, { t: 'S', len: 100, zone: 'school' }, { t: 'L', r: 42, a: 90 }, { t: 'S', len: 120 }, { t: 'R', r: 40, a: 60 }, { t: 'S', len: 90 }, { t: 'X', lights: false }, { t: 'S', len: 100 }, { t: 'R', r: 40, a: 45 }, { t: 'S', len: 150 }],
+    s2: 1400, s3: 2200,
+  },
 ];
 
-function dailyLevel() {
-  const key = todayKey();
+// Shared seeded-mission generator: dailies, weeklies and friend challenges
+// all derive from a string seed so the same code reproduces the same streets.
+function hashSeed(str) {
   let seed = 0;
-  for (let i = 0; i < key.length; i++) seed = (seed * 31 + key.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < str.length; i++) seed = (seed * 31 + str.charCodeAt(i)) >>> 0;
+  return seed;
+}
+function seededMission(seedStr, opts) {
+  opts = opts || {};
+  const seed = hashSeed(seedStr);
   const rng = mulberry32(seed);
-  const district = Math.floor(rng() * 4);
-  const vehKeys = ['hatch', 'wagon', 'limo', 'icecream', 'bus', 'tank', 'ufo'];
+  const district = Math.floor(rng() * DISTRICTS.length);
+  const vehKeys = ['hatch', 'wagon', 'limo', 'icecream', 'bus', 'tank', 'ufo', 'kart', 'monster'];
   const veh = vehKeys[Math.floor(rng() * vehKeys.length)];
   const lanes = district === 0 ? 1 : 2;
+  const big = !!opts.big;
   const segs = [{ t: 'S', len: 90 + rng() * 60 }];
   let dist = segs[0].len;
-  const nSeg = 4 + Math.floor(rng() * 4);
+  const nSeg = (big ? 7 : 4) + Math.floor(rng() * 4);
   for (let i = 0; i < nSeg; i++) {
     const r = rng();
     if (r < 0.42) { const L = 70 + rng() * 90; segs.push({ t: 'S', len: L }); dist += L; }
@@ -4765,12 +5060,60 @@ function dailyLevel() {
   const park = rng() < 0.5 ? 'parallel' : 'bay';
   const margin = park === 'parallel' ? 1.4 + rng() * 1.2 : 1.2 + rng() * 0.8;
   return {
-    id: 'daily', district, name: 'Daily Nightmare', veh, lanes,
-    brief: `Today's chaos: ${VEH_DEFS[veh].name} through ${DISTRICTS[district].name.toLowerCase()}, ${park} finish. Same streets for everyone — one shot at glory.`,
-    par: Math.round(dist / 9 + 55), traffic: 0.5 + rng() * 1.0, peds: 6 + Math.floor(rng() * 8),
-    park, margin, cones: rng() < 0.4 ? 6 : 0, rain: district === 2 && rng() < 0.5,
-    segs, s2: 1300, s3: 2000, daily: true, seed,
+    district, veh, lanes,
+    par: Math.round(dist / 9 + 55) + (big ? 25 : 0),
+    traffic: (big ? 0.7 : 0.5) + rng() * 1.0, peds: 6 + Math.floor(rng() * 8),
+    park, margin, cones: rng() < (big ? 0.7 : 0.4) ? 6 : 0,
+    rain: big ? rng() < 0.35 : (district === 2 && rng() < 0.5),
+    time: big && rng() < 0.4 ? 'night' : undefined,
+    segs, s2: big ? 1450 : 1300, s3: big ? 2300 : 2000, seed: seedStr,
   };
+}
+function dailyLevel() {
+  const key = todayKey();
+  const lvl = seededMission(key);
+  return Object.assign(lvl, {
+    id: 'daily', name: 'Daily Nightmare', daily: true,
+    brief: `Today's chaos: ${VEH_DEFS[lvl.veh].name} through ${DISTRICTS[lvl.district].name.toLowerCase()}, ${lvl.park} finish. Same streets for everyone — one shot at glory.`,
+  });
+}
+function weeklyLevel() {
+  const key = weekKey();
+  const lvl = seededMission(key, { big: true });
+  return Object.assign(lvl, {
+    id: 'weekly', name: 'Weekly Gauntlet', weekly: true,
+    brief: `This week's gauntlet: a long ${VEH_DEFS[lvl.veh].name} haul through ${DISTRICTS[lvl.district].name.toLowerCase()}. One best score, all week to beat it. Resets Monday.`,
+  });
+}
+// ---- friend challenge codes (no backend — the code IS the level) ----
+// PN.m<missionId>.<score36>  |  PN.s<seed>.<score36>  |  PN.w<seed>.<score36>
+function makeChallengeCode(level, score) {
+  let payload = null;
+  if (level.chalSrc) payload = level.chalSrc; // re-share a challenge you just played
+  else if (typeof level.id === 'number') payload = 'm' + level.id;
+  else if (level.weekly) payload = 'w' + level.seed;
+  else if (level.seed) payload = 's' + level.seed;
+  if (!payload) return null;
+  return `PN.${payload}.${Math.max(0, Math.round(score)).toString(36).toUpperCase()}`;
+}
+function parseChallengeCode(str) {
+  const m = /^PN\.([mws])([A-Za-z0-9_-]{1,24})\.([A-Z0-9]{1,8})$/i.exec(String(str || '').trim());
+  if (!m) return null;
+  const kind = m[1].toLowerCase(), data = m[2], target = parseInt(m[3], 36);
+  if (!Number.isFinite(target)) return null;
+  let lvl = null;
+  if (kind === 'm') {
+    const src = LEVELS[parseInt(data, 10) - 1];
+    if (!src || String(src.id) !== data) return null;
+    lvl = Object.assign({}, src);
+  } else {
+    lvl = seededMission(data, { big: kind === 'w' });
+  }
+  return Object.assign(lvl, {
+    id: 'challenge', name: 'Friend Challenge', daily: false, weekly: false,
+    challenge: { target }, chalSrc: kind + data,
+    brief: `A friend threw down the gauntlet: beat ${target.toLocaleString()} points on these exact streets. No pressure. (Immense pressure.)`,
+  });
 }
 
 // Free Roam: a long seeded cruise with a coin trail, no clock, no fail.
@@ -4782,8 +5125,8 @@ function freeRoamLevel(cfg) {
   let seed = 0;
   for (let i = 0; i < seedStr.length; i++) seed = (seed * 31 + seedStr.charCodeAt(i)) >>> 0;
   const rng = mulberry32(seed);
-  const district = cfg.district !== undefined ? cfg.district : Math.floor(rng() * 4);
-  const vehKeys = ['hatch', 'wagon', 'limo', 'icecream', 'bus', 'tank', 'ufo'].filter(vehicleUnlocked);
+  const district = cfg.district !== undefined ? cfg.district : Math.floor(rng() * DISTRICTS.length);
+  const vehKeys = ['hatch', 'wagon', 'limo', 'icecream', 'bus', 'tank', 'ufo', 'kart', 'monster'].filter(vehicleUnlocked);
   const veh = (cfg.veh && vehicleUnlocked(cfg.veh)) ? cfg.veh
     : vehKeys[Math.floor(rng() * vehKeys.length)] || 'hatch';
   const segs = [{ t: 'S', len: 120 + rng() * 60 }];
@@ -6965,6 +7308,7 @@ class Game {
     dt *= this.timeScale;
     this.world.updateLights(dt);
     const st = this.state;
+    if (UI.tutSteps && (st === 'drive' || st === 'park' || st === 'settle' || st === 'success')) UI.tutorialFrame(this, dt);
 
     if (st === 'menu' || st === 'garage') {
       this.menuCamT += dt;
@@ -7164,6 +7508,7 @@ class Game {
       this.colCd = 0.35;
       sev = clamp(sev, 0.1, 1);
       SFX.crash(sev);
+      buzz(Math.round(15 + sev * 45));
       this.shakeAmt = Math.min(1, this.shakeAmt + sev * 0.7);
       this.collisions++;
       Save.data.stats.collisions++;
@@ -7514,12 +7859,27 @@ class Game {
       angDeg, curbGap: q.curbGap,
     };
     SFX.successStinger(perfect);
+    buzz(perfect ? [30, 50, 30, 50, 120] : [30, 60, 100]);
     this.particles.confettiBurst(this.player.x, 1, this.player.y);
     SFX.confettiPop();
     this.comic.spawn(perfect ? 'PERFECT!!' : 'PARKED!', this.player.x, 3.5, this.player.y, '#3ecf6e', true);
+    // challenge verdict rides along to the results screen
+    if (L.challenge) {
+      this.finalStats.challenge = { target: L.challenge.target, beaten: total > L.challenge.target };
+    }
     // save
     const S = Save.data, id = L.id;
     if (L.free) {
+      S.stats.parks++;
+      S.stats.kmDriven += this.distDriven / 1000;
+    } else if (L.weekly) {
+      S.stats.parks++;
+      S.stats.kmDriven += this.distDriven / 1000;
+      const wk = weekKey();
+      if (!S.weekly[wk] || total > S.weekly[wk].score) {
+        S.weekly[wk] = { score: total, stars, time: Math.round(this.timer * 10) / 10 };
+      }
+    } else if (L.challenge) {
       S.stats.parks++;
       S.stats.kmDriven += this.distDriven / 1000;
     } else if (!L.daily) {
@@ -7535,6 +7895,15 @@ class Game {
       day.board.push({ score: total, stars, time: Math.round(this.timer * 10) / 10 });
       day.board.sort((a, b) => b.score - a.score);
       day.board = day.board.slice(0, 8);
+      // streak: one bonus per calendar day, consecutive days compound
+      const tk = todayKey();
+      if (S.streakLast !== tk) {
+        S.streak = (S.streakLast === dateKeyOffset(-1)) ? (S.streak || 0) + 1 : 1;
+        S.streakLast = tk;
+        const bonus = Math.min(100, S.streak * 10);
+        S.coins = (S.coins || 0) + bonus;
+        this.finalStats.lines.push(['🔥 Daily streak — day ' + S.streak, bonus]);
+      }
     }
     Save.save();
     UI.checkAchievements(this);
@@ -7549,6 +7918,7 @@ class Game {
     document.body.classList.add('cine');
     SFX.stopAllLoops();
     SFX.failTrombone();
+    buzz([80, 60, 80, 60, 180]);
     setTimeout(() => SFX.laughter(), 700);
     SFX.murmurSet(1);
     this.hud.failTint.style.opacity = 1;
@@ -7568,6 +7938,7 @@ class Game {
     this.hud.failTint.style.opacity = 1;
     for (let i = 0; i < 8; i++) this.particles.puff(this.player.x + rand(-1, 1), 0.8, this.player.y + rand(-1, 1), 1.4);
     this.comic.spawn('TOTALED!', this.player.x, 3.4, this.player.y, '#ff4757', true);
+    buzz([120, 80, 200]);
     this.finalStats = { failed: true, reason: 'damage', total: 0, stars: 0, time: this.timer };
     setTimeout(() => UI.showResults(this.finalStats, true), 3000);
   }
@@ -8051,6 +8422,8 @@ class UIManager {
     document.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => this.back()));
     // title
     $('play-classic').addEventListener('click', () => { location.href = 'classic.html'; });
+    $('open-privacy').addEventListener('click', () => this.show('privacy'));
+    $('tut-skip').addEventListener('click', () => { SFX.uiBack(); this.finishTutorial(true); });
     document.querySelectorAll('[data-menu]').forEach(b => b.addEventListener('click', () => {
       const m = b.dataset.menu;
       if (m === 'play') { this.buildLevels(); this.show('levels'); }
@@ -8102,7 +8475,7 @@ class UIManager {
     $('res-retry').addEventListener('click', () => this.retry());
     $('res-map').addEventListener('click', () => {
       const L = this.game.level;
-      this.quitToMenu(L && L.daily ? 'daily' : (L && L.free ? undefined : 'levels'));
+      this.quitToMenu(L && (L.daily || L.weekly || L.challenge) ? 'daily' : (L && L.free ? undefined : 'levels'));
     });
     $('res-next').addEventListener('click', () => {
       const id = g.level.id;
@@ -8115,12 +8488,26 @@ class UIManager {
     $('btnPause').addEventListener('click', () => this.pause(true));
     $('btnRetry').addEventListener('click', () => this.retry());
     $('btnCam').addEventListener('click', () => g.cycleCamera());
-    // daily
+    // daily + weekly + friend challenge
     $('daily-play').addEventListener('click', () => {
       const lvl = dailyLevel();
       this.startRun(lvl, lvl.veh);
     });
     $('daily-share').addEventListener('click', () => this.shareDaily());
+    $('weekly-play').addEventListener('click', () => {
+      const lvl = weeklyLevel();
+      this.startRun(lvl, lvl.veh);
+    });
+    $('chal-go').addEventListener('click', () => {
+      const lvl = parseChallengeCode($('chal-code').value);
+      if (!lvl) {
+        SFX.uiBack();
+        this.toast('🤔', 'Code not recognized', 'Codes look like PN.m3.XYZ — ask your friend to re-share');
+        return;
+      }
+      this.startRun(lvl, lvl.veh);
+    });
+    $('res-challenge').addEventListener('click', () => this.shareChallenge());
     // settings
     this.bindSettings();
     // confirm
@@ -8161,14 +8548,22 @@ class UIManager {
     SFX.init();
     SFX.uiClick();
     SFX.musicStart(0);
+    // daily login gift (once per calendar day)
+    const S = Save.data, tk = todayKey();
+    if (S.lastGift !== tk) {
+      S.lastGift = tk;
+      S.coins = (S.coins || 0) + 20;
+      Save.save();
+      setTimeout(() => this.toast('🎁', 'Daily gift: +20 coins', 'The parking gods smile upon you. Today.'), 1200);
+    }
   }
 
   // ---------- mission select ----------
   buildLevels() {
     const wrap = $('districts');
     wrap.innerHTML = '';
-    $('total-stars').textContent = `★ ${Save.totalStars()}/36`;
-    const groups = [[], [], [], []];
+    $('total-stars').textContent = `★ ${Save.totalStars()}/${LEVELS.length * 3}`;
+    const groups = DISTRICTS.map(() => []);
     for (const lvl of LEVELS) groups[lvl.district].push(lvl);
     groups.forEach((lvls, di) => {
       const d = DISTRICTS[di];
@@ -8292,10 +8687,67 @@ class UIManager {
         : '🏁 Reach the destination, then back into the glowing bay';
     $('hud').querySelector('#align-widget').classList.remove('show');
     this.game.hud.failTint.style.opacity = 0;
+    this.startTutorial(level);
     this.countdown(() => {
       this.game.beginDrive();
-      if (level.tutorial) this.tutTip('Follow the glowing chevrons! WASD / arrows to drive, Space handbrake.', 6);
+      if (level.tutorial && !this.tutSteps) this.tutTip('Follow the glowing chevrons! WASD / arrows to drive, Space handbrake.', 6);
     });
+  }
+
+  // ---------- interactive driving school (first run of Mission 1) ----------
+  startTutorial(level) {
+    this.tutSteps = null;
+    $('tut-card').classList.add('hidden');
+    if (!level.tutorial || Save.data.tutorialDone) return;
+    const touch = Input.usingTouch || Save.data.settings.forceTouch;
+    const gasKey = touch ? 'Hold GAS' : 'Hold W / ↑';
+    const brakeKey = touch ? 'hold BRAKE' : 'hold S / ↓';
+    const steerKey = touch ? (Input.tiltOn ? 'tilt your phone' : 'turn the wheel') : 'steer with A/D or ←/→';
+    this.tutSteps = [
+      { icon: '🚗', text: `${gasKey} and get rolling — follow the glowing chevrons`, done: g => g.player.speedAbs > 4.5 },
+      { icon: '🛑', text: `Nice! Now ${brakeKey} until you stop completely`, done: g => g.player.speedAbs < 0.35 },
+      { icon: '🧭', text: `Roll on and ${steerKey} through the bend ahead`, done: g => g.playerProj.s > g.world.route.length * 0.45 },
+      { icon: '😰', text: 'See the face on the right? Bonks, honks & curb-hops feed the Shame meter — 100% means you go viral and FAIL', timed: 5.5 },
+      { icon: '🅿️', text: 'At the glowing spot: get fully inside, straighten up (ANGLE), hug the curb, hold still 1.5s', done: g => g.state === 'success' },
+    ];
+    this.tutIdx = 0;
+    this.tutTimer = 0;
+    this.renderTutStep();
+  }
+  renderTutStep() {
+    const card = $('tut-card');
+    if (!this.tutSteps || this.tutIdx >= this.tutSteps.length) { card.classList.add('hidden'); return; }
+    const s = this.tutSteps[this.tutIdx];
+    card.classList.remove('hidden');
+    $('tut-icon').textContent = s.icon;
+    $('tut-text').textContent = s.text;
+    $('tut-dots').innerHTML = this.tutSteps.map((_, i) =>
+      `<i class="${i < this.tutIdx ? 'done' : (i === this.tutIdx ? 'now' : '')}"></i>`).join('');
+    card.classList.remove('pulse'); void card.offsetWidth; card.classList.add('pulse');
+  }
+  tutorialFrame(g, dt) {
+    if (!this.tutSteps || this.tutIdx >= this.tutSteps.length) return;
+    const s = this.tutSteps[this.tutIdx];
+    let done = false;
+    if (s.timed) { this.tutTimer += dt; done = this.tutTimer >= s.timed; }
+    else done = s.done(g);
+    if (!done) return;
+    this.tutTimer = 0;
+    this.tutIdx++;
+    SFX.uiClick();
+    buzz(20);
+    if (this.tutIdx >= this.tutSteps.length) this.finishTutorial();
+    else this.renderTutStep();
+  }
+  finishTutorial(skipped) {
+    this.tutSteps = null;
+    $('tut-card').classList.add('hidden');
+    if (skipped) return;
+    Save.data.tutorialDone = true;
+    Save.data.coins = (Save.data.coins || 0) + 100;
+    Save.save();
+    SFX.achievementDing();
+    this.toast('🎓', 'Driving School: passed!', '+100 coins. The instructor is quietly impressed.');
   }
   countdown(done) {
     const cd = $('countdown'), num = $('cd-num');
@@ -8442,8 +8894,22 @@ class UIManager {
     } else {
       $('res-title').textContent = fs.perfect ? 'PERFECT PARK!' : 'PARKED!';
       $('res-sub').textContent = fs.perfect ? 'The sidewalk applauds. Reluctantly.' : 'Mission complete. Dignity: mostly intact.';
+      if (fs.challenge) {
+        $('res-title').textContent = fs.challenge.beaten ? 'CHALLENGE WON!' : 'PARKED… BUT';
+        $('res-sub').textContent = fs.challenge.beaten
+          ? `You beat the target of ${fs.challenge.target.toLocaleString()} pts. Screenshot this. Gloat responsibly.`
+          : `Target was ${fs.challenge.target.toLocaleString()} pts — so close. Rematch?`;
+      }
       social.classList.add('hidden');
-      $('res-total-v').textContent = fs.total;
+      // coin-machine count-up on the total
+      const tv = $('res-total-v');
+      const target = fs.total, t0 = performance.now();
+      clearInterval(this._cntI);
+      this._cntI = setInterval(() => {
+        const k = Math.min(1, (performance.now() - t0) / 1100);
+        tv.textContent = Math.round(target * (1 - Math.pow(1 - k, 3)));
+        if (k >= 1) clearInterval(this._cntI);
+      }, 33);
       const id = this.game.level.id;
       const best = Save.data.bestScores[id];
       $('res-best').textContent = this.game.level.free ? 'Joyride — nothing was saved, nothing was learned.' :
@@ -8478,6 +8944,8 @@ class UIManager {
         setTimeout(() => { $('res-stamp').classList.add('slam'); SFX.stamp(); }, 2500);
       }
     }
+    // failed or free-roam runs can't be turned into challenges
+    $('res-challenge').classList.toggle('hidden', failed || !!(this.game.level && this.game.level.free));
     this.show('results', false);
     this.stack = [];
   }
@@ -8542,13 +9010,19 @@ class UIManager {
     if (st.crushes >= 10) this.unlockAch('crusher');
   }
 
-  // ---------- daily ----------
+  // ---------- daily + weekly + challenge hub ----------
   buildDaily() {
     const key = todayKey();
     const lvl = dailyLevel();
+    const S = Save.data;
     $('daily-date').textContent = key;
     $('daily-desc').textContent = lvl.brief + ` (${VEH_DEFS[lvl.veh].name}, ${DISTRICTS[lvl.district].name.toLowerCase()}, par ${fmtTime(lvl.par)})`;
-    const day = Save.data.daily[key];
+    // streak flame — only alive if played today or yesterday
+    const alive = S.streakLast === key || S.streakLast === dateKeyOffset(-1);
+    $('daily-streak').innerHTML = alive && S.streak > 0
+      ? `🔥 <b>${S.streak}-day streak</b> — daily bonus 🪙 ${Math.min(100, (S.streakLast === key ? S.streak : S.streak + 1) * 10)}`
+      : '🔥 Start a streak — every consecutive day pays a bigger coin bonus';
+    const day = S.daily[key];
     const board = $('daily-board');
     if (day && day.board.length) {
       board.innerHTML = day.board.map((r, i) =>
@@ -8556,6 +9030,24 @@ class UIManager {
     } else {
       board.innerHTML = '<div class="db-row empty">No attempts yet — be the legend</div>';
     }
+    // weekly gauntlet card
+    const wlvl = weeklyLevel();
+    const wk = S.weekly[weekKey()];
+    $('weekly-desc').textContent = `${VEH_DEFS[wlvl.veh].name} · ${DISTRICTS[wlvl.district].name.toLowerCase()} · ${(Math.round(compileRouteLength(wlvl.segs) / 100) / 10)} km${wlvl.rain ? ' · rain' : ''}${wlvl.time === 'night' ? ' · night' : ''}`;
+    $('weekly-best').textContent = wk ? `Your week's best: ${wk.score} pts ${'★'.repeat(wk.stars)}` : 'Not attempted yet — all week to set a score';
+  }
+  shareChallenge() {
+    const g = this.game, fs = g.finalStats;
+    if (!fs || fs.failed || !g.level) return;
+    const code = makeChallengeCode(g.level, fs.total);
+    if (!code) { this.toast('⚔️', 'Not shareable', 'Free-roam cruises can\'t become challenges'); return; }
+    const txt = `⚔️ I scored ${fs.total.toLocaleString()} pts on "${g.level.name}" in Parking Nightmare 3D. Beat me!\n1. Play: ${location.origin + location.pathname}\n2. Daily Challenge → Friend Challenge → enter code: ${code}`;
+    const done = () => this.toast('⚔️', 'Challenge copied!', 'Send it to a friend — the code rebuilds your exact streets');
+    try {
+      if (navigator.share) { navigator.share({ text: txt }).catch(() => {}); done(); }
+      else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, done);
+      else done();
+    } catch (e) { done(); }
   }
   shareDaily() {
     const key = todayKey();
@@ -8620,6 +9112,24 @@ class UIManager {
     });
     toggle('set-touch', 'forceTouch', v => { if (this.inRun) Input.showTouch(v || Input.usingTouch); });
     toggle('set-jingle', 'jingle');
+    toggle('set-vib', 'vibrate', v => { if (v) buzz(30); });
+    $('set-bug').addEventListener('click', () => {
+      let log = [];
+      try { log = JSON.parse(localStorage.getItem(ERRLOG_KEY) || '[]'); } catch (e) {}
+      const report = [
+        'Parking Nightmare 3D — bug report',
+        'UA: ' + navigator.userAgent,
+        'Screen: ' + screen.width + 'x' + screen.height + ' dpr ' + devicePixelRatio,
+        'Touch: ' + Input.usingTouch + ' · tilt: ' + Input.tiltOn,
+        'Progress: mission ' + Save.data.unlockedLevel + ', ' + Save.totalStars() + '★, ' + (Save.data.coins || 0) + ' coins',
+        log.length ? 'Recent errors:\n' + log.map(e => `  ${e.t} ${e.msg} (${e.src}:${e.line})`).join('\n') : 'Recent errors: none',
+      ].join('\n');
+      const done = () => this.toast('🐞', 'Bug report copied', 'Paste it wherever you report the problem');
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(report).then(done, done);
+        else done();
+      } catch (e) { done(); }
+    });
     document.body.classList.toggle('cb', !!s.colorblind);
     document.body.classList.toggle('rm', !!s.reducedMotion);
     $('set-reset').addEventListener('click', () => {
@@ -8731,6 +9241,48 @@ game.setMenuMode('title');
 UI.show('title', false);
 if (Input.usingTouch) $('press-any').textContent = '— TAP ANYWHERE —';
 
+// boot splash fades once the first real frame is ready (timeout = backstop
+// for browsers that throttle rAF on hidden/background tabs)
+const _bootOff = () => {
+  const b = $('boot');
+  if (b) { b.classList.add('bye'); setTimeout(() => b.remove(), 650); }
+};
+requestAnimationFrame(() => requestAnimationFrame(_bootOff));
+setTimeout(_bootOff, 4000);
+
+// ---------- PWA: service worker + install prompt ----------
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    reg.addEventListener('updatefound', () => {
+      const nw = reg.installing;
+      if (!nw) return;
+      nw.addEventListener('statechange', () => {
+        if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+          UI.toast('🆕', 'Update ready', 'Close and reopen the game to get the latest version');
+        }
+      });
+    });
+  }).catch(() => { /* offline-first is a bonus, not a requirement */ });
+}
+let _installEv = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _installEv = e;
+  $('btn-install').classList.remove('hidden');
+});
+$('btn-install').addEventListener('click', () => {
+  if (!_installEv) return;
+  _installEv.prompt();
+  _installEv.userChoice.then(r => {
+    if (r.outcome === 'accepted') $('btn-install').classList.add('hidden');
+    _installEv = null;
+  });
+});
+window.addEventListener('appinstalled', () => {
+  $('btn-install').classList.add('hidden');
+  UI.toast('📲', 'Installed!', 'Parking Nightmare 3D now lives on your home screen');
+});
+
 // main loop: fixed timestep + interpolated render
 let _last = performance.now() / 1000;
 let _acc = 0;
@@ -8756,5 +9308,5 @@ function frame() {
 requestAnimationFrame(frame);
 
 // debug/test handle
-window.__PPN = { game, UI, Save, SFX, LEVELS, VEH_DEFS, DISTRICTS, Assets, dailyLevel };
+window.__PPN = { game, UI, Save, SFX, LEVELS, VEH_DEFS, DISTRICTS, Assets, dailyLevel, weeklyLevel, makeChallengeCode, parseChallengeCode, seededMission };
 </script></body></html>

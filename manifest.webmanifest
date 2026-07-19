@@ -1,0 +1,17 @@
+{
+  "name": "Parking Nightmare 3D",
+  "short_name": "Parking N3D",
+  "description": "Drive, dodge, park — don't go viral. A chaotic 3D parking game.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#12131a",
+  "theme_color": "#12131a",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
