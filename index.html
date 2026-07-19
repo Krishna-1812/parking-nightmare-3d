@@ -295,20 +295,30 @@ body.rm #shame-wrap.pulse #shame-tube{animation:none}
 /* ---------- TOUCH CONTROLS ---------- */
 #touch{position:absolute;inset:0;z-index:9;pointer-events:none;display:none}
 #touch.show{display:block}
-#wheel{position:absolute;left:calc(18px + env(safe-area-inset-left));bottom:calc(20px + env(safe-area-inset-bottom));width:132px;height:132px;pointer-events:auto}
+#wheel{position:absolute;left:calc(18px + env(safe-area-inset-left));bottom:calc(20px + env(safe-area-inset-bottom));width:132px;height:132px;pointer-events:auto;touch-action:none}
 #wheel-gfx{width:100%;height:100%;border-radius:50%;border:6px solid var(--ink);background:
   radial-gradient(circle at 50% 50%, #4a4d5a 0 26%, transparent 26.5%),
   conic-gradient(#666a7a 0deg 8deg,#3c3f4b 8deg 112deg,#666a7a 112deg 128deg,#3c3f4b 128deg 232deg,#666a7a 232deg 248deg,#3c3f4b 248deg 352deg,#666a7a 352deg 360deg);
   box-shadow:0 5px 0 rgba(0,0,0,.35), inset 0 0 0 5px #2b2d36;opacity:.92}
 #pedals{position:absolute;right:calc(16px + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;pointer-events:auto}
 .pedal{width:92px;height:74px;border:2px solid rgba(255,255,255,.4);border-radius:18px;font-family:var(--font);font-weight:800;font-size:17px;color:#fff;
-  text-shadow:0 1px 2px rgba(0,0,0,.4);box-shadow:0 10px 24px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.35);opacity:.94;letter-spacing:1px}
+  text-shadow:0 1px 2px rgba(0,0,0,.4);box-shadow:0 10px 24px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.35);opacity:.94;letter-spacing:1px;touch-action:none}
 #pGas{background:linear-gradient(180deg,#4fdc82,#2ba455)} #pBrake{background:linear-gradient(180deg,#ff5f6e,#d92b3e)}
 .pedal:active,.pedal.down{transform:translateY(3px);box-shadow:0 4px 10px rgba(0,0,0,.4), inset 0 2px 4px rgba(0,0,0,.25);filter:brightness(1.12)}
 #tside{position:absolute;right:calc(124px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px;pointer-events:auto}
 .tbtn{width:58px;height:58px;border-radius:50%;border:1.5px solid var(--glass-b);background:var(--glass);color:#fff;font-size:23px;
-  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 20px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.16)}
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 20px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.16);touch-action:none}
 .tbtn:active{transform:translateY(3px)}
+/* tilt steering: slim gauge replaces the wheel; tap it to recenter */
+#tilt-ind{position:absolute;left:calc(18px + env(safe-area-inset-left));bottom:calc(30px + env(safe-area-inset-bottom));width:168px;height:48px;border-radius:24px;
+  background:var(--glass);border:1.5px solid var(--glass-b);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  box-shadow:0 8px 20px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.16);pointer-events:auto;display:none;touch-action:none;transition:background .25s}
+#touch.tilt #tilt-ind{display:block}
+#touch.tilt #wheel{display:none}
+#tilt-lbl{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-size:9px;font-weight:800;letter-spacing:1.2px;color:rgba(255,255,255,.5);pointer-events:none}
+#tilt-dot{position:absolute;left:50%;top:50%;width:30px;height:30px;border-radius:50%;background:linear-gradient(180deg,#ffd23e,#f0a51f);
+  border:2px solid var(--ink);transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+#tilt-ind.flash{background:rgba(255,210,62,.3)}
 
 /* ---------- touch-mode HUD layout ---------- */
 body.touch-mode .hbtn{width:54px;height:54px;font-size:22px}
@@ -574,6 +584,7 @@ body.rm #motes span{animation:none;display:none}
   <!-- ============ TOUCH ============ -->
   <div id="touch">
     <div id="wheel"><div id="wheel-gfx"></div></div>
+    <div id="tilt-ind"><span id="tilt-lbl">TILT · TAP TO RECENTER</span><div id="tilt-dot"></div></div>
     <div id="tside">
       <button class="tbtn" id="tHorn" title="Horn">📢</button>
       <button class="tbtn" id="tHb" title="Handbrake">✋</button>
@@ -764,6 +775,7 @@ body.rm #motes span{animation:none;display:none}
       <div class="set-row"><label>Screen shake</label><div class="toggle on" id="set-shake" tabindex="0" role="switch" aria-checked="true"></div></div>
       <div class="set-row"><label>Colorblind-safe palette</label><div class="toggle" id="set-cb" tabindex="0" role="switch" aria-checked="false"></div></div>
       <div class="set-row"><label>Reduced motion</label><div class="toggle" id="set-rm" tabindex="0" role="switch" aria-checked="false"></div></div>
+      <div class="set-row"><label>Tilt steering (mobile)</label><div class="toggle on" id="set-tilt" tabindex="0" role="switch" aria-checked="true"></div></div>
       <div class="set-row"><label>Force touch controls</label><div class="toggle" id="set-touch" tabindex="0" role="switch" aria-checked="false"></div></div>
       <div class="set-row"><label>Ice cream jingle</label><div class="toggle on" id="set-jingle" tabindex="0" role="switch" aria-checked="true"></div></div>
       <details style="margin-top:8px">
@@ -1018,7 +1030,7 @@ function defaultSave() {
     settings: {
       master: 0.8, music: 0.6, sfx: 0.8,
       hq: true, shake: true, colorblind: false, reducedMotion: false,
-      forceTouch: false, jingle: true,
+      forceTouch: false, jingle: true, tilt: true,
     },
     stats: {
       parks: 0, collisions: 0, propsDestroyed: 0, pedsScandalized: 0,
@@ -1434,18 +1446,31 @@ class InputSys {
     this.wheelPointer = null;
     this.wheelAngle = 0;
     this.handlers = {};
+    // tilt steering (deviceorientation)
+    this.tiltRaw = null;      // latest mapped tilt in degrees, null until sensor speaks
+    this.tiltSmooth = 0;
+    this.tiltZero = 0;        // neutral-grip calibration offset
+    this.tiltSteer = 0;       // -1..1 output
+    this.tiltHooked = false;
+    this._lastTiltOn = false;
     window.addEventListener('keydown', e => this.onKeyDown(e));
     window.addEventListener('keyup', e => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
     this.setupTouch();
     if ('ontouchstart' in window && navigator.maxTouchPoints > 0) this.usingTouch = true;
+    // platforms without a permission gate (Android) can hook the sensor at boot
+    const needsPerm = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
+    if (this.usingTouch && !needsPerm) this.enableTilt();
     window.addEventListener('touchstart', () => {
       SFX.init();
+      // iOS needs a user gesture for the motion-permission prompt
+      if (!this.tiltHooked && typeof Save !== 'undefined' && Save.data.settings.tilt) this.enableTilt();
       if (!this.usingTouch) {
         this.usingTouch = true;
         if (typeof UI !== 'undefined' && UI.inRun) this.showTouch(true);
       }
     }, { passive: true });
+    window.addEventListener('orientationchange', () => setTimeout(() => this.calibrateTilt(), 400));
     document.addEventListener('touchmove', e => {
       if (!e.target.closest('.panel')) e.preventDefault();
     }, { passive: false });
@@ -1474,7 +1499,53 @@ class InputSys {
     if (this.down('ArrowLeft') || this.down('KeyA')) s -= 1;
     if (this.down('ArrowRight') || this.down('KeyD')) s += 1;
     if (s === 0) s = this.steerTouch;
+    if (s === 0 && this.wheelPointer === null && this.tiltOn) s = this.tiltSteer;
     return clamp(s, -1, 1);
+  }
+  // ---- tilt steering ----
+  get tiltOn() {
+    return this.usingTouch && this.tiltRaw !== null && typeof Save !== 'undefined' && !!Save.data.settings.tilt;
+  }
+  async enableTilt() {
+    if (this.tiltHooked) return true;
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const r = await DeviceOrientationEvent.requestPermission();
+        if (r !== 'granted') return false;
+      }
+    } catch (e) { return false; }
+    this.tiltHooked = true;
+    window.addEventListener('deviceorientation', e => this.onOrient(e));
+    return true;
+  }
+  onOrient(e) {
+    if (e.beta === null || e.gamma === null) return;
+    // pick the axis that reads as "roll toward screen-right" for the current
+    // screen rotation (beta = pitch about device x, gamma = roll about device y)
+    const so = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle
+      : (typeof window.orientation === 'number' ? (360 - window.orientation) % 360 : 0);
+    let raw;
+    if (so === 90) raw = -e.beta;        // device top points right
+    else if (so === 270) raw = e.beta;   // device top points left
+    else if (so === 180) raw = -e.gamma;
+    else raw = e.gamma;                  // portrait
+    if (this.tiltRaw === null) { this.tiltSmooth = raw; this.tiltZero = clamp(raw, -45, 45); }
+    this.tiltRaw = raw;
+    this.tiltSmooth += (raw - this.tiltSmooth) * 0.3; // low-pass sensor jitter
+    const t = this.tiltSmooth - this.tiltZero;
+    const dead = 1.2, span = 17;         // degrees: deadzone → full lock
+    const mag = clamp((Math.abs(t) - dead) / (span - dead), 0, 1);
+    this.tiltSteer = Math.sign(t) * Math.pow(mag, 1.3); // gentle near center
+    const on = this.tiltOn;
+    if (on !== this._lastTiltOn) { this._lastTiltOn = on; this.applyTiltUI(); }
+    if (on && this._tiltDot) this._tiltDot.style.transform = `translate(calc(-50% + ${(this.tiltSteer * 52).toFixed(1)}px), -50%)`;
+  }
+  calibrateTilt() {
+    if (this.tiltRaw !== null) this.tiltZero = clamp(this.tiltSmooth, -45, 45);
+  }
+  applyTiltUI() {
+    const el = $('touch');
+    if (el) el.classList.toggle('tilt', this.tiltOn);
   }
   get throttle() {
     let t = 0;
@@ -1495,9 +1566,10 @@ class InputSys {
     let startA = 0, baseA = 0;
     wheel.addEventListener('pointerdown', e => {
       e.preventDefault(); SFX.init();
+      if (this._wheelRaf) { cancelAnimationFrame(this._wheelRaf); this._wheelRaf = null; }
       this.wheelPointer = e.pointerId;
       startA = getAngle(e); baseA = this.wheelAngle;
-      wheel.setPointerCapture(e.pointerId);
+      try { wheel.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events */ }
     });
     wheel.addEventListener('pointermove', e => {
       if (this.wheelPointer !== e.pointerId) return;
@@ -1509,11 +1581,30 @@ class InputSys {
     const release = e => {
       if (this.wheelPointer !== e.pointerId) return;
       this.wheelPointer = null;
-      this.wheelAngle = 0; this.steerTouch = 0;
-      gfx.style.transform = 'rotate(0deg)';
+      // spring back to center instead of snapping — reads as the wheel
+      // self-straightening and keeps the steering value continuous
+      const step = () => {
+        this._wheelRaf = null;
+        if (this.wheelPointer !== null) return; // regrabbed mid-spring
+        this.wheelAngle *= 0.76;
+        if (Math.abs(this.wheelAngle) < 0.01) this.wheelAngle = 0;
+        this.steerTouch = this.wheelAngle / rad(120);
+        gfx.style.transform = `rotate(${deg(this.wheelAngle)}deg)`;
+        if (this.wheelAngle !== 0) this._wheelRaf = requestAnimationFrame(step);
+      };
+      this._wheelRaf = requestAnimationFrame(step);
     };
     wheel.addEventListener('pointerup', release);
     wheel.addEventListener('pointercancel', release);
+    // tilt indicator: tap to recenter neutral grip
+    this._tiltDot = $('tilt-dot');
+    const ti = $('tilt-ind');
+    if (ti) ti.addEventListener('pointerdown', e => {
+      e.preventDefault(); SFX.init();
+      this.calibrateTilt();
+      ti.classList.add('flash');
+      setTimeout(() => ti.classList.remove('flash'), 350);
+    });
     const bindHold = (id, prop) => {
       const el = $(id);
       if (!el) return;
@@ -1541,6 +1632,7 @@ class InputSys {
     const el = $('touch');
     if (el) el.classList.toggle('show', show);
     document.body.classList.toggle('touch-mode', show);
+    this.applyTiltUI();
   }
 }
 const Input = new InputSys();
@@ -6767,7 +6859,7 @@ class Game {
     Save.save();
   }
 
-  beginDrive() { this.state = 'drive'; }
+  beginDrive() { this.state = 'drive'; Input.calibrateTilt(); }
 
   // menu attract mode: world for level 1 with ambient traffic
   setMenuMode(mode) {
@@ -8520,6 +8612,12 @@ class UIManager {
     toggle('set-shake', 'shake');
     toggle('set-cb', 'colorblind', v => document.body.classList.toggle('cb', v));
     toggle('set-rm', 'reducedMotion', v => document.body.classList.toggle('rm', v));
+    toggle('set-tilt', 'tilt', v => {
+      if (v) Input.enableTilt().then(ok => {
+        if (!ok) this.toast('📵', 'No tilt access', 'Motion sensor unavailable — the wheel stays on');
+      });
+      Input.applyTiltUI();
+    });
     toggle('set-touch', 'forceTouch', v => { if (this.inRun) Input.showTouch(v || Input.usingTouch); });
     toggle('set-jingle', 'jingle');
     document.body.classList.toggle('cb', !!s.colorblind);
