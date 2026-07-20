@@ -3582,31 +3582,7 @@ const CarFactory = {
         return r;
       }
       case 'wagon': {
-        const r = this.standard({ len: d.len, wid: d.wid, bodyH: 0.65, cabLen: d.len * 0.62, cabH: 0.52, cabOff: -d.len * 0.1, body: d.body, roof: d.roof });
-        // roof rack + strapped luggage (family road-trip energy)
-        const rackY = 1.33, boxX = -d.len * 0.1;
-        for (const zo of [-0.34, 0.34]) {
-          const rail = this.boxMesh(1.8, 0.05, 0.06, 0x2b2d36);
-          rail.position.set(boxX, rackY, zo);
-          r.group.add(rail);
-          for (const xo of [-0.78, 0.78]) { // rail feet down to the roof
-            const foot = this.boxMesh(0.06, 0.09, 0.06, 0x2b2d36);
-            foot.position.set(boxX + xo, rackY - 0.06, zo);
-            r.group.add(foot);
-          }
-        }
-        const box = this.boxMesh(1.45, 0.2, 0.8, 0x8a5a3a);
-        box.position.set(boxX, rackY + 0.13, 0);
-        r.group.add(box);
-        const lid = this.boxMesh(1.49, 0.05, 0.84, 0x6e452c); // overhanging lid line
-        lid.position.set(boxX, rackY + 0.22, 0);
-        r.group.add(lid);
-        for (const xo of [-0.42, 0.42]) { // tie-down straps over the top
-          const strap = this.boxMesh(0.07, 0.3, 0.86, 0x3d2f22);
-          strap.position.set(boxX + xo, rackY + 0.12, 0);
-          r.group.add(strap);
-        }
-        return r;
+        return this.standard({ len: d.len, wid: d.wid, bodyH: 0.65, cabLen: d.len * 0.62, cabH: 0.52, cabOff: -d.len * 0.1, body: d.body, roof: d.roof });
       }
       case 'limo': {
         const r = this.standard({ len: d.len, wid: d.wid, bodyH: 0.6, cabLen: d.len * 0.78, cabH: 0.46, cabOff: -d.len * 0.02, body: d.body, roof: d.roof, axF: d.len * 0.4, axR: -d.len * 0.4 });
