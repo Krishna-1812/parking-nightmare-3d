@@ -1,5 +1,5 @@
 // Parking Nightmare 3D — service worker (version stamped at build time)
-const CACHE = 'ppn3d-20260720102524';
+const CACHE = 'ppn3d-20260721194718';
 const ASSETS = [
   './index.html',
   './classic.html',

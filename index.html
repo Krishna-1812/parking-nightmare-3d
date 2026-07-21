@@ -721,7 +721,7 @@ body.rm #motes span{animation:none;display:none}
       </div>
     </div>
     <div id="cat">🐈‍⬛</div>
-    <div id="title-footer">v4.0 — honk responsibly &nbsp;·&nbsp; <a id="play-classic">play the 2D classic</a> &nbsp;·&nbsp; <a id="open-privacy">privacy</a></div>
+    <div id="title-footer">v5.0 — honk responsibly &nbsp;·&nbsp; <a id="play-classic">play the 2D classic</a> &nbsp;·&nbsp; <a id="open-privacy">privacy</a></div>
   </div>
 
   <!-- ============ MISSION SELECT ============ -->
@@ -4786,6 +4786,283 @@ const PropFactory = {
     m.position.y = 0.026;
     return m;
   },
+
+  // ============================================================
+  // v5 STREET LIFE — sidewalk furniture, vendors, plazas, landmarks
+  // ============================================================
+  // striped awning / canopy fabric, cached by colour pair + direction
+  stripeTex(a, b, vert) {
+    const key = 'stripe_' + a + '_' + b + (vert ? 'v' : 'h');
+    if (Assets.texs[key]) return Assets.texs[key];
+    const tex = Assets.canvas(64, 64, (c, W, H) => {
+      for (let i = 0; i < 8; i++) {
+        c.fillStyle = i % 2 ? a : b;
+        if (vert) c.fillRect(i * W / 8, 0, W / 8, H);
+        else c.fillRect(0, i * H / 8, W, H / 8);
+      }
+    });
+    Assets.texs[key] = tex;
+    return tex;
+  },
+  clockFaceTex() {
+    if (Assets.texs.clockFace) return Assets.texs.clockFace;
+    const tex = Assets.canvas(128, 128, (c) => {
+      c.fillStyle = '#f4f1e8'; c.beginPath(); c.arc(64, 64, 60, 0, TAU); c.fill();
+      c.strokeStyle = '#1f2833'; c.lineWidth = 5; c.beginPath(); c.arc(64, 64, 60, 0, TAU); c.stroke();
+      for (let i = 0; i < 12; i++) {
+        const a = i / 12 * TAU;
+        c.lineWidth = i % 3 === 0 ? 5 : 2;
+        c.beginPath();
+        c.moveTo(64 + Math.cos(a) * 52, 64 + Math.sin(a) * 52);
+        c.lineTo(64 + Math.cos(a) * 45, 64 + Math.sin(a) * 45);
+        c.stroke();
+      }
+      c.strokeStyle = '#1f2833'; c.lineCap = 'round';
+      c.lineWidth = 6; c.beginPath(); c.moveTo(64, 64); c.lineTo(64 + Math.cos(-2.0) * 28, 64 + Math.sin(-2.0) * 28); c.stroke();
+      c.lineWidth = 4; c.beginPath(); c.moveTo(64, 64); c.lineTo(64 + Math.cos(0.5) * 42, 64 + Math.sin(0.5) * 42); c.stroke();
+      c.fillStyle = '#1f2833'; c.beginPath(); c.arc(64, 64, 4, 0, TAU); c.fill();
+    });
+    Assets.texs.clockFace = tex;
+    return tex;
+  },
+
+  // outdoor café: bistro table, two chairs, striped parasol
+  cafeSet() {
+    const g = new THREE.Group();
+    const metal = Assets.lambert('cafeMetal', { color: 0x3a3d44 });
+    const top = new THREE.Mesh(Assets.geo('cafeTop', () => new THREE.CylinderGeometry(0.42, 0.42, 0.05, 16)), Assets.lambert('cafeTopM', { color: 0xf2efe6 }));
+    top.position.y = 0.72; g.add(top);
+    const stem = new THREE.Mesh(Assets.geo('cafeStem', () => new THREE.CylinderGeometry(0.05, 0.05, 0.72, 8)), metal);
+    stem.position.y = 0.36; g.add(stem);
+    const foot = new THREE.Mesh(Assets.geo('cafeFoot', () => new THREE.CylinderGeometry(0.26, 0.26, 0.04, 12)), metal);
+    foot.position.y = 0.02; g.add(foot);
+    const chairC = pick([0xc94f3d, 0x2e6fb0, 0x3f9f52, 0xe8a33a]);
+    for (const ang of [0.5, Math.PI - 0.5]) {
+      const ch = new THREE.Group();
+      const seat = new THREE.Mesh(Assets.geo('cafeSeat', () => new THREE.CylinderGeometry(0.2, 0.2, 0.04, 12)), Assets.lambert('cafeChair' + chairC, { color: chairC }));
+      seat.position.y = 0.44; ch.add(seat);
+      const back = CarFactory.boxMesh(0.36, 0.34, 0.04, chairC);
+      back.position.set(0, 0.62, -0.18); ch.add(back);
+      for (const [lx, lz] of [[-0.15, -0.15], [0.15, -0.15], [-0.15, 0.15], [0.15, 0.15]]) {
+        const leg = new THREE.Mesh(Assets.geo('cafeLeg', () => new THREE.CylinderGeometry(0.02, 0.02, 0.44, 6)), metal);
+        leg.position.set(lx, 0.22, lz); ch.add(leg);
+      }
+      ch.position.set(Math.cos(ang) * 0.62, 0, Math.sin(ang) * 0.62);
+      ch.rotation.y = -ang;
+      g.add(ch);
+    }
+    const pole = new THREE.Mesh(Assets.geo('parPole', () => new THREE.CylinderGeometry(0.04, 0.04, 2.4, 8)), Assets.lambert('parPoleM', { color: 0x6b6f78 }));
+    pole.position.y = 1.2; g.add(pole);
+    const canopy = new THREE.Mesh(
+      Assets.geo('parCanopy', () => new THREE.ConeGeometry(1.5, 0.6, 16)),
+      new THREE.MeshLambertMaterial({ map: this.stripeTex('#e8574a', '#f6f2e8', true), side: THREE.DoubleSide })
+    );
+    canopy.position.y = 2.35; g.add(canopy);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  },
+
+  // glass-sided bus shelter with a colour roof, bench + info totem
+  busShelter() {
+    const g = new THREE.Group();
+    const glass = CarFactory.glass();
+    const metal = Assets.lambert('busMetal', { color: 0x3f4650 });
+    const back = new THREE.Mesh(Assets.geo('busBack', () => new THREE.BoxGeometry(2.6, 1.9, 0.06)), glass);
+    back.position.set(0, 1.1, -0.5); g.add(back);
+    for (const sx of [-1.3, 1.3]) {
+      const side = new THREE.Mesh(Assets.geo('busSide', () => new THREE.BoxGeometry(0.06, 1.9, 1.0)), glass);
+      side.position.set(sx, 1.1, 0); g.add(side);
+    }
+    for (const [px, pz] of [[-1.3, -0.5], [1.3, -0.5], [-1.3, 0.5], [1.3, 0.5]]) {
+      const post = new THREE.Mesh(Assets.geo('busPost', () => new THREE.BoxGeometry(0.09, 2.1, 0.09)), metal);
+      post.position.set(px, 1.05, pz); g.add(post);
+    }
+    const roof = new THREE.Mesh(Assets.geo('busRoof', () => new THREE.BoxGeometry(2.9, 0.12, 1.3)), Assets.lambert('busRoofM', { color: 0xd23b34 }));
+    roof.position.y = 2.16; g.add(roof);
+    const bseat = CarFactory.boxMesh(2.2, 0.06, 0.32, 0x6b7078);
+    bseat.position.set(0, 0.5, -0.32); g.add(bseat);
+    const tp = new THREE.Mesh(Assets.geo('busTotemP', () => new THREE.CylinderGeometry(0.06, 0.06, 2.6, 8)), metal);
+    tp.position.set(1.62, 1.3, 0.3); g.add(tp);
+    const panel = new THREE.Mesh(Assets.geo('busPanel', () => new THREE.BoxGeometry(0.55, 0.8, 0.05)),
+      new THREE.MeshStandardMaterial({ color: 0x1e6fb0, emissive: 0x1e6fb0, emissiveIntensity: 0.4, roughness: 0.5 }));
+    panel.position.set(1.62, 2.35, 0.3); g.add(panel);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  },
+
+  // wooden planter box with clipped hedge + blooms; long doubles the length
+  planter(long) {
+    const g = new THREE.Group();
+    const L = long ? 2.2 : 1.0;
+    const box = new THREE.Mesh(Assets.geo('planterBox' + (long ? 'L' : 'S'), () => new THREE.BoxGeometry(L, 0.5, 0.5)), this.woodMat());
+    box.position.y = 0.25; g.add(box);
+    const rim = CarFactory.boxMesh(L + 0.08, 0.08, 0.58, 0x6b4a2e);
+    rim.position.y = 0.5; g.add(rim);
+    const hedge = new THREE.Mesh(Assets.geo('planterHedge' + (long ? 'L' : 'S'), () => new THREE.BoxGeometry(L - 0.1, 0.36, 0.4)), Assets.lambert('hedgeG', { color: 0x3f8f46 }));
+    hedge.position.y = 0.66; g.add(hedge);
+    const n = long ? 6 : 3;
+    for (let i = 0; i < n; i++) {
+      const bl = new THREE.Mesh(Assets.geo('planterBloom', () => new THREE.SphereGeometry(0.08, 7, 6)), new THREE.MeshLambertMaterial({ color: pick([0xff5a7a, 0xffd24a, 0xff8a3a, 0xe85ad0]) }));
+      bl.position.set(-L / 2 + 0.2 + i * (L - 0.4) / (n - 1 || 1), 0.86, rand(-0.12, 0.12));
+      g.add(bl);
+    }
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  },
+
+  // short protective post with a reflective band
+  bollard() {
+    const g = new THREE.Group();
+    const dark = Assets.lambert('bollardM', { color: 0x2b2d36 });
+    const post = new THREE.Mesh(Assets.geo('bollardP', () => new THREE.CylinderGeometry(0.1, 0.12, 0.9, 10)), dark);
+    post.position.y = 0.45; g.add(post);
+    const cap = new THREE.Mesh(Assets.geo('bollardC', () => new THREE.SphereGeometry(0.1, 10, 6)), dark);
+    cap.position.y = 0.9; g.add(cap);
+    const band = new THREE.Mesh(Assets.geo('bollardB', () => new THREE.CylinderGeometry(0.11, 0.11, 0.13, 10)),
+      Assets.lambert('bollardBand', { color: 0xf4d03a }));
+    band.position.y = 0.72; g.add(band);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  },
+
+  // U-hoop bike rack with one leaning bicycle
+  bikeRack() {
+    const g = new THREE.Group();
+    const metal = Assets.lambert('rackM', { color: 0x5a6068 });
+    for (const rx of [-0.55, 0.55]) {
+      const bar = new THREE.Mesh(Assets.geo('rackBar', () => new THREE.TorusGeometry(0.4, 0.03, 6, 14, Math.PI)), metal);
+      bar.position.set(rx, 0.0, 0); g.add(bar);
+    }
+    const bcol = pick([0xd23b34, 0x2e6fb0, 0x3f9f52, 0xf4a72e]);
+    const bike = new THREE.Group();
+    for (const wx of [-0.5, 0.5]) {
+      const wheel = new THREE.Mesh(Assets.geo('bikeWheel', () => new THREE.TorusGeometry(0.32, 0.035, 6, 16)), Assets.lambert('bikeTire', { color: 0x1a1c22 }));
+      wheel.position.set(wx, 0.32, 0); bike.add(wheel);
+    }
+    const frame = CarFactory.boxMesh(0.85, 0.05, 0.05, bcol);
+    frame.position.set(0, 0.5, 0); bike.add(frame);
+    const seatpost = CarFactory.boxMesh(0.05, 0.32, 0.05, bcol);
+    seatpost.position.set(-0.34, 0.6, 0); bike.add(seatpost);
+    const bars = CarFactory.boxMesh(0.05, 0.36, 0.05, bcol);
+    bars.position.set(0.45, 0.62, 0); bike.add(bars);
+    const seat = CarFactory.boxMesh(0.22, 0.05, 0.1, 0x1a1c22);
+    seat.position.set(-0.34, 0.78, 0); bike.add(seat);
+    bike.rotation.z = 0.07; bike.position.z = 0.12;
+    g.add(bike);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  },
+
+  // street-food vendor cart with striped canopy + menu board
+  foodCart() {
+    const g = new THREE.Group();
+    const body = CarFactory.boxMesh(1.6, 0.9, 0.9, 0xf0ede4);
+    body.position.y = 0.75; g.add(body);
+    const trim = CarFactory.boxMesh(1.64, 0.2, 0.94, 0xd23b34);
+    trim.position.y = 1.12; g.add(trim);
+    const counter = CarFactory.boxMesh(1.72, 0.06, 1.02, 0xcaa46a);
+    counter.position.y = 1.26; g.add(counter);
+    const canopy = new THREE.Mesh(Assets.geo('cartCanopy', () => new THREE.BoxGeometry(1.9, 0.06, 1.2)),
+      new THREE.MeshLambertMaterial({ map: this.stripeTex('#e8574a', '#f6f2e8', true) }));
+    canopy.position.y = 2.0; g.add(canopy);
+    for (const px of [-0.82, 0.82]) {
+      const post = new THREE.Mesh(Assets.geo('cartPost', () => new THREE.CylinderGeometry(0.03, 0.03, 0.74, 6)), Assets.lambert('cartMetal', { color: 0x9aa0a8 }));
+      post.position.set(px, 1.63, 0.4); g.add(post);
+    }
+    for (const wx of [-0.55, 0.55]) {
+      const wheel = new THREE.Mesh(Assets.geo('cartWheel', () => new THREE.CylinderGeometry(0.28, 0.28, 0.08, 12)), Assets.lambert('cartTire', { color: 0x24262e }));
+      wheel.rotation.x = Math.PI / 2; wheel.position.set(wx, 0.28, -0.5); g.add(wheel);
+    }
+    const board = CarFactory.boxMesh(0.7, 0.42, 0.04, 0x2e2620);
+    board.position.set(0, 1.72, -0.48); g.add(board);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  },
+
+  // corner newsstand / kiosk with a striped awning
+  kiosk() {
+    const g = new THREE.Group();
+    const body = CarFactory.boxMesh(2.0, 2.3, 1.4, 0x3f5a4a);
+    body.position.y = 1.15; g.add(body);
+    const open = CarFactory.boxMesh(1.6, 1.0, 0.06, 0x14161a);
+    open.position.set(0, 1.45, 0.71); g.add(open);
+    const counter = CarFactory.boxMesh(1.7, 0.1, 0.4, 0xcaa46a);
+    counter.position.set(0, 0.92, 0.85); g.add(counter);
+    const aw = new THREE.Mesh(Assets.geo('kioskAw', () => new THREE.BoxGeometry(2.3, 0.06, 0.7)),
+      new THREE.MeshLambertMaterial({ map: this.stripeTex('#2e6fb0', '#f6f2e8', true) }));
+    aw.position.set(0, 2.02, 0.92); aw.rotation.x = 0.3; g.add(aw);
+    const roof = new THREE.Mesh(Assets.geo('kioskRoof', () => new THREE.BoxGeometry(2.2, 0.14, 1.6)), Assets.lambert('kioskRoofM', { color: 0x2b3a30 }));
+    roof.position.y = 2.4; g.add(roof);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  },
+
+  // striped storefront awning to graft onto a city building's ground floor
+  awning(width, colorA) {
+    const g = new THREE.Group();
+    const w = width || 3.2;
+    const mat = new THREE.MeshLambertMaterial({ map: this.stripeTex(colorA || '#c94f3d', '#f6f2e8', true), side: THREE.DoubleSide });
+    const cloth = new THREE.Mesh(Assets.geo('awnCloth' + Math.round(w * 10), () => new THREE.BoxGeometry(w, 0.06, 1.15)), mat);
+    cloth.rotation.x = 0.5; cloth.position.set(0, 0, 0.5); g.add(cloth);
+    const val = new THREE.Mesh(Assets.geo('awnVal' + Math.round(w * 10), () => new THREE.BoxGeometry(w, 0.24, 0.04)), mat);
+    val.position.set(0, -0.3, 1.02); g.add(val);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  },
+
+  // potted shrub for doorways / storefronts
+  potPlant() {
+    const g = new THREE.Group();
+    const pot = new THREE.Mesh(Assets.geo('potP', () => new THREE.CylinderGeometry(0.24, 0.18, 0.42, 12)), Assets.lambert('potTerra', { color: 0xb0653f }));
+    pot.position.y = 0.21; g.add(pot);
+    const foliage = new THREE.Mesh(Assets.geo('potFol', () => new THREE.IcosahedronGeometry(0.34, 0)), Assets.lambert('potGreen', { color: 0x3f8f46 }));
+    foliage.position.y = 0.72; foliage.scale.y = 1.3; g.add(foliage);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  },
+
+  // ornate two-faced street clock — a plaza landmark
+  streetClock() {
+    const g = new THREE.Group();
+    const dark = Assets.lambert('clockDark', { color: 0x1f2833 });
+    const post = new THREE.Mesh(Assets.geo('clkPost', () => new THREE.CylinderGeometry(0.1, 0.15, 3.2, 12)), dark);
+    post.position.y = 1.6; g.add(post);
+    const base = new THREE.Mesh(Assets.geo('clkBase', () => new THREE.CylinderGeometry(0.28, 0.34, 0.4, 12)), dark);
+    base.position.y = 0.2; g.add(base);
+    const gold = new THREE.MeshStandardMaterial({ color: 0xd8b24a, metalness: 0.8, roughness: 0.35 });
+    for (const sx of [-1, 1]) {
+      const head = new THREE.Mesh(Assets.geo('clkHead', () => new THREE.CylinderGeometry(0.44, 0.44, 0.18, 20)), gold);
+      head.rotation.z = Math.PI / 2;
+      head.position.set(sx * 0.42, 3.35, 0);
+      g.add(head);
+      const face = new THREE.Mesh(Assets.geo('clkFace', () => new THREE.CircleGeometry(0.37, 20)),
+        new THREE.MeshBasicMaterial({ map: this.clockFaceTex() }));
+      face.position.set(sx * 0.52, 3.35, 0);
+      face.rotation.y = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
+      g.add(face);
+    }
+    const finial = new THREE.Mesh(Assets.geo('clkFin', () => new THREE.ConeGeometry(0.14, 0.4, 10)), gold);
+    finial.position.y = 3.95; g.add(finial);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  },
+
+  // flag on a pole — returns { group, flag } so the world can wave the cloth
+  flagPole(color) {
+    const g = new THREE.Group();
+    const pole = new THREE.Mesh(Assets.geo('flagPole', () => new THREE.CylinderGeometry(0.06, 0.08, 6.0, 10)),
+      new THREE.MeshStandardMaterial({ color: 0xdadfe6, metalness: 0.6, roughness: 0.4 }));
+    pole.position.y = 3.0; pole.castShadow = true; g.add(pole);
+    const ball = new THREE.Mesh(Assets.geo('flagBall', () => new THREE.SphereGeometry(0.12, 10, 8)),
+      new THREE.MeshStandardMaterial({ color: 0xd8b24a, metalness: 0.8, roughness: 0.3 }));
+    ball.position.y = 6.05; g.add(ball);
+    const fgeo = new THREE.PlaneGeometry(2.4, 1.4, 10, 1);
+    fgeo.translate(1.2, 0, 0); // pivot at the pole
+    const flag = new THREE.Mesh(fgeo, new THREE.MeshLambertMaterial({ color: color || 0xd23b34, side: THREE.DoubleSide }));
+    flag.position.set(0.06, 5.2, 0);
+    g.add(flag);
+    return { group: g, flag };
+  },
 };
 
 // ============================================================
@@ -6499,6 +6776,14 @@ class World {
             if (sgn > 0) sign.rotation.y = Math.PI;
             g.add(sign);
           }
+          // striped storefront awning over the street-facing ground floor
+          if (this.r() < 0.72) {
+            const aw = PropFactory.awning(this.rr(3.0, 4.4), pick(['#c94f3d', '#2e6fb0', '#3f8f52', '#7a4a8f', '#d99a2b', '#2b8f8a']));
+            const zf = sgn > 0 ? -depth / 2 - 0.05 : depth / 2 + 0.05;
+            aw.position.set(this.rr(-wide * 0.22, wide * 0.22), this.rr(2.8, 3.2), zf);
+            if (sgn > 0) aw.rotation.y = Math.PI;
+            g.add(aw);
+          }
           this.place(g, p.x, p.y, p.h);
           this.statics.push({ x: p.x, y: p.y, h: p.h, hl: wide / 2, hw: depth / 2, type: 'building' });
         }
@@ -6591,6 +6876,99 @@ class World {
         }
         im.instanceMatrix.needsUpdate = true;
         this.group.add(im);
+      }
+    }
+    // ---- v5 STREET LIFE: sidewalk furniture, vendors, plazas, landmarks ----
+    this.flags = this.flags || [];
+    {
+      const city = !D.houses;
+      const okSide = (sgn) => !(D.marina && sgn === -1); // marina -t is open water
+      // bus shelters on alternating sides
+      for (let s = 66; s < route.length - 60; s += 156) {
+        if (this.nearInter(s, 22)) continue;
+        const sgn = (Math.floor(s / 156) % 2) ? 1 : -1;
+        if (!okSide(sgn)) continue;
+        const tt = RW + 0.35 + SIDEWALK_W * 0.5;
+        const p = routePos(route, s, sgn * tt);
+        if (!this.clearOfRoad(p.x, p.y, tt, 1)) continue;
+        this.place(PropFactory.busShelter(), p.x, p.y, p.h + (sgn > 0 ? Math.PI : 0));
+        this.statics.push({ x: p.x, y: p.y, h: p.h, hl: 1.5, hw: 0.7, type: 'shelter' });
+      }
+      // mixed sidewalk dressing: carts, kiosks, café sets, planters, pots
+      for (let s = 40; s < route.length - 40; s += 33) {
+        if (this.nearInter(s, 15)) continue;
+        for (const sgn of [1, -1]) {
+          if (!okSide(sgn)) continue;
+          if (this.r() < 0.5) continue;
+          const tt = RW + 0.35 + SIDEWALK_W * (0.38 + this.r() * 0.42);
+          const p = routePos(route, s + this.rr(-3, 3), sgn * tt);
+          if (!this.clearOfRoad(p.x, p.y, tt, 1)) continue;
+          const face = p.h + (sgn > 0 ? Math.PI : 0);
+          const roll = this.r();
+          if (city && roll < 0.26) {
+            this.place(PropFactory.foodCart(), p.x, p.y, face + this.rr(-0.25, 0.25));
+            this.statics.push({ x: p.x, y: p.y, h: p.h, hl: 0.9, hw: 0.6, type: 'cart' });
+          } else if (city && roll < 0.4) {
+            this.place(PropFactory.kiosk(), p.x, p.y, face);
+            this.statics.push({ x: p.x, y: p.y, h: p.h, hl: 1.0, hw: 0.75, type: 'kiosk' });
+          } else if (roll < 0.68) {
+            this.place(PropFactory.cafeSet(), p.x, p.y, this.rr(0, TAU));
+          } else if (roll < 0.86) {
+            const pl = PropFactory.planter(this.r() < 0.5);
+            this.place(pl, p.x, p.y, p.h);
+            this.statics.push({ x: p.x, y: p.y, h: p.h, hl: 1.1, hw: 0.3, type: 'planter' });
+          } else {
+            this.place(PropFactory.potPlant(), p.x, p.y, 0);
+          }
+        }
+      }
+      // bike racks (city)
+      if (city) {
+        for (let s = 88; s < route.length - 60; s += 124) {
+          if (this.nearInter(s, 18)) continue;
+          const sgn = this.r() < 0.5 ? 1 : -1;
+          if (!okSide(sgn)) continue;
+          const tt = RW + 0.35 + SIDEWALK_W * 0.5;
+          const p = routePos(route, s, sgn * tt);
+          if (!this.clearOfRoad(p.x, p.y, tt, 1)) continue;
+          this.place(PropFactory.bikeRack(), p.x, p.y, p.h);
+        }
+      }
+      // bollards guarding sidewalk edges just shy of each intersection
+      for (const inter of route.inters) {
+        for (const sgn of [1, -1]) {
+          for (let k = 0; k < 3; k++) {
+            const s = inter.s0 - 3 - k * 1.5;
+            if (s < 8) continue;
+            const p = routePos(route, s, sgn * (RW + 0.55));
+            this.place(PropFactory.bollard(), p.x, p.y, 0);
+          }
+        }
+      }
+      // flag poles as plaza / park landmarks (cloth waved in updateAmbient)
+      for (let s = 110; s < route.length - 80; s += 250) {
+        if (this.nearInter(s, 22)) continue;
+        const sgn = this.r() < 0.5 ? 1 : -1;
+        if (!okSide(sgn)) continue;
+        const tt = RW + 0.35 + SIDEWALK_W * 0.65;
+        const p = routePos(route, s, sgn * tt);
+        if (!this.clearOfRoad(p.x, p.y, tt, 1)) continue;
+        const fp = PropFactory.flagPole(pick([0xd23b34, 0x2e6fb0, 0x3f9f52, 0xf4c430, 0xe85ad0]));
+        this.place(fp.group, p.x, p.y, p.h + this.rr(0, TAU));
+        this.flags.push({ mesh: fp.flag, ph: this.rr(0, TAU) });
+        this.statics.push({ x: p.x, y: p.y, h: 0, hl: 0.15, hw: 0.15, type: 'flagpole' });
+      }
+      // a single ornate street clock landmark mid-route (city plazas)
+      if (city) {
+        const s = Math.min(route.length - 40, route.length * 0.55);
+        if (!this.nearInter(s, 18)) {
+          const tt = RW + 0.35 + SIDEWALK_W * 0.5;
+          const p = routePos(route, s, tt);
+          if (this.clearOfRoad(p.x, p.y, tt, 1)) {
+            this.place(PropFactory.streetClock(), p.x, p.y, p.h);
+            this.statics.push({ x: p.x, y: p.y, h: 0, hl: 0.2, hw: 0.2, type: 'clock' });
+          }
+        }
       }
     }
     // ---- corridor guard walls (invisible) where no buildings gap ----
@@ -6715,6 +7093,18 @@ class World {
         c.g.position.x += c.vx * dt;
         if (c.g.position.x > c.cx + 560) c.g.position.x = c.cx - 560;
         if (c.g.position.x < c.cx - 560) c.g.position.x = c.cx + 560;
+      }
+    }
+    if (this.flags) {
+      for (const fl of this.flags) {
+        const pos = fl.mesh.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i); // 0 at pole → 2.4 at fly end
+          const k = x / 2.4;
+          pos.setZ(i, Math.sin(x * 2.4 - t * 7 + fl.ph) * 0.22 * k);
+        }
+        pos.needsUpdate = true;
+        fl.mesh.geometry.computeVertexNormals();
       }
     }
     if (this.fireflies) {
