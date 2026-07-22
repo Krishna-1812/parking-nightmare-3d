@@ -5465,6 +5465,61 @@ function compileRoute(segs) {
   return { pts, step, length, inters, zones, curves, sampleAt, project };
 }
 
+// ---- route enrichment: sharper turns + a longer haul to the parking bay ----
+// Applied once per hand-authored mission (idempotent). Sharpens every curve,
+// weaves extra chicane switchbacks into long straights, and stretches the
+// final approach so the destination sits further down the road. Par time is
+// rescaled by the length gain (plus a small penalty per added turn) so the
+// missions stay fair.
+function enrichRoute(level) {
+  if (!level || !level.segs || level._enriched || level.tutorial) return level;
+  const src = level.segs, out = [], last = src.length - 1;
+  let oldLen = 0, newLen = 0, added = 0;
+  const seglen = (sg) => sg.t === 'S' ? sg.len : sg.t === 'X' ? (sg.w || 26) : (sg.r || 34) * rad(sg.a || 90);
+  for (let i = 0; i < src.length; i++) {
+    const sg = src[i];
+    oldLen += seglen(sg);
+    if (sg.t === 'L' || sg.t === 'R') {
+      // tighten the radius (smaller r = sharper); nudge lazy 45s up to 60
+      const nr = Math.max(20, Math.round((sg.r || 34) * 0.6));
+      const na = (sg.a || 90) <= 45 ? 60 : (sg.a || 90);
+      const ns = { t: sg.t, r: nr, a: na };
+      out.push(ns); newLen += seglen(ns);
+    } else if (sg.t === 'X') {
+      out.push(sg); newLen += seglen(sg);
+    } else { // straight
+      const len = sg.len;
+      if (i === last) {
+        // longer run-in to the parking destination
+        const ns = { t: 'S', len: len + 80 };
+        out.push(ns); newLen += ns.len;
+      } else if (i !== 0 && len >= 105) {
+        // carve a long straight into a sharp S-bend chicane (net heading kept)
+        const a = len / 3.2;
+        const d1 = (i % 2 === 0) ? 'L' : 'R', d2 = d1 === 'L' ? 'R' : 'L';
+        const parts = [
+          { t: 'S', len: a * 1.25 },
+          { t: d1, r: 24, a: 45 },
+          { t: 'S', len: a * 0.9 },
+          { t: d2, r: 24, a: 45 },
+          { t: 'S', len: a * 1.25 },
+        ];
+        for (const p of parts) { out.push(p); newLen += seglen(p); }
+        added += 2;
+      } else {
+        const ns = { t: 'S', len: len * 1.22 };
+        out.push(ns); newLen += ns.len;
+      }
+    }
+  }
+  level.segs = out;
+  if (Number.isFinite(level.par) && level.par < 9000) {
+    level.par = Math.round(level.par * (newLen / Math.max(1, oldLen)) + added * 3);
+  }
+  level._enriched = true;
+  return level;
+}
+
 // world position from (s, t): c + r*t where r = (-sin h, cos h)
 function routePos(route, s, t) {
   const p = route.sampleAt(s);
@@ -5734,6 +5789,8 @@ const LEVELS = [
     s2: 1400, s3: 2250,
   },
 ];
+// sharpen every campaign mission's turns + lengthen the haul to the bay
+LEVELS.forEach(enrichRoute);
 
 // Shared seeded-mission generator: dailies, weeklies and friend challenges
 // all derive from a string seed so the same code reproduces the same streets.
@@ -5753,18 +5810,19 @@ function seededMission(seedStr, opts) {
   const big = !!opts.big;
   const segs = [{ t: 'S', len: 90 + rng() * 60 }];
   let dist = segs[0].len;
-  const nSeg = (big ? 7 : 4) + Math.floor(rng() * 4);
+  const nSeg = (big ? 10 : 7) + Math.floor(rng() * 4);
   for (let i = 0; i < nSeg; i++) {
     const r = rng();
-    if (r < 0.42) { const L = 70 + rng() * 90; segs.push({ t: 'S', len: L }); dist += L; }
-    else if (r < 0.62 && dist > 150) { segs.push({ t: 'X', lights: district !== 0 }); dist += 26; }
+    if (r < 0.34) { const L = 80 + rng() * 100; segs.push({ t: 'S', len: L }); dist += L; }
+    else if (r < 0.47 && dist > 150) { segs.push({ t: 'X', lights: district !== 0 }); dist += 26; }
     else {
-      const turn = { t: rng() < 0.5 ? 'L' : 'R', r: 36 + rng() * 14, a: rng() < 0.6 ? 90 : 45 };
+      // sharper (smaller r) and mostly hard 90° corners
+      const turn = { t: rng() < 0.5 ? 'L' : 'R', r: 22 + rng() * 12, a: rng() < 0.78 ? 90 : 60 };
       segs.push(turn); dist += turn.r * rad(turn.a);
     }
   }
-  segs.push({ t: 'S', len: 140 });
-  dist += 140;
+  segs.push({ t: 'S', len: 190 });
+  dist += 190;
   const park = rng() < 0.5 ? 'parallel' : 'bay';
   const margin = park === 'parallel' ? 1.4 + rng() * 1.2 : 1.2 + rng() * 0.8;
   const snowD = !!DISTRICTS[district].snow;
@@ -5841,17 +5899,18 @@ function freeRoamLevel(cfg) {
     : vehKeys[Math.floor(rng() * vehKeys.length)] || 'hatch';
   const segs = [{ t: 'S', len: 120 + rng() * 60 }];
   let dist = segs[0].len;
-  const nSeg = 9 + Math.floor(rng() * 4);
+  const nSeg = 13 + Math.floor(rng() * 5);
   for (let i = 0; i < nSeg; i++) {
     const r = rng();
-    if (r < 0.45) { const L = 90 + rng() * 110; segs.push({ t: 'S', len: L }); dist += L; }
-    else if (r < 0.6 && dist > 200) { segs.push({ t: 'X', lights: district !== 0 }); dist += 26; }
+    if (r < 0.38) { const L = 90 + rng() * 110; segs.push({ t: 'S', len: L }); dist += L; }
+    else if (r < 0.5 && dist > 200) { segs.push({ t: 'X', lights: district !== 0 }); dist += 26; }
     else {
-      const turn = { t: rng() < 0.5 ? 'L' : 'R', r: 40 + rng() * 18, a: rng() < 0.7 ? 90 : 45 };
+      // sharper corners for a twistier cruise
+      const turn = { t: rng() < 0.5 ? 'L' : 'R', r: 24 + rng() * 14, a: rng() < 0.78 ? 90 : 60 };
       segs.push(turn); dist += turn.r * rad(turn.a);
     }
   }
-  segs.push({ t: 'S', len: 150 });
+  segs.push({ t: 'S', len: 210 });
   return {
     id: 'roam', district, name: 'Free Roam', veh, lanes: 2,
     brief: 'No timer. No fail. Just you, the open road, and a suspicious amount of loose change floating over it. Park whenever you reach the bay.',
