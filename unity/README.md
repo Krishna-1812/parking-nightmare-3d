@@ -27,7 +27,7 @@ statement of what it wants. If you ever re-seed from a template, redo that.
 | 1 | Route DSL + arc-length projection | **done, verified bit-exact** |
 | 2 | `hatch` with the §3.1 bicycle model at 120 Hz | **done, verified bit-exact** |
 | 3 | One parking spot with §6 tolerances + alignment widget | **done** |
-| 4 | Mission 1 end to end with §9 scoring | **done** (greybox; traffic/peds outstanding — see below) |
+| 4 | Mission 1 end to end with §9 scoring | **done**, including traffic and pedestrian AI |
 | 5 | Take mission 1 to final visual quality | not started |
 
 ## Layout
@@ -51,6 +51,10 @@ ParkingNightmare3D/
     StyleSystem.cs            style awards + combo multiplier (§10)
     SurfaceRules.cs           surface grip, curb, sidewalk, wrong way (§8, §10)
     Scoring.cs                end-of-run score, stars, S-rank, coins (§9)
+    Rng.cs                    mulberry32, the seeded stream the AI draws from
+    ObbCollision.cs           separating-axis test with MTV
+    TrafficSystem.cs          ambient traffic, cross traffic, lights (§8.1)
+    PedSystem.cs              pedestrian states: walk/film/cross/dive/soaked (§8.1)
     MissionRun.cs             owns all of the above in the reference's update order
 
   Assets/Scripts/Game/        Unity layer (asmdef PN3D.Game)
@@ -58,6 +62,7 @@ ParkingNightmare3D/
     WorldBuilder.cs           greybox road/sidewalk/spot/car geometry
     MissionDriver.cs          120 Hz FixedUpdate + render interpolation
     ChaseCamera.cs            chase view easing to overhead assist in the zone
+    ActorViews.cs             greybox traffic cars and pedestrians
     Hud.cs                    shame meter, timer, style, alignment widget (IMGUI)
     DataPaths.cs              locates design-spec/data
 
@@ -82,15 +87,36 @@ That autopilots mission 1 from the start line to a completed park and prints the
 score breakdown — route, physics, parking and scoring through the same `MissionRun` the
 game uses. `SliceTools.Capture` renders greybox screenshots (omit `-nographics`).
 
+### Randomness
+
+The reference's traffic and pedestrian AI call bare `Math.random()`; only the static
+level layout uses a seeded stream. The port routes the AI through a seeded
+`Rng` (mulberry32) instead. That is a deliberate improvement — it makes a run
+reproducible, which the shareable challenge codes in §7 want anyway — and it is what
+lets the harness diff actor behaviour frame by frame at all.
+
+It also makes the test unusually strict. **Draw order is part of the contract**: both
+sides must consume the same number of randoms in the same sequence, so short-circuit
+evaluation has to be reproduced exactly. A car popped from the pool skips its kind roll;
+`chance(0.45)` for lane choice is never evaluated on a one-lane road; the crosser spawn
+rolls its chance *before* testing distance. Get any of those wrong and the streams
+desynchronise permanently rather than drifting slightly — which is why the negative
+control produces 30,000 failures rather than a handful.
+
+One draw is deliberately left out: the traffic car's body colour. It has no simulation
+effect, and putting a render concern inside the deterministic stream buys nothing — the
+Unity layer derives colour from the car id instead. The *kind* draw right beside it is
+reproduced, because kind sets the length and width the gap and collision maths use. The
+pedestrian emote draw is also reproduced, since the reference takes it from the same
+stream and skipping it would shift everything after.
+
 ### What is not in the slice yet
 
-Traffic and pedestrian AI. That is a distinct subsystem — spawn rules, car following,
-ped walk/dive states, near-miss and overtake detection — and it gates the shame and style
-sources that depend on other actors: oncoming traffic (2.4/s), traffic honks (1.2),
-pedestrians filming (2) and diving (12), OVERTAKE! and CLOSE ONE! Everything else in §10
-is ported and verified: all the surface and curb sources, the collision formula, decay,
-the 25/50/75 thresholds, and the style combo. `MissionRun.RegisterCollision` and
-`SurfaceRules.OncomingDanger` are the seams those hook into.
+Static hazards and props — potholes, ramps, cones, puddles, ice patches — and the
+per-vehicle gimmicks (hatch backfire, bus stop-arm and mirrors, tank turret, UFO tractor
+beam). Their shame sources are wired (`ShameSystem.Pothole`, `Airborne`, `BusArm`,
+`Mirror`, `SoakedPed`) but nothing raises them yet. `MissionRun.RegisterCollision` and
+`PedSystem.Soak` are the seams.
 
 `VehicleSim` covers the `car` drive model, which is 7 of the 9 vehicles. `tank` (§3.2)
 and `ufo` (§3.3) are not ported yet — they are not needed until missions 10 and 11, and
@@ -118,11 +144,15 @@ evaluate them, so the reference is the actual shipped code:
   the HUD, so it substitutes a universal no-op stub (a Proxy that is callable,
   constructible and assignable through any chain). What is left executing is exactly the
   geometry and the state machine.
+- `tools/gen_golden_scoring.js` re-executes the scoring expression sequence and pulls
+  `addShame` / `addStyle` / `surfaceLogic` from `n3_e.js`.
+- `tools/gen_golden_actors.js` pulls the `Traffic` and `Peds` classes from `n3_d.js` and
+  injects a seeded RNG in place of `Math.random` — see **Randomness** above.
 
 Regenerate the references (only needed when the corresponding `src/*.js` changes):
 
 ```bash
-node tools/gen_golden_routes.js && node tools/gen_golden_physics.js && node tools/gen_golden_parking.js && node tools/gen_golden_scoring.js
+for g in routes physics parking scoring actors; do node tools/gen_golden_$g.js; done
 ```
 
 Run the diff:
@@ -131,10 +161,10 @@ Run the diff:
 dotnet run --project tools/Validator
 ```
 
-Add `routes`, `physics`, `parking` or `scoring` to run one suite. Current result:
-**74,090 checks pass**, with a maximum relative deviation from JavaScript of **1.7e-13**
-— and that worst case is `accF`, a finite difference that multiplies error by 120.
-Geometry and pose agree to around 1 ULP.
+Add `routes`, `physics`, `parking`, `scoring` or `actors` to run one suite. Current
+result: **279,471 checks pass**, with a maximum relative deviation from JavaScript of
+**1.7e-13** — and that worst case is `accF`, a finite difference that multiplies error by
+120. Geometry and pose agree to around 1 ULP.
 
 Coverage:
 
@@ -161,10 +191,17 @@ Scoring is inlined in `Game.succeed` rather than being a function, so the genera
 re-executes that expression sequence — and asserts each line of it is still present in
 `n3_e.js` verbatim, so the transcription cannot silently drift from the source.
 
-All three suites have been negative-controlled — perturbing the curve-tightening factor
-by 1.7%, rebuilding velocity from the pre-rotation heading, or collapsing the settle
-hysteresis to a single threshold each produce hundreds to thousands of failures. A suite
-that cannot fail proves nothing.
+- **actors** — 6 scenarios (cruising, blocking the lane until traffic honks, driving into
+  the oncoming stream, a shameful sidewalk run that gets filmed, a two-lane route with a
+  lit intersection, and the ice cream jingle dragging pedestrians into the road), each
+  replayed frame by frame: every car's id, kind, arc position, lane, speed, pose and
+  honk/block/hit/panic timers; every crosser; every pedestrian's state, pose, phase and
+  flags; the light phases; and the full event log of honks, dives and filming.
+
+Every suite has been negative-controlled — perturbing the curve-tightening factor by
+1.7%, rebuilding velocity from the pre-rotation heading, collapsing the settle hysteresis
+to a single threshold, or eagerly evaluating one short-circuited `chance()` each produce
+hundreds to tens of thousands of failures. A suite that cannot fail proves nothing.
 
 ## Conventions that must not drift
 

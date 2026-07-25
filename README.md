@@ -47,7 +47,9 @@ tools/
   gen_golden_routes.js   runs the real JS route compiler, dumps a golden reference
   gen_golden_physics.js  same for the real JS vehicle physics
   gen_golden_parking.js  same for spot geometry + the parking tolerance check
-  Validator/             diffs the C# port against all three (dotnet)
+  gen_golden_scoring.js  same for scoring, shame/style, surface rules
+  gen_golden_actors.js   same for the traffic + pedestrian AI
+  Validator/             diffs the C# port against all of them (dotnet)
 ```
 
 `src/_combined.js` and `shots/` are build/test artifacts and are gitignored.

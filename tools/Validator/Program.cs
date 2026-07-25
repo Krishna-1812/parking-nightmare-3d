@@ -26,11 +26,13 @@ namespace PN3D.Validate
             bool physics = args.Length == 0 || Array.IndexOf(args, "physics") >= 0;
             bool parking = args.Length == 0 || Array.IndexOf(args, "parking") >= 0;
             bool scoring = args.Length == 0 || Array.IndexOf(args, "scoring") >= 0;
+            bool actors = args.Length == 0 || Array.IndexOf(args, "actors") >= 0;
 
             if (routes) RouteSuite.Run(repo);
             if (physics) PhysicsSuite.Run(repo);
             if (parking) ParkingSuite.Run(repo);
             if (scoring) ScoringSuite.Run(repo);
+            if (actors) ActorsSuite.Run(repo);
 
             Console.WriteLine();
             Console.WriteLine($"{Checks.Count} checks");

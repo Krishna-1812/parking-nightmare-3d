@@ -59,6 +59,9 @@ namespace PN3D.Game
             chase.Target = built.Car;
             chase.SnapBehind();
 
+            var actors = gameObject.AddComponent<ActorViews>();
+            actors.Run = run;
+
             var hud = gameObject.AddComponent<Hud>();
             hud.Driver = Driver;
         }

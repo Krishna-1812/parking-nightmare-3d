@@ -501,6 +501,52 @@ patches to scatter*, not a boolean. `cones` is likewise a count (4–10).
 
 ---
 
+## 8.1 Traffic and pedestrians
+
+Both systems drive shame and style sources in §10, so their constants are part of the
+tuned core. In the web build they draw from bare `Math.random()`; the Unity port routes
+them through a seeded stream instead, which costs nothing and makes runs reproducible.
+
+**Traffic** (`class Traffic`, src/n3_d.js:1959). Population is
+`min(19, round(density * (window*2) / 100 * 2.35))` over a `window` of 170 m either side
+of the player — 3 cars at mission 1's density of 0.35. Each step, if under population and
+`chance(0.18)`, one spawns, 70% of the time ahead. Direction is `chance(0.42) ? 1 : -1`;
+oncoming spawns deep in the window (`rand(0.55*window, window)`) because it crosses at
+roughly double relative speed and would otherwise look sparse. Spawns are rejected within
+18 m of a same-lane car, and never within 20 m of the parking zone.
+
+| Behaviour | Rule |
+|---|---|
+| Cruise speed | `rand(6.5, 10.5)`, ×0.9 at night |
+| Car following | gap to leader, minus both half-lengths |
+| Player as obstacle | when within 1.9 m of the car's lane offset |
+| Speed from gap | `<3` → stop; `<8` → `(gap-3)*0.9`; `<16` → `cruise*0.6 + (gap-8)` |
+| Accel / brake | +3.2 / −7.5 m/s² |
+| Honk at a blocker | gap < 9, player under 1.5 m/s, car under 1 m/s, for over 2 s |
+| Red light | stops 3 m before the intersection when its own phase is red |
+| After being hit | pulls over for 6 s and leans on the horn |
+| Panic (tank / UFO near) | accelerates to 13 m/s for 2.5 s |
+
+Traffic lights cycle **15.6 s — 7 green, 1.6 amber, 7 red**, with a random initial phase
+per intersection. While the player's road is red, cross traffic spawns at `chance(0.012)`
+per intersection per step, up to 2 at a time, and yields if the player is in the box.
+
+**Pedestrians** (`class Peds`, src/n3_d.js:2212) spawn on the sidewalks with
+`rand(0.7, 1.3)` m/s walking speed. States: `walk`, `film`, `cross`, `dive`, `soaked`.
+
+| Trigger | Result |
+|---|---|
+| Player within 5.5 m above 6 m/s, closing | **dive** — 12 shame, "SO CLOSE!!" |
+| Overlap within 1.6 m | hard dive, teleported clear — they are never hittable |
+| Near, player recently shamed, `chance(0.03)` | **film** for `rand(2, 4)` s — 2 shame, once each |
+| Ice cream jingle on, near, `chance(0.006)` | **cross** — walks into the road toward the truck |
+| Splashed by a puddle | **soaked** for `rand(2.5, 4)` s — up to 8 shame |
+
+Pedestrians who wander onto the road become obstacles traffic brakes for, which is how
+the ice cream missions turn into gridlock.
+
+---
+
 ## 9. Scoring
 
 Computed once on success. All terms are integers.

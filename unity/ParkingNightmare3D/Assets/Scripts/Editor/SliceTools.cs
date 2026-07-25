@@ -48,43 +48,29 @@ namespace PN3D.EditorTools
 
             while (run.Phase != GamePhase.Success && run.Phase != GamePhase.Fail && steps < maxSteps)
             {
-                double toGo = run.Spot.S - run.Proj.S;
-                double lateralErr = targetT - run.Proj.T;
-                double headErr = MathX.AngNorm(run.Proj.H - run.Car.H);
-
-                // steer toward the lane centre, blended with holding the route heading
-                double steer = MathX.Clamp(headErr * 1.7 + lateralErr * 0.30, -1, 1);
-
-                // Ease proportionally to zero *at the spot centre*. Stopping short is not
-                // good enough: the check needs all four corners inside the box, and the
-                // hatch's 1.95 m rear overhang leaves the 3.25 m half-length if the
-                // centre halts even ~1.5 m early.
-                double speed = run.Car.Speed;
-                double wantSpeed = MathX.Clamp(toGo * 0.55, 0.0, 12.0);
-                if (toGo < 0.2) wantSpeed = 0.0;
-
-                double throttle;
-                if (speed < wantSpeed - 0.3) throttle = 1.0;
-                // never brake below ~0.6 m/s: negative throttle under 0.45 is reverse, not
-                // braking (§3.1), so it would back out of the spot instead of settling
-                else if (speed > wantSpeed + 0.3 && speed > 0.6) throttle = -1.0;
-                else throttle = 0.0;
-
-                run.Step(dt, new VehicleInput { Steer = steer, Throttle = throttle });
+                run.Step(dt, Autopilot(run, targetT));
                 steps++;
 
                 if (run.Timer - lastReport >= 10.0)
                 {
                     lastReport = run.Timer;
-                    Log($"  t={run.Timer,6:0.0}s  s={run.Proj.S,7:0.0}  t_off={run.Proj.T,6:0.00}  " +
-                        $"v={run.Car.Speed,5:0.0}  shame={run.Shame.Shame,5:0.0}  " +
-                        $"style={run.Style.Style,4:0}  phase={run.Phase}");
+                    int crossers = 0;
+                    foreach (var kv in run.Traffic.Crossers) crossers += kv.Value.Count;
+                    Log($"  t={run.Timer,6:0.0}s  s={run.Proj.S,7:0.0}  v={run.Car.Speed,5:0.0}  " +
+                        $"shame={run.Shame.Shame,5:0.0}  style={run.Style.Style,4:0}  " +
+                        $"cars={run.Traffic.Cars.Count,2}+{crossers}  " +
+                        $"col={run.Collisions}  phase={run.Phase}");
                 }
             }
 
             Log($"finished  : phase={run.Phase} after {steps} steps ({run.Timer:0.0}s sim time)");
             Log($"            shame={run.Shame.Shame:0.00}  style={run.Style.Style:0}  " +
-                $"damage={run.Car.Damage:0.0}  distDriven={run.DistDriven:0}m");
+                $"damage={run.Car.Damage:0.0}  collisions={run.Collisions}  distDriven={run.DistDriven:0}m");
+
+            int filmed = 0, dived = 0;
+            foreach (var p in run.Peds.List) { if (p.Filmed) filmed++; if (p.State == PedState.Dive) dived++; }
+            Log($"            peds={run.Peds.List.Count} (filmed {filmed}, mid-dive {dived})  " +
+                $"traffic alive={run.Traffic.Cars.Count}  lights={run.Traffic.Lights.Count}");
 
             if (run.Phase == GamePhase.Success)
             {
@@ -141,11 +127,31 @@ namespace PN3D.EditorTools
                 Shot(cam, outDir, "00_warmup", width, height);
                 Shot(cam, outDir, "01_start", width, height);
 
-                // 2) mid-route, on the first curve
-                run.Route.PosAt(run.Route.Length * 0.42, run.Spot.T, out double mx, out double my, out double mh);
-                PlaceCar(built, mx, my, mh);
-                Behind(cam, built.Car, 12f, 5.5f);
-                Shot(cam, outDir, "02_midroute", width, height);
+                // 2) mid-route with live traffic and pedestrians. Simulate first — the
+                // actors only exist once the run has been stepped, and they populate
+                // relative to where the player actually is.
+                const double dt = 1.0 / 120.0;
+                for (int i = 0; i < 3000 && run.Proj.S < run.Route.Length * 0.45; i++)
+                    run.Step(dt, Autopilot(run, run.Spot.T));
+
+                int crossers = 0;
+                foreach (var kv in run.Traffic.Crossers) crossers += kv.Value.Count;
+                Log($"  simulated to s={run.Proj.S:0} with {run.Traffic.Cars.Count} cars, " +
+                    $"{crossers} crossers, {run.Peds.List.Count} peds");
+                ActorViews.SpawnStatic(run, holder.transform);
+
+                PlaceCar(built, run.Car.X, run.Car.Y, run.Car.H);
+                Behind(cam, built.Car, 13f, 6f);
+                Shot(cam, outDir, "02_traffic", width, height);
+
+                // elevated three-quarter view: shows the traffic ahead and the
+                // pedestrians on both sidewalks, which the chase view flattens out
+                var t2 = built.Car;
+                cam.transform.position = t2.position - t2.forward * 22f
+                                       + t2.right * 13f + Vector3.up * 15f;
+                cam.transform.rotation = Quaternion.LookRotation(
+                    (t2.position + t2.forward * 16f) - cam.transform.position, Vector3.up);
+                Shot(cam, outDir, "02b_actors", width, height);
 
                 // 3) approaching the parking spot
                 run.Route.PosAt(run.Spot.S - 26.0, run.Spot.T, out double ax, out double ay, out double ah);
@@ -167,6 +173,36 @@ namespace PN3D.EditorTools
             {
                 UnityEngine.Object.DestroyImmediate(holder);
             }
+        }
+
+        /// <summary>
+        /// Lane-holding autopilot: steer by the route projection, ease speed to zero at
+        /// the spot centre. A test harness, not gameplay — but it exercises the whole
+        /// pipeline including traffic reacting to the player.
+        /// </summary>
+        static VehicleInput Autopilot(MissionRun run, double targetT)
+        {
+            double toGo = run.Spot.S - run.Proj.S;
+            double lateralErr = targetT - run.Proj.T;
+            double headErr = MathX.AngNorm(run.Proj.H - run.Car.H);
+            double steer = MathX.Clamp(headErr * 1.7 + lateralErr * 0.30, -1, 1);
+
+            // Ease proportionally to zero *at the spot centre*. Stopping short is not
+            // good enough: the check needs all four corners inside the box, and the
+            // hatch's 1.95 m rear overhang leaves the 3.25 m half-length if the centre
+            // halts even ~1.5 m early.
+            double speed = run.Car.Speed;
+            double wantSpeed = MathX.Clamp(toGo * 0.55, 0.0, 12.0);
+            if (toGo < 0.2) wantSpeed = 0.0;
+
+            double throttle;
+            if (speed < wantSpeed - 0.3) throttle = 1.0;
+            // never brake below ~0.6 m/s: negative throttle under 0.45 is reverse, not
+            // braking (§3.1), so it would back out of the spot instead of settling
+            else if (speed > wantSpeed + 0.3 && speed > 0.6) throttle = -1.0;
+            else throttle = 0.0;
+
+            return new VehicleInput { Steer = steer, Throttle = throttle };
         }
 
         static void PlaceCar(WorldBuilder.Built built, double x, double y, double h)
