@@ -1,0 +1,9 @@
+# Keep line endings predictable across machines.
+# Without this, a clone on Windows (core.autocrlf=true) checks build.sh out with
+# CRLF and Git Bash fails on the stray \r.
+* text=auto
+*.sh text eol=lf
+
+# Vendored/minified and binary: never touch, never diff
+*.min.js -text -diff
+*.png binary
