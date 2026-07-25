@@ -1174,6 +1174,7 @@ function defaultSave() {
       master: 0.8, music: 0.6, sfx: 0.8,
       hq: true, shake: true, colorblind: false, reducedMotion: false,
       forceTouch: false, jingle: true, tilt: true, vibrate: true,
+      qAuto: true,         // graphics tier still auto-picked (cleared once the player chooses)
     },
     stats: {
       parks: 0, collisions: 0, propsDestroyed: 0, pedsScandalized: 0,
@@ -5945,6 +5946,7 @@ class World {
     this.icePatches = [];                     // {x,y,r} — low-grip zones (snow district)
     this.lights = [];                         // traffic-light controllers per intersection
     this.trafficLightMeshes = [];
+    this.lodProps = [];                       // static props, distance-culled per frame
     this.rng = mulberry32((level.seed || level.id * 7919) >>> 0);
     this.build();
   }
@@ -5989,10 +5991,21 @@ class World {
     return mesh;
   }
 
-  place(mesh, x, y, h, elev) {
+  // dynamic = the object (or its group) is animated later, so keep live matrices
+  place(mesh, x, y, h, elev, dynamic) {
     mesh.position.set(x, elev || 0, y);
     mesh.rotation.y = -h;
     this.group.add(mesh);
+    if (!dynamic) {
+      // Static scenery never moves again: bake each matrix once and stop the
+      // renderer recomputing them for thousands of props every single frame.
+      // matrixWorldNeedsUpdate makes the next traversal fill in matrixWorld
+      // (and force it down the subtree) exactly once.
+      mesh.traverse(o => { o.updateMatrix(); o.matrixAutoUpdate = false; });
+      mesh.matrixWorldNeedsUpdate = true;
+      // register for distance culling (see updateLOD)
+      this.lodProps.push({ o: mesh, x, z: y });
+    }
     return mesh;
   }
 
@@ -6010,7 +6023,11 @@ class World {
     const mid = route.sampleAt(route.length / 2);
     this.sky.position.set(mid.x, 0, mid.y);
     this.group.add(this.sky);
-    this.scene.fog = new THREE.Fog(new THREE.Color(D.fog), 40, D.fogFar);
+    // updateLOD culls static props at this radius. Measured: pulling the fog
+    // in on low-end devices gained nothing once culling was in place, so every
+    // device keeps the full, intended draw distance.
+    this.fogFar = D.fogFar;
+    this.scene.fog = new THREE.Fog(new THREE.Color(D.fog), 40, this.fogFar);
 
     if (D.stars) {
       // two star layers: dense faint field + sparse bright stars
@@ -6427,7 +6444,7 @@ class World {
   addCone(s, t) {
     const p = routePos(this.route, s, t);
     const mesh = PropFactory.cone();
-    this.place(mesh, p.x, p.y, this.rr(0, TAU));
+    this.place(mesh, p.x, p.y, this.rr(0, TAU), 0, true); // cones get knocked flying
     this.cones.push({ x: p.x, y: p.y, h: 0, hl: 0.21, hw: 0.21, mesh, alive: true, vx: 0, vy: 0, vr: 0, air: 0 });
   }
   addBump(s) {
@@ -6486,14 +6503,14 @@ class World {
         if (!this.clearOfRoad(p.x, p.y, Math.abs(t), 10)) continue;
         const kind = this.r() < 0.35 ? 'yacht' : 'sail';
         const b = PropFactory.boat(kind);
-        this.place(b, p.x, p.y, this.rr(0, TAU), 0.02);
+        this.place(b, p.x, p.y, this.rr(0, TAU), 0.02, true); // bobs in updateAmbient
         this.boats.push({ g: b, base: 0.02, ph: this.rr(0, TAU) });
       }
       // buoys near the swim line
       for (let s = s0 + 10; s < s1 - 8; s += this.rr(30, 46)) {
         const p = routePos(route, s, -(wallT + this.rr(10, 14)));
         const bu = PropFactory.buoy();
-        this.place(bu, p.x, p.y, 0, -0.02);
+        this.place(bu, p.x, p.y, 0, -0.02, true); // bobs in updateAmbient
         this.boats.push({ g: bu, base: -0.02, ph: this.rr(0, TAU) });
       }
       // one wooden pier out into the bay
@@ -6523,7 +6540,7 @@ class World {
         // moored sailboat at the pier tip
         const tipP = routePos(route, ps + 5, -(wallT + 28));
         const moored = PropFactory.boat('sail');
-        this.place(moored, tipP.x, tipP.y, pc.h + Math.PI / 2 + this.rr(-0.3, 0.3), 0.02);
+        this.place(moored, tipP.x, tipP.y, pc.h + Math.PI / 2 + this.rr(-0.3, 0.3), 0.02, true); // bobs
         this.boats.push({ g: moored, base: 0.02, ph: this.rr(0, TAU) });
       }
       // lighthouse guards the last stretch of water before the destination
@@ -6534,6 +6551,8 @@ class World {
         const lh = PropFactory.lighthouse();
         this.place(lh.group, lp.x, lp.y, 0, 0);
         this.lhBeam = lh.beam;
+        // the tower stays baked; only the sweeping beam needs a live matrix
+        this.lhBeam.matrixAutoUpdate = true;
       }
     }
   }
@@ -7254,6 +7273,24 @@ class World {
           this._shootLife = 0.8;
         }
       }
+    }
+  }
+
+  // Distance-cull static scenery. The camera's far plane has to stay huge for
+  // the sky dome and horizon ring, so without this every fogged-out building
+  // and prop down the route is still submitted as a draw call. Fog is fully
+  // opaque at fogFar, so hiding past that boundary is visually lossless —
+  // props are already solid fog colour when they wink out.
+  updateLOD(cx, cz) {
+    const props = this.lodProps;
+    if (!props.length) return;
+    const r = this.fogFar * 1.04;
+    const r2 = r * r;
+    for (let i = 0; i < props.length; i++) {
+      const p = props[i];
+      const dx = p.x - cx, dz = p.z - cz;
+      const vis = dx * dx + dz * dz < r2;
+      if (p.o.visible !== vis) p.o.visible = vis;
     }
   }
 
@@ -9240,6 +9277,7 @@ class Game {
     this.rain.update(dt, this.camPos.x, this.camPos.z);
     if (this.world.updateAmbient) this.world.updateAmbient(dt || 1 / 60);
     this.updateCamera(dt, alpha);
+    if (this.world.updateLOD) this.world.updateLOD(this.camera.position.x, this.camera.position.z);
     // sky dome tracks the camera so its surface stays a constant 900m away
     // (its gradient is horizontally uniform, so the follow is invisible)
     if (this.world.sky) this.world.sky.position.set(this.camera.position.x, 0, this.camera.position.z);
@@ -10238,6 +10276,8 @@ class UIManager {
       el.addEventListener('keydown', e => { if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); flip(); } });
     };
     toggle('set-hq', 'hq', v => {
+      Save.data.settings.qAuto = false; // the player has chosen; stop auto-picking
+      Save.save();
       g.renderer.shadowMap.enabled = v;
       g.setPost(v);
       this.toast('✨', v ? 'High quality on' : 'Performance mode', v ? 'Shadows + cinematic bloom enabled' : 'Shadows + bloom off — fully applies next mission');
@@ -10375,6 +10415,16 @@ function compileRouteLength(segs) {
 // ============================================================
 // BOOT
 // ============================================================
+// Auto graphics tier — must run BEFORE `new Game()`, which reads settings.hq
+// to size shadow maps and switch the bloom pipeline on. Shadows + bloom cost
+// roughly 1.5x frame time, which on phone hardware is the difference between
+// a choppy ~25fps and a smooth ride, so touch devices start in Performance
+// mode. Cleared the moment the player picks a side in Settings.
+if (Save.data.settings.qAuto) {
+  Save.data.settings.hq = !(Input.usingTouch || Save.data.settings.forceTouch);
+  Save.save();
+}
+
 const game = new Game();
 const UI = new UIManager(game);
 
