@@ -321,16 +321,8 @@ body.rm #shame-wrap.pulse #shame-tube{animation:none}
 .tbtn{width:58px;height:58px;border-radius:50%;border:1.5px solid var(--glass-b);background:var(--glass);color:#fff;font-size:23px;
   backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 20px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.16);touch-action:none}
 .tbtn:active{transform:translateY(3px)}
-/* tilt steering: slim gauge replaces the wheel; tap it to recenter */
-#tilt-ind{position:absolute;left:calc(18px + env(safe-area-inset-left));bottom:calc(30px + env(safe-area-inset-bottom));width:168px;height:48px;border-radius:24px;
-  background:var(--glass);border:1.5px solid var(--glass-b);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
-  box-shadow:0 8px 20px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.16);pointer-events:auto;display:none;touch-action:none;transition:background .25s}
-#touch.tilt #tilt-ind{display:block}
+/* tilt steering: the phone IS the wheel, so no on-screen wheel */
 #touch.tilt #wheel{display:none}
-#tilt-lbl{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-size:9px;font-weight:800;letter-spacing:1.2px;color:rgba(255,255,255,.5);pointer-events:none}
-#tilt-dot{position:absolute;left:50%;top:50%;width:30px;height:30px;border-radius:50%;background:linear-gradient(180deg,#ffd23e,#f0a51f);
-  border:2px solid var(--ink);transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,.35)}
-#tilt-ind.flash{background:rgba(255,210,62,.3)}
 
 /* ---------- BOOT SPLASH ---------- */
 #boot{position:fixed;inset:0;z-index:100;background:radial-gradient(120% 120% at 50% 20%,#232a44 0%,#12131a 62%);
@@ -664,7 +656,6 @@ body.rm #motes span{animation:none;display:none}
   <!-- ============ TOUCH ============ -->
   <div id="touch">
     <div id="wheel"><div id="wheel-gfx"></div></div>
-    <div id="tilt-ind"><span id="tilt-lbl">TILT · TAP TO RECENTER</span><div id="tilt-dot"></div></div>
     <div id="tside">
       <button class="tbtn" id="tHorn" title="Horn">📢</button>
       <button class="tbtn" id="tHb" title="Handbrake">✋</button>
@@ -792,6 +783,7 @@ body.rm #motes span{animation:none;display:none}
       <h2>PAUSED</h2>
       <button class="btn primary" id="pz-resume">Resume</button>
       <button class="btn" id="pz-retry">Retry Mission</button>
+      <button class="btn hidden" id="pz-recenter">📱 Recenter Tilt</button>
       <button class="btn" id="pz-settings">Settings</button>
       <button class="btn" id="pz-quit">Quit to Map</button>
     </div>
@@ -1795,7 +1787,6 @@ class InputSys {
     this.tiltSteer = Math.sign(t) * Math.pow(mag, 1.4);
     const on = this.tiltOn;
     if (on !== this._lastTiltOn) { this._lastTiltOn = on; this.applyTiltUI(); }
-    if (on && this._tiltDot) this._tiltDot.style.transform = `translate(calc(-50% + ${(this.tiltSteer * 52).toFixed(1)}px), -50%)`;
   }
   calibrateTilt() {
     if (this.tiltRaw !== null) this.tiltZero = clamp(this.tiltSmooth, -45, 45);
@@ -1853,15 +1844,6 @@ class InputSys {
     };
     wheel.addEventListener('pointerup', release);
     wheel.addEventListener('pointercancel', release);
-    // tilt indicator: tap to recenter neutral grip
-    this._tiltDot = $('tilt-dot');
-    const ti = $('tilt-ind');
-    if (ti) ti.addEventListener('pointerdown', e => {
-      e.preventDefault(); SFX.init();
-      this.calibrateTilt();
-      ti.classList.add('flash');
-      setTimeout(() => ti.classList.remove('flash'), 350);
-    });
     const bindHold = (id, prop) => {
       const el = $(id);
       if (!el) return;
@@ -9692,6 +9674,12 @@ class UIManager {
     // pause
     $('pz-resume').addEventListener('click', () => this.pause(false));
     $('pz-retry').addEventListener('click', () => { this.pause(false); this.retry(); });
+    // recenter takes the grip you are holding right now as the new neutral,
+    // so it only makes sense while paused (mid-drive you would be steering)
+    $('pz-recenter').addEventListener('click', () => {
+      Input.calibrateTilt();
+      this.toast('📱', 'Tilt recentered', 'This grip is now straight ahead');
+    });
     $('pz-settings').addEventListener('click', () => this.show('settings'));
     $('pz-quit').addEventListener('click', () => { this.pause(false); this.quitToMenu(); });
     // results
@@ -10084,7 +10072,10 @@ class UIManager {
   pause(on) {
     if (on && this.paused) return;
     this.paused = on;
-    if (on) { this.show('pause'); SFX.engineUpdate(0, 0); }
+    if (on) {
+      $('pz-recenter').classList.toggle('hidden', !Input.tiltOn);
+      this.show('pause'); SFX.engineUpdate(0, 0);
+    }
     else { this.hideAll(); }
   }
 
