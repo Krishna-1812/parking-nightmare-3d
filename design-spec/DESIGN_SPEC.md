@@ -123,12 +123,15 @@ steer      = MoveTowards(steer, target, d.steerSpeed * dt)   // rate-limited rac
 maxSp      = d.maxSpeed * (surfaceGrip < 1 ? surfaceGrip * 1.1 : 1)
 brakeDecel = min(11, 4.5 + d.accel * 0.9)
 
-throttle > 0:  if vF < -0.45 -> vF += brakeDecel * thr * dt   (braking out of reverse)
+throttle > 0:  if vF < -0.45 -> vF = min(0, vF + brakeDecel * thr * dt)  (braking out of reverse)
                else          -> spFrac = clamp(vF / maxSp, 0, 1)
                                 vF += d.accel * thr * (1.15 - 0.75 * spFrac²) * dt
-throttle < 0:  if vF > 0.45  -> vF += brakeDecel * thr * dt   (braking)
+throttle < 0:  if vF > 0.45  -> vF = max(0, vF + brakeDecel * thr * dt)  (braking)
                else          -> vF += d.accel * 0.55 * thr * dt   (reverse)
 ```
+
+The `min`/`max` clamps matter: braking stops the car *at* zero rather than punching
+through into the opposite direction on a single step.
 
 **Resistance** — quadratic aero calibrated so top speed converges on `maxSpeed`:
 
@@ -136,7 +139,9 @@ throttle < 0:  if vF > 0.45  -> vF += brakeDecel * thr * dt   (braking)
 kAero  = (d.accel * 0.4) / d.maxSpeed²
 resist = kAero * vF * |vF| + sign(vF) * 0.35
 if throttle == 0: resist += vF * 0.18            // engine braking
-vF -= resist * dt                                 // never allowed to cross zero
+if |vF| > 0.05:                                   // gated: no resistance at a standstill
+    nv = vF - resist * dt
+    vF = (nv * vF < 0) ? 0 : nv                   // never allowed to cross zero
 if |vF| < 0.09 and throttle == 0: vF *= (1 - 8 * dt)     // creep kill
 vF = clamp(vF, -maxSp * 0.3, maxSp * 1.02)        // reverse capped at 30%
 ```
@@ -150,7 +155,17 @@ if handbrake:     grip *= 0.1;  vF *= (1 - 1.9 * dt)
 vL *= max(0, 1 - grip * 9.5 * dt)                 // lateral velocity bleed
 slideAmt = |vL|                                    // drives tyre smoke + skid audio
 if |vF| > 0.08: h += (vF / d.wb) * tan(steer) * dt
+
+// rebuild world velocity from the NEW heading, after the rotation above
+vx = cos(h) * vF - sin(h) * vL
+vy = sin(h) * vF + cos(h) * vL
 ```
+
+**Order matters here.** Reconstructing `vx, vy` from the pre-rotation heading is the
+classic way to get a port that looks correct and drifts: it injects a phantom lateral
+velocity every step, so `slideAmt` sits around 0.2 in a steady turn instead of ~0, and
+the car smears sideways out of every corner. Position integrates last, for all three
+drive models: `x += vx * dt; y += vy * dt`.
 
 **Cosmetic body attitude** (visual only, but the game reads much worse without it):
 
@@ -234,6 +249,7 @@ wheel behaves like a hand is on it — slower to turn in, quicker to return:
 ```
 steerLam = |raw| > |cmd| ? 3.9 : 8.0            // attack : release
 cmd += (raw - cmd) * (1 - exp(-steerLam * dt))
+if |cmd| < 0.001 and raw == 0: cmd = 0          // snap, or it decays asymptotically
 ```
 
 **On-screen wheel** (touch drag) maps drag angle over ±120° to ±1 and springs back at

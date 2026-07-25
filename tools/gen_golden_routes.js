@@ -92,7 +92,7 @@ const golden = MISSIONS.map(raw => {
   };
 });
 
-const OUT = path.join(REPO, 'tools', 'RouteValidator', 'golden_routes.json');
+const OUT = path.join(REPO, 'tools', 'Validator', 'golden_routes.json');
 fs.writeFileSync(OUT, JSON.stringify(golden, null, 1));
 
 console.log('id | name                     | segs raw->enr | par raw->enr | length m | pts');

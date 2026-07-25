@@ -14,14 +14,14 @@
     <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <AssemblyName>RouteValidator</AssemblyName>
+    <AssemblyName>Validator</AssemblyName>
     <RootNamespace>PN3D.Validate</RootNamespace>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Program.cs" />
+    <Compile Include="*.cs" />
     <Compile Include="../../unity/ParkingNightmare3D/Assets/Scripts/Core/**/*.cs" />
   </ItemGroup>
 

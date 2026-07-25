@@ -14,7 +14,7 @@ where this and the JavaScript disagree, the JavaScript is right.
 | # | Step | State |
 |---|---|---|
 | 1 | Route DSL + arc-length projection | **done, verified bit-exact** |
-| 2 | `hatch` with the §3.1 bicycle model at 120 Hz | not started |
+| 2 | `hatch` with the §3.1 bicycle model at 120 Hz | **done, verified bit-exact** |
 | 3 | One parking spot with §6 tolerances + alignment widget | not started |
 | 4 | Mission 1 end to end with §9 scoring | not started |
 | 5 | Take mission 1 to final visual quality | not started |
@@ -29,7 +29,13 @@ ParkingNightmare3D/
     MissionData.cs            Mission / RouteSeg, parsed from design-spec/data
     RouteEnricher.cs          the difficulty pass — see DESIGN_SPEC §5.1
     RouteCompiler.cs          DSL -> arc-length centreline + Project()
+    VehicleDef.cs             handling constants, from design-spec/data/vehicles.json
+    VehicleSim.cs             the §3.1 kinematic bicycle model
 ```
+
+`VehicleSim` covers the `car` drive model, which is 7 of the 9 vehicles. `tank` (§3.2)
+and `ufo` (§3.3) are not ported yet — they are not needed until missions 10 and 11, and
+the slice is mission 1.
 
 `PN3D.Core` sets `"noEngineReferences": true`. That is load-bearing, not tidiness: it
 makes the core compile without `UnityEngine`, which is what lets the desktop .NET
@@ -39,29 +45,47 @@ splitting the game and its tests into two code paths.
 
 ## Verifying the port
 
-The route compiler is checked against the shipping JavaScript rather than against
-hand-written expectations. `tools/gen_golden_routes.js` extracts the real `compileRoute`
-and `enrichRoute` out of `src/n3_d.js` **by text** and evaluates them, so the reference
-is the actual shipped functions, then dumps exact geometry for all 24 missions.
+The port is checked against the shipping JavaScript rather than against hand-written
+expectations. The generators extract the real functions out of `src/*.js` **by text** and
+evaluate them, so the reference is the actual shipped code:
 
-Regenerate the reference (only needed if `src/n3_d.js` changes):
+- `tools/gen_golden_routes.js` pulls `compileRoute` and `enrichRoute` from `n3_d.js` and
+  dumps exact geometry for all 24 missions.
+- `tools/gen_golden_physics.js` pulls `Vehicle3D.update` from `n3_e.js`, invokes it
+  against a plain state object, and records state traces for 12 deterministic driving
+  scenarios. The car branch never touches `game`, so passing null is safe.
+
+Regenerate the references (only needed when the corresponding `src/*.js` changes):
 
 ```bash
-node tools/gen_golden_routes.js
+node tools/gen_golden_routes.js && node tools/gen_golden_physics.js
 ```
 
 Run the diff:
 
 ```bash
-dotnet run --project tools/RouteValidator
+dotnet run --project tools/Validator
 ```
 
-Current result: **10,968 checks across 24 missions pass**, with a maximum relative
-deviation from JavaScript of **3.1e-16** — roughly 1.4 ULP, i.e. the two implementations
-agree to the limit of double precision. The harness covers enriched segment lists,
-compiled length and point count, intersections, curves, `SampleAt` at 21 arc positions
-per mission, and `Project` at 41 probes per mission including the hinted-vs-global
-search paths.
+Add `routes` or `physics` to run one suite. Current result: **24,603 checks pass**, with
+a maximum relative deviation from JavaScript of **1.7e-13** — and that worst case is
+`accF`, a finite difference that multiplies error by 120. Geometry and pose agree to
+around 1 ULP.
+
+Coverage:
+
+- **routes** — enriched segment lists, compiled length and point count, intersections,
+  curves, `SampleAt` at 21 arc positions per mission, `Project` at 41 probes per mission
+  including the hinted-vs-global search paths.
+- **physics** — 12 scenarios (launch, full lock both ways, braking through zero into
+  reverse, coast to stop, handbrake turn, keyboard slalom, analog slalom, low grip, slip
+  recovery, reverse, creep kill), sampled every 20 steps across ~17,000 simulated steps,
+  comparing pose, velocity, steer, swept steer command, slide, body attitude and the
+  braking/reversing flags.
+
+Both suites have been negative-controlled — perturbing the curve-tightening factor by
+1.7%, or rebuilding velocity from the pre-rotation heading, each produce thousands of
+failures. A suite that cannot fail proves nothing.
 
 ## Conventions that must not drift
 
