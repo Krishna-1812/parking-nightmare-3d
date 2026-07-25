@@ -1,0 +1,4 @@
+/* The runtime theme every UIDocument needs. Unity generates exactly this file the first
+   time you add a UIDocument in the editor; it is committed here instead so the project
+   builds from a clean clone without anyone having to open the UI Builder first. */
+@import url("unity-theme://default");

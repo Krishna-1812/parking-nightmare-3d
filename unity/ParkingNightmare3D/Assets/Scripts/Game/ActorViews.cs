@@ -1,25 +1,28 @@
 using System.Collections.Generic;
 using UnityEngine;
 using PN3D.Core;
+using PN3D.Game.Art;
 
 namespace PN3D.Game
 {
     /// <summary>
-    /// Greybox visuals for traffic cars, cross traffic and pedestrians.
+    /// Views for traffic cars, cross traffic and pedestrians.
     ///
-    /// The simulation owns all state; this only mirrors it into transforms. Car body
-    /// colour is chosen here from the car's id — deliberately, because the reference
-    /// draws that colour from the same RNG the AI uses, and reproducing a purely visual
-    /// draw inside the simulation would put render concerns into the deterministic
-    /// stream for no benefit. See the note in TrafficSystem.Dims.
+    /// The simulation owns all state; this only mirrors it into transforms and animates
+    /// the parts that have no simulation meaning — wheel roll, brake lights, a walk cycle.
+    /// Car body colour is chosen here from the car's id, deliberately: the reference draws
+    /// that colour from the same RNG the AI uses, and reproducing a purely visual draw
+    /// inside the deterministic stream would buy nothing. See the note in
+    /// <see cref="TrafficSystem"/>.
     /// </summary>
     public sealed class ActorViews : MonoBehaviour
     {
         public MissionRun Run;
 
-        readonly Dictionary<int, Transform> _cars = new();
-        readonly Dictionary<int, Transform> _crossers = new();
-        readonly List<Transform> _peds = new();
+        readonly Dictionary<int, CarView.Rig> _cars = new();
+        readonly Dictionary<int, CarView.Rig> _crossers = new();
+        readonly Dictionary<int, float> _roll = new();
+        readonly List<PedView> _peds = new();
         readonly HashSet<int> _seen = new();
 
         Transform _root;
@@ -32,59 +35,93 @@ namespace PN3D.Game
             new Color(0.75f, 0.45f, 0.20f), new Color(0.55f, 0.35f, 0.65f),
         };
 
+        static Color ColorFor(int id)
+            => BodyColors[((id % BodyColors.Length) + BodyColors.Length) % BodyColors.Length];
+
         void Awake()
         {
             _root = new GameObject("PN3D_Actors").transform;
             _root.SetParent(transform, false);
         }
 
-        static Material Mat(Color c)
+        // ------------------------------------------------------------------ builders
+
+        /// <summary>
+        /// A traffic car reuses the player's hull generator, sized from the kind's own
+        /// length and width — the same numbers the gap and collision maths use, so what
+        /// you see is exactly what the simulation is testing against.
+        /// </summary>
+        static CarView.Rig MakeCar(Transform parent, int id, double len, double wid, string kind)
         {
-            var sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            var m = new Material(sh) { color = c };
-            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
-            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0f);
-            return m;
+            var veh = new VehicleDef { Key = kind, Len = len, Wid = wid, Hgt = 1.5 };
+            var body = ColorFor(id);
+            bool tall = kind == "truck" || kind == "bus";
+            var rig = CarView.BuildStandard(parent, $"{kind}_{id}", veh, body, body * 0.82f,
+                                            bodyH: tall ? 1.5f : 0.62f,
+                                            cabHeight: tall ? 0.9f : 0.55f,
+                                            cabLenFrac: tall ? 0.42f : 0.5f,
+                                            wheelR: tall ? 0.44f : 0.34f);
+            rig.Root.name = $"Traffic_{id}";
+            return rig;
         }
 
-        static GameObject Box(string name, Transform parent, Vector3 size, Vector3 pos, Color c)
+        sealed class PedView
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = name;
-            go.transform.SetParent(parent, false);
-            go.transform.localScale = size;
-            go.transform.localPosition = pos;
-            Destroy(go.GetComponent<BoxCollider>());
-            go.GetComponent<MeshRenderer>().sharedMaterial = Mat(c);
-            return go;
-        }
-
-        Transform MakeCarView(int id, double len, double wid)
-        {
-            var go = new GameObject($"Traffic_{id}");
-            go.transform.SetParent(_root, false);
-            var body = BodyColors[((id % BodyColors.Length) + BodyColors.Length) % BodyColors.Length];
-            Box("Hull", go.transform, new Vector3((float)wid, 0.62f, (float)len),
-                new Vector3(0, 0.42f, 0), body);
-            Box("Cab", go.transform, new Vector3((float)wid * 0.86f, 0.5f, (float)len * 0.46f),
-                new Vector3(0, 0.94f, -(float)len * 0.05f), body * 0.82f);
-            return go.transform;
-        }
-
-        Transform MakePedView()
-        {
-            var go = new GameObject("Ped");
-            go.transform.SetParent(_root, false);
-            Box("Body", go.transform, new Vector3(0.38f, 0.72f, 0.28f), new Vector3(0, 0.68f, 0),
-                new Color(0.28f, 0.42f, 0.62f));
-            Box("Head", go.transform, new Vector3(0.26f, 0.26f, 0.26f), new Vector3(0, 1.2f, 0),
-                new Color(0.86f, 0.72f, 0.58f));
-            return go.transform;
+            public Transform Root, Torso, Head, LegL, LegR, ArmL, ArmR, Phone;
         }
 
         /// <summary>
-        /// One-shot spawn of the actor boxes at their current positions, for edit-mode
-        /// tooling (screenshot capture) where there is no update loop running.
+        /// Pedestrian: a jointed stick figure, not a box. The walk cycle and the raised
+        /// phone are what make the crowd read as reacting to you rather than decorating
+        /// the pavement — and reacting to you is the whole shame system (§10).
+        /// </summary>
+        static PedView MakePed(Transform parent, int index)
+        {
+            var rng = new Rng((uint)(index * 2654435761u + 17u));
+            var skin = new Color(0.86f, 0.72f, 0.58f);
+            var shirt = Color.HSVToRGB((float)rng.Next(), 0.45f, 0.75f);
+            var trousers = new Color(0.20f, 0.24f, 0.32f);
+
+            var root = new GameObject("Ped").transform;
+            root.SetParent(parent, false);
+
+            var v = new PedView { Root = root };
+            v.Torso = Geo.Box("Torso", root, new Vector3(0.36f, 0.56f, 0.24f),
+                              new Vector3(0, 1.05f, 0), MatLib.Solid(shirt)).transform;
+            v.Head = Geo.Box("Head", root, new Vector3(0.24f, 0.26f, 0.24f),
+                             new Vector3(0, 1.46f, 0), MatLib.Solid(skin)).transform;
+            Geo.Box("Hair", root, new Vector3(0.26f, 0.08f, 0.26f),
+                    new Vector3(0, 1.58f, 0), MatLib.Solid(new Color(0.18f, 0.13f, 0.10f)));
+
+            // limbs pivot at the hip and shoulder, so the box hangs below its own origin
+            Transform Limb(string name, float x, float y, float len, Color c)
+            {
+                var pivot = new GameObject(name).transform;
+                pivot.SetParent(root, false);
+                pivot.localPosition = new Vector3(x, y, 0);
+                Geo.Box("Seg", pivot, new Vector3(0.12f, len, 0.13f), new Vector3(0, -len / 2f, 0),
+                        MatLib.Solid(c));
+                return pivot;
+            }
+
+            v.LegL = Limb("LegL", -0.10f, 0.78f, 0.78f, trousers);
+            v.LegR = Limb("LegR", 0.10f, 0.78f, 0.78f, trousers);
+            v.ArmL = Limb("ArmL", -0.23f, 1.28f, 0.52f, shirt);
+            v.ArmR = Limb("ArmR", 0.23f, 1.28f, 0.52f, shirt);
+
+            v.Phone = Geo.Box("Phone", v.ArmR, new Vector3(0.07f, 0.13f, 0.02f),
+                              new Vector3(0, -0.56f, 0.04f),
+                              MatLib.Emissive(new Color(0.08f, 0.08f, 0.1f),
+                                              new Color(0.6f, 0.8f, 1f), 0.8f)).transform;
+            v.Phone.gameObject.SetActive(false);
+            return v;
+        }
+
+        // ------------------------------------------------------------------ static spawn
+
+        /// <summary>
+        /// One-shot spawn of the actors at their current poses, for edit-mode tooling
+        /// (screenshot capture) where no update loop is running.
         /// </summary>
         public static void SpawnStatic(MissionRun run, Transform parent)
         {
@@ -92,51 +129,59 @@ namespace PN3D.Game
             root.SetParent(parent, false);
 
             foreach (var car in run.Traffic.Cars)
-                PlaceStaticCar(root, car.Id, car.Len, car.Wid, car.X, car.Y, car.H);
+                PlaceCar(MakeCar(root, car.Id, car.Len, car.Wid, car.Kind), car.X, car.Y, car.H);
 
             foreach (var kv in run.Traffic.Crossers)
                 foreach (var cr in kv.Value)
-                    PlaceStaticCar(root, cr.Id, cr.Len, cr.Wid, cr.X, cr.Y, cr.H);
+                    PlaceCar(MakeCar(root, cr.Id, cr.Len, cr.Wid, cr.Kind), cr.X, cr.Y, cr.H);
 
-            foreach (var ped in run.Peds.List)
+            for (int i = 0; i < run.Peds.List.Count; i++)
             {
-                var go = new GameObject("Ped");
-                go.transform.SetParent(root, false);
-                StaticBox("Body", go.transform, new Vector3(0.38f, 0.72f, 0.28f),
-                          new Vector3(0, 0.68f, 0), new Color(0.28f, 0.42f, 0.62f));
-                StaticBox("Head", go.transform, new Vector3(0.26f, 0.26f, 0.26f),
-                          new Vector3(0, 1.2f, 0), new Color(0.86f, 0.72f, 0.58f));
-                go.transform.position = WorldBuilder.ToWorld(ped.X, ped.Y,
-                    ped.State == PedState.Dive ? 0.3 : 0.0);
-                go.transform.rotation = WorldBuilder.ToRotation(ped.Face)
-                    * Quaternion.Euler(ped.State == PedState.Dive ? 62f : 0f, 0, 0);
+                var view = MakePed(root, i);
+                PoseePed(view, run.Peds.List[i], run.Peds.List[i].X, run.Peds.List[i].Y);
             }
         }
 
-        static void PlaceStaticCar(Transform root, int id, double len, double wid,
-                                   double x, double y, double h)
+        static void PlaceCar(CarView.Rig rig, double x, double y, double h)
         {
-            var go = new GameObject($"Traffic_{id}");
-            go.transform.SetParent(root, false);
-            var body = BodyColors[((id % BodyColors.Length) + BodyColors.Length) % BodyColors.Length];
-            StaticBox("Hull", go.transform, new Vector3((float)wid, 0.62f, (float)len),
-                      new Vector3(0, 0.42f, 0), body);
-            StaticBox("Cab", go.transform, new Vector3((float)wid * 0.86f, 0.5f, (float)len * 0.46f),
-                      new Vector3(0, 0.94f, -(float)len * 0.05f), body * 0.82f);
-            go.transform.position = WorldBuilder.ToWorld(x, y);
-            go.transform.rotation = WorldBuilder.ToRotation(h);
+            rig.Root.position = WorldBuilder.ToWorld(x, y);
+            rig.Root.rotation = WorldBuilder.ToRotation(h);
         }
 
-        static void StaticBox(string name, Transform parent, Vector3 size, Vector3 pos, Color c)
+        static void PoseePed(PedView v, Ped ped, double x, double y)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = name;
-            go.transform.SetParent(parent, false);
-            go.transform.localScale = size;
-            go.transform.localPosition = pos;
-            DestroyImmediate(go.GetComponent<BoxCollider>());
-            go.GetComponent<MeshRenderer>().sharedMaterial = Mat(c);
+            bool diving = ped.State == PedState.Dive;
+            float bob = Mathf.Abs(Mathf.Sin((float)ped.Phase)) * 0.04f;
+            v.Root.position = WorldBuilder.ToWorld(x, y, RoadBuilder.CurbY + bob + (diving ? 0.30f : 0f));
+            v.Root.rotation = WorldBuilder.ToRotation(ped.Face)
+                            * Quaternion.Euler(diving ? 62f : 0f, 0, 0);
+
+            // walk cycle: opposed legs and arms, amplitude scaled by how fast they move
+            float swing = diving ? 0f : Mathf.Sin((float)ped.Phase) * (ped.State == PedState.Cross ? 42f : 28f);
+            v.LegL.localRotation = Quaternion.Euler(swing, 0, 0);
+            v.LegR.localRotation = Quaternion.Euler(-swing, 0, 0);
+
+            bool filming = ped.State == PedState.Film || ped.Filmed;
+            if (filming)
+            {
+                // both arms up holding the phone toward the player
+                v.ArmL.localRotation = Quaternion.Euler(-72f, 0, 12f);
+                v.ArmR.localRotation = Quaternion.Euler(-72f, 0, -12f);
+            }
+            else if (diving)
+            {
+                v.ArmL.localRotation = Quaternion.Euler(-150f, 0, 20f);
+                v.ArmR.localRotation = Quaternion.Euler(-150f, 0, -20f);
+            }
+            else
+            {
+                v.ArmL.localRotation = Quaternion.Euler(-swing * 0.7f, 0, 0);
+                v.ArmR.localRotation = Quaternion.Euler(swing * 0.7f, 0, 0);
+            }
+            v.Phone.gameObject.SetActive(filming);
         }
+
+        // ------------------------------------------------------------------ live update
 
         void LateUpdate()
         {
@@ -151,56 +196,67 @@ namespace PN3D.Game
             foreach (var car in Run.Traffic.Cars)
             {
                 _seen.Add(car.Id);
-                if (!_cars.TryGetValue(car.Id, out var tr) || tr == null)
+                if (!_cars.TryGetValue(car.Id, out var rig) || rig?.Root == null)
                 {
-                    tr = MakeCarView(car.Id, car.Len, car.Wid);
-                    _cars[car.Id] = tr;
+                    rig = MakeCar(_root, car.Id, car.Len, car.Wid, car.Kind);
+                    _cars[car.Id] = rig;
                 }
-                tr.gameObject.SetActive(true);
+                rig.Root.gameObject.SetActive(true);
                 double x = MathX.Lerp(car.Px, car.X, alpha);
                 double y = MathX.Lerp(car.Py, car.Y, alpha);
                 double h = car.Ph + MathX.AngNorm(car.H - car.Ph) * alpha;
-                tr.position = WorldBuilder.ToWorld(x, y);
-                tr.rotation = WorldBuilder.ToRotation(h);
+                PlaceCar(rig, x, y, h);
+
+                float roll = _roll.TryGetValue(car.Id, out float r) ? r : 0f;
+                CarView.Animate(rig, car.V, 0.0, Time.deltaTime, ref roll);
+                _roll[car.Id] = roll;
+
+                // brake lights come on when the car is slowing to its blocker or a red
+                SetBrake(rig, car.V < car.Cruise - 1.0 || car.BlockT > 0);
             }
             foreach (var kv in _cars)
-                if (!_seen.Contains(kv.Key) && kv.Value != null) kv.Value.gameObject.SetActive(false);
+                if (!_seen.Contains(kv.Key) && kv.Value?.Root != null)
+                    kv.Value.Root.gameObject.SetActive(false);
 
             // ---- cross traffic ----
             _seen.Clear();
             foreach (var kv in Run.Traffic.Crossers)
-            {
                 foreach (var cr in kv.Value)
                 {
                     _seen.Add(cr.Id);
-                    if (!_crossers.TryGetValue(cr.Id, out var tr) || tr == null)
+                    if (!_crossers.TryGetValue(cr.Id, out var rig) || rig?.Root == null)
                     {
-                        tr = MakeCarView(cr.Id, cr.Len, cr.Wid);
-                        tr.name = $"Cross_{cr.Id}";
-                        _crossers[cr.Id] = tr;
+                        rig = MakeCar(_root, cr.Id, cr.Len, cr.Wid, cr.Kind);
+                        rig.Root.name = $"Cross_{cr.Id}";
+                        _crossers[cr.Id] = rig;
                     }
-                    tr.gameObject.SetActive(true);
-                    tr.position = WorldBuilder.ToWorld(cr.X, cr.Y);
-                    tr.rotation = WorldBuilder.ToRotation(cr.H);
+                    rig.Root.gameObject.SetActive(true);
+                    PlaceCar(rig, cr.X, cr.Y, cr.H);
+                    float roll = _roll.TryGetValue(-cr.Id, out float r) ? r : 0f;
+                    CarView.Animate(rig, cr.V, 0.0, Time.deltaTime, ref roll);
+                    _roll[-cr.Id] = roll;
                 }
-            }
             foreach (var kv in _crossers)
-                if (!_seen.Contains(kv.Key) && kv.Value != null) kv.Value.gameObject.SetActive(false);
+                if (!_seen.Contains(kv.Key) && kv.Value?.Root != null)
+                    kv.Value.Root.gameObject.SetActive(false);
 
             // ---- pedestrians ----
             var list = Run.Peds.List;
-            while (_peds.Count < list.Count) _peds.Add(MakePedView());
+            while (_peds.Count < list.Count) _peds.Add(MakePed(_root, _peds.Count));
             for (int i = 0; i < list.Count; i++)
             {
                 var ped = list[i];
-                double x = MathX.Lerp(ped.Px, ped.X, alpha);
-                double y = MathX.Lerp(ped.Py, ped.Y, alpha);
-                float bob = Mathf.Abs(Mathf.Sin((float)ped.Phase)) * 0.04f;
-                float lift = ped.State == PedState.Dive ? 0.3f : 0f;
-                _peds[i].position = WorldBuilder.ToWorld(x, y, bob + lift);
-                _peds[i].rotation = WorldBuilder.ToRotation(ped.Face)
-                                  * Quaternion.Euler(ped.State == PedState.Dive ? 62f : 0f, 0, 0);
+                PoseePed(_peds[i], ped,
+                         MathX.Lerp(ped.Px, ped.X, alpha),
+                         MathX.Lerp(ped.Py, ped.Y, alpha));
             }
+        }
+
+        static void SetBrake(CarView.Rig rig, bool on)
+        {
+            if (rig.BrakeLight == null) return;
+            rig.BrakeLight.SetColor("_EmissionColor",
+                new Color(1f, 0.23f, 0.19f) * (on ? 2.4f : 0.35f));
         }
     }
 }

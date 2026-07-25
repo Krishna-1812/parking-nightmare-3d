@@ -2,6 +2,9 @@
 src/_combined.js
 shots/
 
+# Unity batch-mode -logFile output, written wherever the command was run from
+*.log
+
 # dotnet build output for tools/
 [Bb]in/
 [Oo]bj/

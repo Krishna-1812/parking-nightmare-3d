@@ -3,7 +3,9 @@
     "rootNamespace": "PN3D.Game",
     "references": [
         "PN3D.Core",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

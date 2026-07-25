@@ -34,3 +34,7 @@ crashlytics-build.properties
 # asset importer noise
 sysinfo.txt
 *.stackdump
+
+# written when the editor is killed mid-edit; never part of the project
+[Aa]ssets/_Recovery/
+[Aa]ssets/_Recovery.meta

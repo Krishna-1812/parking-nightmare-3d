@@ -660,10 +660,27 @@ that asymmetry — it is the design.
 - Tilt input, including every correction in §4
 
 **Rebuild natively — do not translate the JavaScript:**
-- Rendering. Use URP, real GLTF/FBX assets, PBR materials with normal and roughness maps,
-  baked lightmaps, and a post-processing volume. The web build has **zero** normal maps and
-  **zero** imported models — every prop is procedural boxes lit by two lights. That, not the
-  runtime, is why it looks simple.
+- Rendering. Use URP and a post-processing volume.
+
+  > **Revised after building it.** This section originally said to use real GLTF/FBX
+  > assets, PBR maps and baked lightmaps, on the theory that the web build looks simple
+  > because it has none of those. The vertical slice went the other way and **ported the
+  > procedural painters instead**, and the result matches the reference at a comparable
+  > level of polish. Three reasons that turned out to be the better trade:
+  >
+  > 1. In the web build the *painting code* is the art source. Porting it keeps both
+  >    builds looking like the same game, and keeps a district palette swap a data change
+  >    on both sides. Exported textures start drifting from the code that made them on
+  >    day one.
+  > 2. Baked lightmaps would pin a scene to one district. The same scene and the same
+  >    builders serve all six palettes; a bake for the suburbs sun is wrong for the other
+  >    five.
+  > 3. No binary art means the whole look stays reviewable in a diff.
+  >
+  > What is genuinely lost is bounce lighting and contact AO. The slice compensates with
+  > trilight ambient plus a skybox reflection probe. Revisit this if a district ever needs
+  > interiors or heavy occlusion — and note that imported assets remain the right call for
+  > anything a painter cannot express, which today means characters.
 - Audio. The web build synthesises everything in WebAudio, including the layered per-district
   music. In Unity use real audio assets; keep the *layering* idea (pads/bass/arp/percussion
   fading by district and intensity) because it works.
@@ -696,3 +713,18 @@ Do **not** rebuild all 24 missions first. Build a vertical slice:
 
 Step 5 is the real unknown, and it is the one that tells you whether the professional look
 is achievable and how long content actually takes. Everything else is known work.
+
+**All five steps are done** — see `unity/README.md`. What step 5 actually answered:
+
+- **The look is achievable, and the route to it was porting the painters, not importing
+  assets.** See the revision note in §11.
+- **Content cost is low per mission and front-loaded into the district.** Everything in
+  mission 1 is a function of `data/missions.json` and `data/districts.json`: the road
+  corridor, the scenery placement, the sky, the fog and the grade all derive from the
+  mission's `district`, `lanes` and route. Missions 2–24 in the same district are close to
+  free; each *new* district costs a palette entry plus whatever painters its flags imply
+  (`houses`, `neon`, `snow`, `marina`, `weird`), which is where the remaining art work
+  actually is.
+- **Physics is 2D and the art must never quietly become load-bearing.** Nothing in the
+  visual pass carries a collider. Every elevation in the corridor — the 16 cm curb
+  included — is cosmetic, exactly as §2 requires.

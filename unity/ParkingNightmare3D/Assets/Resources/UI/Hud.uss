@@ -1,0 +1,454 @@
+/* Parking Nightmare 3D — HUD.
+
+   Design rules this sheet is following, in priority order:
+
+   1. Never obscure the road. Panels hug the corners, the centre column is reserved for
+      transient text, and the alignment widget only exists while the parking zone is armed.
+   2. Everything the player is judged on is legible at a glance: the shame meter changes
+      colour by band, the timer turns red past par, and the alignment metrics go green or
+      red against the §6 tolerances rather than making the player read numbers.
+   3. Deadpan-comic, not military-sci-fi. Rounded panels, warm accents, generous weight.
+
+   Sizes are in reference-resolution pixels; PanelSettings scales with the screen. */
+
+/* ------------------------------------------------------------------ layout */
+
+.root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.hud {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.hidden {
+    display: none;
+}
+
+/* ------------------------------------------------------------------ panels */
+
+.panel {
+    position: absolute;
+    background-color: rgba(10, 12, 18, 0.62);
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgba(255, 255, 255, 0.10);
+    border-right-color: rgba(255, 255, 255, 0.10);
+    border-top-color: rgba(255, 255, 255, 0.16);
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.caption {
+    font-size: 13px;
+    -unity-font-style: bold;
+    letter-spacing: 3px;
+    color: rgba(255, 255, 255, 0.62);
+    margin-bottom: 4px;
+}
+
+.sub {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.66);
+}
+
+/* ------------------------------------------------------------- shame panel */
+
+.shame-panel {
+    left: 26px;
+    top: 24px;
+    flex-direction: row;
+    align-items: center;
+    width: 320px;
+}
+
+.shame-body {
+    flex-grow: 1;
+    margin-left: 12px;
+}
+
+.pct {
+    font-size: 20px;
+    -unity-font-style: bold;
+    color: rgb(255, 255, 255);
+    margin-left: 10px;
+    width: 52px;
+    -unity-text-align: middle-right;
+}
+
+.bar-track {
+    height: 14px;
+    background-color: rgba(255, 255, 255, 0.14);
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+    border-bottom-left-radius: 7px;
+    border-bottom-right-radius: 7px;
+    overflow: hidden;
+}
+
+.bar-fill {
+    height: 100%;
+    width: 0%;
+    background-color: rgb(90, 204, 115);
+    border-top-left-radius: 7px;
+    border-bottom-left-radius: 7px;
+    border-top-right-radius: 7px;
+    border-bottom-right-radius: 7px;
+}
+
+.bar-fill.hold {
+    background-color: rgb(90, 216, 128);
+}
+
+/* the crowd's face, assembled from elements — see the note in Hud.uxml */
+
+.face {
+    width: 46px;
+    height: 46px;
+    border-top-left-radius: 23px;
+    border-top-right-radius: 23px;
+    border-bottom-left-radius: 23px;
+    border-bottom-right-radius: 23px;
+    background-color: rgb(247, 205, 74);
+}
+
+.eye {
+    position: absolute;
+    top: 15px;
+    width: 6px;
+    height: 8px;
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+    background-color: rgb(38, 30, 16);
+}
+
+.eye-l { left: 12px; }
+.eye-r { right: 12px; }
+
+.mouth {
+    position: absolute;
+    left: 13px;
+    right: 13px;
+    top: 28px;
+    height: 8px;
+    background-color: rgb(38, 30, 16);
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    border-top-left-radius: 2px;
+    border-top-right-radius: 2px;
+}
+
+/* frown: the same bar with the curve on the other edge */
+.mouth.frown {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom-left-radius: 2px;
+    border-bottom-right-radius: 2px;
+}
+
+.mouth.flat {
+    height: 5px;
+    border-top-left-radius: 2px;
+    border-top-right-radius: 2px;
+    border-bottom-left-radius: 2px;
+    border-bottom-right-radius: 2px;
+}
+
+/* ------------------------------------------------------------ status panel */
+
+.status-panel {
+    right: 26px;
+    top: 24px;
+    width: 300px;
+    align-items: flex-end;
+}
+
+.status-panel .row {
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.timer {
+    font-size: 30px;
+    -unity-font-style: bold;
+    color: rgb(255, 255, 255);
+}
+
+.timer.over {
+    color: rgb(255, 116, 108);
+}
+
+.status-panel .sub {
+    margin-left: 10px;
+}
+
+.togo {
+    margin-top: 2px;
+}
+
+.style {
+    font-size: 19px;
+    -unity-font-style: bold;
+    color: rgb(255, 200, 82);
+}
+
+.combo {
+    font-size: 17px;
+    -unity-font-style: bold;
+    color: rgb(255, 138, 61);
+    margin-left: 8px;
+}
+
+/* --------------------------------------------------------- transient text */
+
+.banner {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 15%;
+    font-size: 30px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    color: rgb(255, 236, 236);
+    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.85);
+}
+
+.warn {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 25%;
+    font-size: 24px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    color: rgb(255, 186, 92);
+    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.85);
+}
+
+.popups {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 33%;
+    align-items: center;
+}
+
+.popup {
+    font-size: 24px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.9);
+    margin-bottom: 2px;
+}
+
+/* --------------------------------------------------------- alignment widget */
+
+.align {
+    left: 50%;
+    bottom: 30px;
+    width: 380px;
+    margin-left: -190px;
+    align-items: stretch;
+}
+
+.metrics {
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.metric {
+    font-size: 19px;
+    -unity-font-style: bold;
+    color: rgb(255, 255, 255);
+}
+
+.metric.ok { color: rgb(105, 224, 132); }
+.metric.bad { color: rgb(255, 116, 108); }
+
+.hint {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.66);
+    margin-top: 6px;
+    -unity-text-align: middle-center;
+}
+
+/* ------------------------------------------------------------- overlays */
+
+.overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(4, 5, 9, 0.72);
+    align-items: center;
+    justify-content: center;
+}
+
+.card {
+    width: 720px;
+    background-color: rgba(16, 18, 26, 0.97);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    border-bottom-left-radius: 20px;
+    border-bottom-right-radius: 20px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgba(255, 255, 255, 0.10);
+    border-right-color: rgba(255, 255, 255, 0.10);
+    border-top-color: rgba(255, 255, 255, 0.18);
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+    padding-left: 42px;
+    padding-right: 42px;
+    padding-top: 34px;
+    padding-bottom: 30px;
+}
+
+.card-title {
+    font-size: 34px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    color: rgb(255, 209, 102);
+}
+
+.card-body {
+    font-size: 19px;
+    color: rgba(255, 255, 255, 0.86);
+    white-space: normal;
+    -unity-text-align: middle-center;
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+.card-meta {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.60);
+    -unity-text-align: middle-center;
+    margin-top: 6px;
+}
+
+.card-keys {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.50);
+    -unity-text-align: middle-center;
+    margin-top: 20px;
+}
+
+.card-prompt {
+    font-size: 17px;
+    -unity-font-style: bold;
+    color: rgb(255, 209, 102);
+    -unity-text-align: middle-center;
+    margin-top: 12px;
+}
+
+.countdown {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 36%;
+    font-size: 130px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    color: rgb(255, 216, 102);
+    text-shadow: 0 8px 18px rgba(0, 0, 0, 0.8);
+}
+
+/* ------------------------------------------------------------- results */
+
+.results-card {
+    width: 640px;
+}
+
+.stars {
+    font-size: 40px;
+    -unity-text-align: middle-center;
+    color: rgb(255, 209, 102);
+    letter-spacing: 6px;
+    margin-top: 4px;
+}
+
+.lines {
+    margin-top: 22px;
+}
+
+.line {
+    flex-direction: row;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.line-label {
+    font-size: 17px;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.line-value {
+    font-size: 17px;
+    -unity-font-style: bold;
+    color: rgb(255, 255, 255);
+}
+
+.line-value.negative {
+    color: rgb(255, 133, 126);
+}
+
+.rule {
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.18);
+    margin-top: 12px;
+    margin-bottom: 12px;
+}
+
+.total .line-label,
+.total .line-value {
+    font-size: 25px;
+    -unity-font-style: bold;
+    color: rgb(255, 209, 102);
+}
+
+/* ------------------------------------------------------------- failure */
+
+.failed {
+    background-color: rgba(46, 4, 10, 0.78);
+}
+
+.fail-title {
+    font-size: 62px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    color: rgb(255, 118, 110);
+}
+
+.fail-sub {
+    font-size: 21px;
+    -unity-text-align: middle-center;
+    color: rgba(255, 255, 255, 0.72);
+    margin-top: 10px;
+}

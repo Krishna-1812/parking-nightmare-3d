@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Resources/UI/Hud.uss" />
+
+    <!-- Nothing in the HUD is interactive, so the whole tree ignores picking. The one
+         thing the player must never lose is the view of the road. -->
+    <ui:VisualElement name="root" class="root" picking-mode="Ignore">
+
+        <!-- ============================ live readouts ============================ -->
+        <ui:VisualElement name="hud" class="hud" picking-mode="Ignore">
+
+            <ui:VisualElement name="shame-panel" class="panel shame-panel" picking-mode="Ignore">
+                <!-- the crowd's mood, drawn from elements rather than an emoji glyph:
+                     the runtime theme's font has no emoji coverage -->
+                <ui:VisualElement name="face" class="face" picking-mode="Ignore">
+                    <ui:VisualElement class="eye eye-l" picking-mode="Ignore" />
+                    <ui:VisualElement class="eye eye-r" picking-mode="Ignore" />
+                    <ui:VisualElement name="mouth" class="mouth" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:VisualElement class="shame-body" picking-mode="Ignore">
+                    <ui:Label text="SHAME" class="caption" />
+                    <ui:VisualElement class="bar-track" picking-mode="Ignore">
+                        <ui:VisualElement name="shame-fill" class="bar-fill" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:Label name="shame-pct" text="0%" class="pct" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="status-panel" class="panel status-panel" picking-mode="Ignore">
+                <ui:VisualElement class="row" picking-mode="Ignore">
+                    <ui:Label name="timer" text="0:00.0" class="timer" />
+                    <ui:Label name="par" text="par 0:00.0" class="sub" />
+                </ui:VisualElement>
+                <ui:VisualElement class="row" picking-mode="Ignore">
+                    <ui:Label name="style" text="STYLE 0" class="style" />
+                    <ui:Label name="combo" text="" class="combo" />
+                </ui:VisualElement>
+                <ui:Label name="togo" text="" class="sub togo" />
+            </ui:VisualElement>
+
+            <ui:Label name="banner" class="banner hidden" />
+            <ui:Label name="warn" class="warn hidden" />
+            <ui:VisualElement name="popups" class="popups" picking-mode="Ignore" />
+
+            <ui:VisualElement name="align" class="panel align hidden" picking-mode="Ignore">
+                <ui:Label text="ALIGNMENT" class="caption" />
+                <ui:VisualElement class="row metrics" picking-mode="Ignore">
+                    <ui:Label name="angle" text="ANGLE 0.0" class="metric" />
+                    <ui:Label name="curb" text="CURB 0 cm" class="metric" />
+                </ui:VisualElement>
+                <ui:VisualElement class="bar-track" picking-mode="Ignore">
+                    <ui:VisualElement name="hold-fill" class="bar-fill hold" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:Label name="align-hint" text="slot in — watch angle and curb" class="hint" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- ============================== overlays ============================== -->
+        <ui:VisualElement name="brief" class="overlay hidden" picking-mode="Ignore">
+            <ui:VisualElement class="card" picking-mode="Ignore">
+                <ui:Label name="brief-title" text="MISSION 1" class="card-title" />
+                <ui:Label name="brief-text" text="" class="card-body" />
+                <ui:Label name="brief-meta" text="" class="card-meta" />
+                <ui:Label text="WASD or arrows to drive    ·    SPACE handbrake" class="card-keys" />
+                <ui:Label text="press any key to start" class="card-prompt" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:Label name="countdown" text="3" class="countdown hidden" />
+
+        <ui:VisualElement name="results" class="overlay hidden" picking-mode="Ignore">
+            <ui:VisualElement class="card results-card" picking-mode="Ignore">
+                <ui:Label name="res-title" text="PARKED!" class="card-title" />
+                <ui:Label name="res-stars" text="" class="stars" />
+                <ui:VisualElement name="res-lines" class="lines" picking-mode="Ignore" />
+                <ui:VisualElement class="rule" picking-mode="Ignore" />
+                <ui:VisualElement class="line total" picking-mode="Ignore">
+                    <ui:Label text="TOTAL" class="line-label" />
+                    <ui:Label name="res-total" text="0" class="line-value" />
+                </ui:VisualElement>
+                <ui:Label name="res-detail" text="" class="card-meta" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="failed" class="overlay failed hidden" picking-mode="Ignore">
+            <ui:Label name="fail-title" text="TOO MUCH SHAME" class="fail-title" />
+            <ui:Label name="fail-sub" text="the crowd has seen enough" class="fail-sub" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

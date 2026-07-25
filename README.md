@@ -150,11 +150,18 @@ parking tolerances, scoring, shame/style rules) in engine-independent terms, wit
 mission and vehicle data as JSON that Unity can load directly. The web build remains the
 reference implementation; where the spec and the code disagree, the code is right.
 
-The rebuild lives in `unity/` and is following the vertical-slice plan in DESIGN_SPEC
-§12. Mission 1 is playable end to end — brief, countdown, drive, park, scored results —
-on greybox geometry, with the shame and style systems live. The simulation core (route
-DSL and projection, the `hatch` bicycle model at 120 Hz, parking tolerances, scoring,
-shame/style) is verified bit-exact against the shipping JavaScript:
-`dotnet run --project tools/Validator` diffs the C# against golden references extracted
-from `src/n3_*.js` themselves — 74,090 checks. Traffic and pedestrian AI are the
-remaining gap. Details in `unity/README.md`.
+The rebuild lives in `unity/` and has completed the whole vertical-slice plan in
+DESIGN_SPEC §12. Mission 1 is playable end to end — brief, countdown, drive, park, scored
+results — with traffic, pedestrians, the shame and style systems, and finished visuals:
+textured road and markings, curbs and sidewalks, suburban scenery, sky and fog from the
+district palette, post-processing, and a UI Toolkit HUD.
+
+The simulation core (route DSL and projection, the `hatch` bicycle model at 120 Hz,
+parking tolerances, scoring, shame/style, traffic and pedestrian AI) is verified
+bit-exact against the shipping JavaScript: `dotnet run --project tools/Validator` diffs
+the C# against golden references extracted from `src/n3_*.js` themselves — **279,471
+checks**, worst-case relative deviation 1.7e-13.
+
+There are no imported art assets: every texture is painted at load and every mesh is
+generated, the same way the web build does it. Details, including why that beat importing
+models, are in `unity/README.md`.

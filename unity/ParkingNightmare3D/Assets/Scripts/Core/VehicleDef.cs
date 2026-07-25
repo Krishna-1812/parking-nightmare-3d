@@ -25,6 +25,12 @@ namespace PN3D.Core
         public double Mass;
         public double Fragility;  // scales damage taken
 
+        // Livery. Presentation, but it is authored in vehicles.json alongside the handling
+        // constants, so it is parsed here rather than duplicated in a second table that
+        // could drift. Plain strings, so Core stays engine-free.
+        public string BodyHex;
+        public string RoofHex;
+
         public static VehicleDef FromJson(string key, JsonValue j) => new VehicleDef
         {
             Key = key,
@@ -41,6 +47,8 @@ namespace PN3D.Core
             Grip = j.DoubleOr("grip", 0),
             Mass = j.DoubleOr("mass", 1),
             Fragility = j.DoubleOr("fragility", 1),
+            BodyHex = j.OptString("body"),
+            RoofHex = j.OptString("roof"),
         };
 
         /// <summary>vehicles.json is an object keyed by vehicle id, not an array.</summary>

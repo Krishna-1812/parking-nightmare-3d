@@ -29,14 +29,26 @@ namespace PN3D.Game
         public string ThresholdBanner { get; private set; }
         float _thresholdUntil;
 
+        /// <summary>
+        /// Test seam: when set, this replaces the keyboard. Batch-mode capture and the
+        /// headless play-mode check have no input device, and reaching into the Input
+        /// System to fake key states would be testing the input backend rather than the
+        /// game.
+        /// </summary>
+        public System.Func<VehicleInput> InputOverride;
+
         Transform _car;
         Transform _carBody;
+        Art.CarView.Rig _rig;
+        float _wheelRoll;
 
-        public void Init(MissionRun run, Transform car, Transform carBody)
+        public void Init(MissionRun run, Transform car, Transform carBody,
+                         Art.CarView.Rig rig = null)
         {
             Run = run;
             _car = car;
             _carBody = carBody;
+            _rig = rig;
 
             run.Shame.OnThreshold += (pct, msg) =>
             {
@@ -115,6 +127,18 @@ namespace PN3D.Game
                     0f,
                     (float)(car.Roll * Mathf.Rad2Deg * 6.0));
             }
+
+            if (_rig != null)
+            {
+                // Wheels roll and steer here, in the render loop. They are presentation:
+                // the §3.1 bicycle model has no wheels, only a heading and a steer angle,
+                // and rolling them in FixedUpdate would tie an art decision to the
+                // simulation's timestep for no reason.
+                Art.CarView.Animate(_rig, car.Speed, car.Steer, Time.deltaTime, ref _wheelRoll);
+                if (_rig.BrakeLight != null)
+                    _rig.BrakeLight.SetColor("_EmissionColor",
+                        new Color(1f, 0.23f, 0.19f) * (car.Braking ? 3.0f : 0.35f));
+            }
         }
 
         void FixedUpdate()
@@ -130,7 +154,7 @@ namespace PN3D.Game
 
             if (Stage != RunStage.Driving) return;
 
-            Run.Step(Time.fixedDeltaTime, ReadInput());
+            Run.Step(Time.fixedDeltaTime, InputOverride != null ? InputOverride() : ReadInput());
         }
     }
 }

@@ -108,16 +108,12 @@ namespace PN3D.EditorTools
             var holder = new GameObject("PN3D_Capture");
             try
             {
-                WorldBuilder.BuildLighting(holder.transform);
                 var built = WorldBuilder.Build(run, holder.transform);
 
                 var camGo = new GameObject("CaptureCam");
                 camGo.transform.SetParent(holder.transform, false);
                 var cam = camGo.AddComponent<Camera>();
-                cam.fieldOfView = 60f;
-                cam.farClipPlane = 900f;
-                cam.clearFlags = CameraClearFlags.SolidColor;
-                cam.backgroundColor = new Color(0.49f, 0.71f, 0.89f);
+                PN3D.Game.Art.PostFx.SetupCamera(cam, 60f);
 
                 // 1) behind the car at the start line.
                 // Warm-up render first: in batch mode the very first Camera.Render can
@@ -159,6 +155,17 @@ namespace PN3D.EditorTools
                 Behind(cam, built.Car, 12f, 6f);
                 Shot(cam, outDir, "03_approach", width, height);
 
+                // 3b) close three-quarter on the car itself. The player looks at this more
+                // than anything else in the game, so it gets its own check shot.
+                run.Route.PosAt(run.Spot.S - 40.0, run.Spot.T, out double cx, out double cy, out double ch);
+                PlaceCar(built, cx, cy, ch);
+                var tc = built.Car;
+                cam.transform.position = tc.position + tc.forward * 4.6f
+                                       + tc.right * 3.4f + Vector3.up * 1.55f;
+                cam.transform.rotation = Quaternion.LookRotation(
+                    (tc.position + Vector3.up * 0.55f) - cam.transform.position, Vector3.up);
+                Shot(cam, outDir, "03b_car", width, height);
+
                 // 4) parked in the spot, overhead assist view
                 PlaceCar(built, run.Spot.X, run.Spot.Y, run.Spot.H);
                 var t = built.Car;
@@ -180,7 +187,7 @@ namespace PN3D.EditorTools
         /// the spot centre. A test harness, not gameplay — but it exercises the whole
         /// pipeline including traffic reacting to the player.
         /// </summary>
-        static VehicleInput Autopilot(MissionRun run, double targetT)
+        public static VehicleInput Autopilot(MissionRun run, double targetT)
         {
             double toGo = run.Spot.S - run.Proj.S;
             double lateralErr = targetT - run.Proj.T;
