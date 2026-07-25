@@ -1,3 +1,7 @@
 .claude/
 src/_combined.js
 shots/
+
+# dotnet build output for tools/
+[Bb]in/
+[Oo]bj/

@@ -305,11 +305,45 @@ The compiler produces a polyline plus a `project(x, y)` function returning
 GPS arrow, distance-to-go, off-road detection, curb-gap measurement, prop placement,
 traffic spawning. **Build this first in Unity** — it is load-bearing.
 
-Campaign routes run 0.8–1.1 km with all corner radii ≤ 30 m (deliberately tight; a
-difficulty pass specifically sharpened them). Segment counts per mission are in the table
-in §7. Procedural generators exist for Free Roam and Daily Challenge — 13–18 segments,
-radii 24–38 m, always ending in a long straight (190–210 m) so the parking spot has
-approach room.
+Compiled campaign routes run **0.40–1.12 km**; every one except mission 1 falls in
+0.67–1.12 km. Corner radii after the difficulty pass described in §5.1 are **20–30 m**
+on all 23 non-tutorial missions; mission 1 keeps its authored 40 m because it is exempt.
+Segment counts per mission are in the table in §7. Procedural generators exist for Free
+Roam and Daily Challenge — 13–18 segments, radii 24–38 m, always ending in a long
+straight (190–210 m) so the parking spot has approach room.
+
+### 5.1 Route enrichment — read this before compiling anything
+
+`data/missions.json` holds the **authored** segments and par times. It is not what the
+game plays. At load the web build runs `LEVELS.forEach(enrichRoute)` (src/n3_d.js:424),
+which rewrites every non-tutorial mission in place:
+
+| Authored | Becomes |
+|---|---|
+| curve `{r, a}` | `{r: max(20, round(r * 0.6)), a: a <= 45 ? 60 : a}` — sharper |
+| final straight `{len}` | `{len: len + 80}` — longer run-in to the parking spot |
+| interior straight, `len >= 105` | a 5-part chicane: `S len/3.2*1.25`, `45° r24`, `S len/3.2*0.9`, `45° r24` (opposite), `S len/3.2*1.25`. Turn direction alternates on segment parity. Net heading is preserved. Counts 2 toward `added` |
+| any other straight | `{len: len * 1.22}` |
+| intersection `X` | unchanged |
+
+Par is then rescaled by the length gain:
+`par = round(par * (newLen / oldLen) + added * 3)`, which inflates it by **1.19–1.36×**.
+Mission 1 is `tutorial: true` and is skipped entirely, so it is the only mission whose
+authored par is also its real par — which means a vertical slice built on mission 1 alone
+will not reveal a mistake here.
+
+**Compiling `missions.json` directly yields the wrong geometry and a par 20–30% too
+tight on 23 of 24 missions.** Always enrich first. The flag `_enriched` makes it
+idempotent. Ported to C# as `RouteEnricher.Enrich`; `RouteCompiler.CompileMission`
+does both steps in the right order.
+
+**Known defect, preserved deliberately.** The rebuilt straights do not carry the `zone`
+field across, so the `zone: "school"` authored on missions 3, 12, 18 and 20 is discarded
+during enrichment. Every compiled route therefore has an empty zone list and the
+school-zone shame rule in §10 never fires in the shipped game. The Unity port reproduces
+this so behaviour matches; carrying `Zone` across in `RouteEnricher` is a one-word
+change if you decide to actually enable it, but note that doing so makes four missions
+harder and their `s2`/`s3` thresholds were tuned without it.
 
 ---
 
@@ -342,32 +376,37 @@ a different audio stinger, a different haptic pattern, and +50 coins in Free Roa
 24 missions, 4 per district across 6 districts, 3 stars each = **72 stars maximum**.
 Full definitions in `data/missions.json`.
 
-| # | D | Name | Vehicle | Lanes | Par | Park | Margin | Segs |
-|---|---|---|---|---|---|---|---|---|
-| 1 | 1 | Driving School Dropout | hatch | 1 | 80 | parallel | 2.6 | 5 |
-| 2 | 1 | The Milk Run | hatch | 1 | 105 | parallel | 2.2 | 7 |
-| 3 | 1 | Yard Sale Frenzy | wagon | 1 | 115 | bay | 1.3 | 7 |
-| 4 | 2 | Rush Hour Rodeo | wagon | 2 | 130 | parallel | 1.9 | 7 |
-| 5 | 2 | The Limo Job | limo | 2 | 135 | parallel | 2.4 | 7 |
-| 6 | 2 | Meltdown at Noon | icecream | 2 | 140 | bay | 1.4 | 7 |
-| 7 | 3 | Night Shift | hatch | 2 | 130 | parallel | 1.7 | 7 |
-| 8 | 3 | Bus Route Blues | bus | 2 | 150 | parallel | 3.2 | 5 |
-| 9 | 3 | Downpour Dash | wagon | 2 | 145 | parallel | 1.6 | 7 |
-| 10 | 4 | Tank on Main Street | tank | 2 | 160 | parallel | 3.4 | 7 |
-| 11 | 4 | Close Encounters | ufo | 2 | 135 | bay | 2.0 | 7 |
-| 12 | 4 | The Final Exam | limo | 2 | 210 | parallel | 1.2 | 11 |
-| 13 | 5 | Boardwalk Breakfast | hatch | 1 | 110 | parallel | 2.2 | 7 |
-| 14 | 5 | Kart Courier | kart | 1 | 100 | bay | 1.0 | 7 |
-| 15 | 5 | Something Borrowed | limo | 2 | 140 | parallel | 1.8 | 7 |
-| 16 | 5 | Monster Bay | monster | 2 | 135 | bay | 1.6 | 7 |
-| 17 | 5 | Last Scoop of Summer | icecream | 2 | 150 | bay | 1.3 | 9 |
-| 18 | 5 | The Regatta Gauntlet | monster | 2 | 190 | parallel | 1.4 | 11 |
-| 19 | 6 | First Frost | hatch | 1 | 120 | parallel | 2.4 | 7 |
-| 20 | 6 | The School Run | bus | 1 | 155 | parallel | 3.2 | 7 |
-| 21 | 6 | Powder Express | wagon | 1 | 135 | bay | 1.4 | 7 |
-| 22 | 6 | Avalanche Avenue | monster | 2 | 145 | bay | 1.7 | 7 |
-| 23 | 6 | Cold Scoop | icecream | 2 | 150 | parallel | 1.6 | 7 |
-| 24 | 6 | Aurora Nights | limo | 2 | 205 | parallel | 1.3 | 9 |
+| # | D | Name | Vehicle | Lanes | Par | Park | Margin | Segs | km |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 1 | Driving School Dropout | `hatch` | 1 | 80 | parallel | 2.6 | 5 | 0.40 |
+| 2 | 1 | The Milk Run | `hatch` | 1 | 105 → **137** | parallel | 2.2 | 7 → **11** | 0.71 |
+| 3 | 1 | Yard Sale Frenzy | `wagon` | 1 | 115 → **150** | bay | 1.3 | 7 → **11** | 0.68 |
+| 4 | 2 | Rush Hour Rodeo | `wagon` | 2 | 130 → **176** | parallel | 1.9 | 7 → **15** | 0.83 |
+| 5 | 2 | The Limo Job | `limo` | 2 | 135 → **170** | parallel | 2.4 | 7 → **11** | 0.77 |
+| 6 | 2 | Meltdown at Noon | `icecream` | 2 | 140 → **171** | bay | 1.4 | 7 → **11** | 0.78 |
+| 7 | 3 | Night Shift | `hatch` | 2 | 130 → **177** | parallel | 1.7 | 7 → **15** | 0.80 |
+| 8 | 3 | Bus Route Blues | `bus` | 2 | 150 → **190** | parallel | 3.2 | 5 → **9** | 0.67 |
+| 9 | 3 | Downpour Dash | `wagon` | 2 | 145 → **184** | parallel | 1.6 | 7 → **11** | 0.79 |
+| 10 | 4 | Tank on Main Street | `tank` | 2 | 160 → **211** | parallel | 3.4 | 7 → **11** | 0.72 |
+| 11 | 4 | Close Encounters | `ufo` | 2 | 135 → **165** | bay | 2 | 7 → **11** | 0.77 |
+| 12 | 4 | The Final Exam | `limo` | 2 | 210 → **263** | parallel | 1.2 | 11 → **19** | 1.12 |
+| 13 | 5 | Boardwalk Breakfast | `hatch` | 1 | 110 → **135** | parallel | 2.2 | 7 | 0.67 |
+| 14 | 5 | Kart Courier | `kart` | 1 | 100 → **129** | bay | 1 | 7 → **11** | 0.67 |
+| 15 | 5 | Something Borrowed | `limo` | 2 | 140 → **177** | parallel | 1.8 | 7 → **11** | 0.77 |
+| 16 | 5 | Monster Bay | `monster` | 2 | 135 → **173** | bay | 1.6 | 7 → **11** | 0.72 |
+| 17 | 5 | Last Scoop of Summer | `icecream` | 2 | 150 → **189** | bay | 1.3 | 9 → **13** | 0.88 |
+| 18 | 5 | The Regatta Gauntlet | `monster` | 2 | 190 → **232** | parallel | 1.4 | 11 → **15** | 1.05 |
+| 19 | 6 | First Frost | `hatch` | 1 | 120 → **148** | parallel | 2.4 | 7 | 0.67 |
+| 20 | 6 | The School Run | `bus` | 1 | 155 → **192** | parallel | 3.2 | 7 → **11** | 0.76 |
+| 21 | 6 | Powder Express | `wagon` | 1 | 135 → **160** | bay | 1.4 | 7 | 0.67 |
+| 22 | 6 | Avalanche Avenue | `monster` | 2 | 145 → **184** | bay | 1.7 | 7 → **11** | 0.74 |
+| 23 | 6 | Cold Scoop | `icecream` | 2 | 150 → **180** | parallel | 1.6 | 7 | 0.71 |
+| 24 | 6 | Aurora Nights | `limo` | 2 | 205 → **250** | parallel | 1.3 | 9 → **13** | 0.90 |
+
+Where two values are shown the first is what `data/missions.json` contains and the
+second, in bold, is what the game actually uses after §5.1 enrichment. `km` is the
+compiled centreline length. Values verified against the shipping build by
+`tools/RouteValidator`.
 
 Each mission also carries: `brief` (flavour text shown pre-run), `traffic` (density 0–1),
 `peds` (pedestrian count), `s2`/`s3` (2- and 3-star score thresholds), and optional
@@ -475,9 +514,12 @@ collision:  5 + severity * 9        (severity 0.1..1, from closing speed / 14)
 |---|---|
 | Driving into oncoming traffic (car actually near) | 2.4 |
 | Driving on the sidewalk | 2.2 |
-| Speeding in a school zone (> 6.5 m/s) | 2.2 |
+| Speeding in a school zone (> 6.5 m/s) | 2.2 † |
 | Wrong way for more than 1.2 s | 1.6 |
 | Driving on grass / lawns | 1.2 |
+
+† Dead code in the shipping build: route enrichment strips the `zone` field, so no
+compiled route has a school zone. See §5.1.
 
 Shame **decays at 0.5/s but only after 6 continuous seconds of calm** — any new shame resets
 that timer to zero. Recovery is possible but requires visibly composing yourself, which is
@@ -512,7 +554,7 @@ that asymmetry — it is the design.
 
 **Port faithfully — this is the tuned, validated core:**
 - Vehicle physics equations and all constants (§3) — the feel is the product
-- Route DSL and the arc-length projection (§5)
+- Route DSL, the enrichment pass, and the arc-length projection (§5, §5.1)
 - Parking tolerances and the 1.5 s hold (§6)
 - Scoring formula, star thresholds, coin economy (§9)
 - Shame/Style rules, thresholds, decay (§10)

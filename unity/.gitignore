@@ -1,0 +1,36 @@
+# Unity generated / machine-local — everything here is rebuilt on open
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# never commit these; Unity regenerates them from the asmdefs
+*.csproj
+*.sln
+*.unityproj
+*.user
+*.pidb
+*.booproj
+*.svd
+*.suo
+.vs/
+.idea/
+.vsconfig
+
+# build artefacts
+*.apk
+*.aab
+*.ipa
+*.app
+*.unitypackage
+*.unitypackage.meta
+crashlytics-build.properties
+
+# asset importer noise
+sysinfo.txt
+*.stackdump

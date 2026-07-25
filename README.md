@@ -36,7 +36,16 @@ src/
 design-spec/             engine-independent spec for the Unity rebuild
   DESIGN_SPEC.md         physics, routes, parking, scoring, shame/style
   data/*.json            24 missions, 9 vehicles, 6 districts — exact, exported
+                         (missions are PRE-enrichment; see DESIGN_SPEC §5.1)
   extract_spec.js        regenerates data/ from the src/ literals
+
+unity/                   the Unity 6 rebuild — see unity/README.md
+  ParkingNightmare3D/    URP project, Unity 6000.5.5f1
+    Assets/Scripts/Core/ engine-free simulation core (asmdef PN3D.Core)
+
+tools/
+  gen_golden_routes.js   runs the real JS route compiler, dumps a golden reference
+  RouteValidator/        diffs the C# port against it (dotnet)
 ```
 
 `src/_combined.js` and `shots/` are build/test artifacts and are gitignored.
@@ -136,3 +145,9 @@ Active direction is a **Unity rebuild** targeting Google Play and the App Store.
 parking tolerances, scoring, shame/style rules) in engine-independent terms, with all
 mission and vehicle data as JSON that Unity can load directly. The web build remains the
 reference implementation; where the spec and the code disagree, the code is right.
+
+The rebuild lives in `unity/` and is following the vertical-slice plan in DESIGN_SPEC
+§12. Step 1 (route DSL + arc-length projection) is done and verified bit-exact against
+the shipping JavaScript — `dotnet run --project tools/RouteValidator` diffs the C# port
+against a golden reference extracted from `src/n3_d.js` itself. Details in
+`unity/README.md`.
