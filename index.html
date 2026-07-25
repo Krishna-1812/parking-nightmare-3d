@@ -1721,6 +1721,15 @@ class InputSys {
     if (s === 0 && this.wheelPointer === null && this.tiltOn) s = this.tiltSteer;
     return clamp(s, -1, 1);
   }
+  // True when `steer` resolved to tilt — an ABSOLUTE analog position rather
+  // than a keyboard on/off. The physics uses this to skip the slow "a hand is
+  // sweeping the wheel" attack, which is right for a key press but is pure
+  // added latency when the player's own hand is already the wheel.
+  get steerAnalog() {
+    if (this.down('ArrowLeft') || this.down('KeyA') || this.down('ArrowRight') || this.down('KeyD')) return false;
+    if (this.steerTouch !== 0) return false; // on-screen wheel keeps its current feel
+    return this.wheelPointer === null && this.tiltOn;
+  }
   // ---- tilt steering ----
   get tiltOn() {
     return this.usingTouch && this.tiltRaw !== null && typeof Save !== 'undefined' && !!Save.data.settings.tilt;
@@ -1765,7 +1774,14 @@ class InputSys {
     const raw = Math.asin(clamp(right, -1, 1)) * 180 / Math.PI; // degrees of lean
     if (this.tiltRaw === null) { this.tiltSmooth = raw; this.tiltZero = clamp(raw, -45, 45); }
     this.tiltRaw = raw;
-    this.tiltSmooth += (raw - this.tiltSmooth) * 0.16; // low-pass sensor jitter
+    // Low-pass on a TIME constant, not per event: sensors fire anywhere from
+    // ~30 to ~120Hz, and a fixed per-event factor made the lag scale with the
+    // device's report rate (a 30Hz phone felt twice as laggy). 40ms kills
+    // sensor jitter while staying well inside "instant" to the hand.
+    const now = performance.now();
+    const dtms = this._tiltT ? clamp(now - this._tiltT, 3, 100) : 16;
+    this._tiltT = now;
+    this.tiltSmooth += (raw - this.tiltSmooth) * (1 - Math.exp(-dtms / 40));
     const t = this.tiltSmooth - this.tiltZero;
     // Sensitivity = how far you must lean for full lock. Default asks for a
     // deliberate ~48 degrees instead of the old twitchy 26, and the squared
@@ -1773,7 +1789,10 @@ class InputSys {
     const sens = (S && typeof S.tiltSens === 'number') ? clamp(S.tiltSens, 0, 1) : 0.5;
     const dead = 3, span = 26 + (1 - sens) * 44;
     const mag = clamp((Math.abs(t) - dead) / (span - dead), 0, 1);
-    this.tiltSteer = Math.sign(t) * Math.pow(mag, 2.0); // gentle near center
+    // 1.4, not 2.0: squaring made the first third of the lean produce almost
+    // nothing, which reads as lag rather than as gentleness. Full lock still
+    // needs a committed lean because the span stays wide.
+    this.tiltSteer = Math.sign(t) * Math.pow(mag, 1.4);
     const on = this.tiltOn;
     if (on !== this._lastTiltOn) { this._lastTiltOn = on; this.applyTiltUI(); }
     if (on && this._tiltDot) this._tiltDot.style.transform = `translate(calc(-50% + ${(this.tiltSteer * 52).toFixed(1)}px), -50%)`;
@@ -7848,9 +7867,13 @@ class Vehicle3D {
     const d = this.def;
     const maxSp = d.maxSpeed * (this.surfaceGrip < 1 ? this.surfaceGrip * 1.1 : 1);
     // keyboard steer arrives as a hard ±1; sweep the command toward it so
-    // the wheel turns like a hand is on it (slower attack, quicker return)
+    // the wheel turns like a hand is on it (slower attack, quicker return).
+    // Tilt already IS an absolute wheel position held by the player's hand, so
+    // it gets a near-instant follow instead — the slow attack on top of it was
+    // the bulk of the reported tilt latency.
     const steerRaw = inp ? inp.steer : 0;
-    const steerLam = Math.abs(steerRaw) > Math.abs(this.steerCmd) ? 3.9 : 8.0;
+    const analog = !!(inp && inp.steerAnalog);
+    const steerLam = analog ? 20 : (Math.abs(steerRaw) > Math.abs(this.steerCmd) ? 3.9 : 8.0);
     this.steerCmd += (steerRaw - this.steerCmd) * (1 - Math.exp(-steerLam * dt));
     if (Math.abs(this.steerCmd) < 0.001 && steerRaw === 0) this.steerCmd = 0;
     const steerIn = this.steerCmd;
