@@ -858,6 +858,8 @@ body.rm #motes span{animation:none;display:none}
       <div class="set-row"><label>Colorblind-safe palette</label><div class="toggle" id="set-cb" tabindex="0" role="switch" aria-checked="false"></div></div>
       <div class="set-row"><label>Reduced motion</label><div class="toggle" id="set-rm" tabindex="0" role="switch" aria-checked="false"></div></div>
       <div class="set-row"><label>Tilt steering (mobile)</label><div class="toggle on" id="set-tilt" tabindex="0" role="switch" aria-checked="true"></div></div>
+      <div class="set-row"><label>Tilt sensitivity</label><input type="range" id="set-tiltsens" min="0" max="100" value="50"></div>
+      <div class="set-row"><label>Invert tilt direction</label><div class="toggle" id="set-tiltinv" tabindex="0" role="switch" aria-checked="false"></div></div>
       <div class="set-row"><label>Force touch controls</label><div class="toggle" id="set-touch" tabindex="0" role="switch" aria-checked="false"></div></div>
       <div class="set-row"><label>Ice cream jingle</label><div class="toggle on" id="set-jingle" tabindex="0" role="switch" aria-checked="true"></div></div>
       <div class="set-row"><label>Vibration (mobile)</label><div class="toggle on" id="set-vib" tabindex="0" role="switch" aria-checked="true"></div></div>
@@ -1174,6 +1176,8 @@ function defaultSave() {
       master: 0.8, music: 0.6, sfx: 0.8,
       hq: true, shake: true, colorblind: false, reducedMotion: false,
       forceTouch: false, jingle: true, tilt: true, vibrate: true,
+      tiltSens: 0.5,       // 0 = very gentle (70° for full lock), 1 = twitchy (26°)
+      tiltInvert: false,   // flip tilt steering direction
       qAuto: true,         // graphics tier still auto-picked (cleared once the player chooses)
     },
     stats: {
@@ -1735,22 +1739,41 @@ class InputSys {
   }
   onOrient(e) {
     if (e.beta === null || e.gamma === null) return;
-    // pick the axis that reads as "roll toward screen-right" for the current
-    // screen rotation (beta = pitch about device x, gamma = roll about device y)
+    // Steer by where GRAVITY points relative to the screen's own "right"
+    // direction — not by hand-picking beta/gamma signs per orientation, which
+    // is how the two landscape cases ended up swapped (tilting right steered
+    // left on a real phone).
+    //
+    // deviceorientation is an intrinsic Z(alpha)-X'(beta)-Y''(gamma) rotation,
+    // so gravity in device axes works out to:
+    //   gx = cos(beta) * sin(gamma)   (+x = natural right edge)
+    //   gy = -sin(beta)               (+y = natural top edge)
+    // The axis the player sees as "right" on a screen rotated by theta is
+    // (cos theta, -sin theta), so projecting gravity onto it gives one signed
+    // number: positive = the right-hand side of the screen is tilted downward.
+    // This also stops the screen's pitch (leaning it toward your face) from
+    // leaking into steering the way raw beta did.
+    const b = rad(e.beta), gm = rad(e.gamma);
+    const gx = Math.cos(b) * Math.sin(gm);
+    const gy = -Math.sin(b);
     const so = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle
       : (typeof window.orientation === 'number' ? (360 - window.orientation) % 360 : 0);
-    let raw;
-    if (so === 90) raw = -e.beta;        // device top points right
-    else if (so === 270) raw = e.beta;   // device top points left
-    else if (so === 180) raw = -e.gamma;
-    else raw = e.gamma;                  // portrait
+    const th = rad(so);
+    const S = (typeof Save !== 'undefined') ? Save.data.settings : null;
+    let right = gx * Math.cos(th) - gy * Math.sin(th);
+    if (S && S.tiltInvert) right = -right;
+    const raw = Math.asin(clamp(right, -1, 1)) * 180 / Math.PI; // degrees of lean
     if (this.tiltRaw === null) { this.tiltSmooth = raw; this.tiltZero = clamp(raw, -45, 45); }
     this.tiltRaw = raw;
-    this.tiltSmooth += (raw - this.tiltSmooth) * 0.22; // low-pass sensor jitter
+    this.tiltSmooth += (raw - this.tiltSmooth) * 0.16; // low-pass sensor jitter
     const t = this.tiltSmooth - this.tiltZero;
-    const dead = 2, span = 26;           // degrees: deadzone → full lock
+    // Sensitivity = how far you must lean for full lock. Default asks for a
+    // deliberate ~48 degrees instead of the old twitchy 26, and the squared
+    // curve keeps small corrections small.
+    const sens = (S && typeof S.tiltSens === 'number') ? clamp(S.tiltSens, 0, 1) : 0.5;
+    const dead = 3, span = 26 + (1 - sens) * 44;
     const mag = clamp((Math.abs(t) - dead) / (span - dead), 0, 1);
-    this.tiltSteer = Math.sign(t) * Math.pow(mag, 1.55); // gentle near center
+    this.tiltSteer = Math.sign(t) * Math.pow(mag, 2.0); // gentle near center
     const on = this.tiltOn;
     if (on !== this._lastTiltOn) { this._lastTiltOn = on; this.applyTiltUI(); }
     if (on && this._tiltDot) this._tiltDot.style.transform = `translate(calc(-50% + ${(this.tiltSteer * 52).toFixed(1)}px), -50%)`;
@@ -10246,18 +10269,20 @@ class UIManager {
   bindSettings() {
     const s = Save.data.settings;
     const g = this.game;
-    const slider = (id, key) => {
+    const slider = (id, key, after) => {
       const el = $(id);
       el.value = s[key] * 100;
       el.addEventListener('input', () => {
         s[key] = el.value / 100;
         Save.save();
-        SFX.applyVolumes();
+        if (after) after(s[key]); else SFX.applyVolumes();
       });
     };
     slider('set-master', 'master');
     slider('set-music', 'music');
     slider('set-sfx', 'sfx');
+    // takes effect on the next sensor reading — no rebuild needed
+    slider('set-tiltsens', 'tiltSens', () => {});
     const toggle = (id, key, cb) => {
       const el = $(id);
       const apply = () => {
@@ -10290,6 +10315,10 @@ class UIManager {
         if (!ok) this.toast('📵', 'No tilt access', 'Motion sensor unavailable — the wheel stays on');
       });
       Input.applyTiltUI();
+    });
+    toggle('set-tiltinv', 'tiltInvert', v => {
+      Input.calibrateTilt(); // re-zero so the flip doesn't leave a standing offset
+      this.toast('🔄', v ? 'Tilt inverted' : 'Tilt normal', v ? 'Lean left to steer right' : 'Lean right to steer right');
     });
     toggle('set-touch', 'forceTouch', v => { if (this.inRun) Input.showTouch(v || Input.usingTouch); });
     toggle('set-jingle', 'jingle');
