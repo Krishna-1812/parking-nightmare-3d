@@ -149,8 +149,10 @@ mission and vehicle data as JSON that Unity can load directly. The web build rem
 reference implementation; where the spec and the code disagree, the code is right.
 
 The rebuild lives in `unity/` and is following the vertical-slice plan in DESIGN_SPEC
-§12. The simulation core through step 3 — route DSL and arc-length projection, the
-`hatch` bicycle model at 120 Hz, and parking spot geometry with the §6 tolerance check —
-is ported and verified bit-exact against the shipping JavaScript.
+§12. Mission 1 is playable end to end — brief, countdown, drive, park, scored results —
+on greybox geometry, with the shame and style systems live. The simulation core (route
+DSL and projection, the `hatch` bicycle model at 120 Hz, parking tolerances, scoring,
+shame/style) is verified bit-exact against the shipping JavaScript:
 `dotnet run --project tools/Validator` diffs the C# against golden references extracted
-from `src/n3_d.js` and `src/n3_e.js` themselves. Details in `unity/README.md`.
+from `src/n3_*.js` themselves — 74,090 checks. Traffic and pedestrian AI are the
+remaining gap. Details in `unity/README.md`.

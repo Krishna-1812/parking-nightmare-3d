@@ -55,19 +55,34 @@ simulation. Do not model the car in 3D physics.
 **Heading convention.** `h` is a standard math-convention angle: forward is
 `(cos h, sin h)`, counter-clockwise positive.
 
-**Mapping to Unity.** World X = `x`, world Z = `y`, world Y = elevation.
-Unity is left-handed, so the heading conversion is *not* a straight negation:
+**Mapping to Unity.** World X = `x`, world Z = **`−y`**, world Y = elevation.
 
 ```csharp
-// physics heading (radians, CCW, +X forward) -> Unity Y-rotation
-transform.position = new Vector3(x, elev, y);
-transform.rotation = Quaternion.Euler(0f, 90f - h * Mathf.Rad2Deg, 0f);
+// physics (x, y) in metres, heading h in radians (CCW, +X forward)
+transform.position = new Vector3(x, elev, -y);
+transform.rotation = Quaternion.Euler(0f, 90f + h * Mathf.Rad2Deg, 0f);
 ```
 
-Derivation, so you can check it: a Unity Y-rotation of θ sends +Z to `(sin θ, 0, cos θ)`.
-We need forward `(cos h, 0, sin h)`, so `sin θ = cos h` and `cos θ = sin h`, giving
-`θ = 90° − h`. (The Three.js build used `rotation.y = -h` because Three.js is
-right-handed with -Z forward — do not copy that line.)
+**The Z negation is load-bearing.** An earlier version of this section said
+`position = (x, elev, y)` with `θ = 90° − h`. That gives the car a correct forward
+vector — `(cos h, 0, sin h)` — and looks right in isolation, but it **mirrors the entire
+world**, because Unity is left-handed and Three.js is not:
+
+- In Unity a camera looking along +X with up +Y has `right = −Z`, since a +90° yaw sends
+  +Z to +X and +X to −Z.
+- In Three.js the same setup has `right = forward × up = +Z`.
+
+So `+t` — defined in the route frame as "right side of travel direction, the side the
+player drives on" — lands on screen-*left* in Unity and screen-*right* in the web build.
+The game silently becomes left-hand-traffic: the player drives on the wrong side and
+every curbside parallel spot (all of which sit at `t > 0`) appears on the wrong side of
+the road. Nothing in the simulation notices, because the simulation is 2D and internally
+consistent either way; only the render is wrong.
+
+Derivation for the corrected form: mapped velocity is `(cos h, 0, −sin h)`, and a Unity
+yaw θ sends +Z to `(sin θ, 0, cos θ)`, so `sin θ = cos h` and `cos θ = −sin h`, giving
+`θ = 90° + h`. Verified in the Unity build by checking which side of the centre line the
+car and the parallel spot render on.
 
 **Fixed timestep is 1/120 s (120 Hz).** The loop is a classic accumulator:
 

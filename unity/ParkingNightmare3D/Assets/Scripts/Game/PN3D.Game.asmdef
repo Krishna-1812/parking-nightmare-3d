@@ -1,0 +1,17 @@
+{
+    "name": "PN3D.Game",
+    "rootNamespace": "PN3D.Game",
+    "references": [
+        "PN3D.Core",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

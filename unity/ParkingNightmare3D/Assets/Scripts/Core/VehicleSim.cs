@@ -52,6 +52,13 @@ namespace PN3D.Core
         public double MaxSteer = MathX.Rad(38);
 
         public bool Braking, Reversing;
+
+        /// <summary>
+        /// Cosmetic damage, 0-100. Costs only 4 points each at scoring and is deliberately
+        /// much gentler than shame — damage is pressure, shame is the actual threat (§10).
+        /// </summary>
+        public double Damage;
+
         public double SlideAmt;           // |lateral velocity|; drives smoke and skid audio
         public double SurfaceGrip = 1.0;  // < 1 for rain / snow / ice
         public double SlipTimer;          // > 0 while on ice or oil

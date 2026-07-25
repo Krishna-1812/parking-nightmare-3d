@@ -13,12 +13,12 @@ namespace PN3D.Validate
     {
         const double Step = 1.0 / 120.0;
 
-        static string PhaseName(ParkPhase p) => p switch
+        static string PhaseName(GamePhase p) => p switch
         {
-            ParkPhase.Approach => "drive",
-            ParkPhase.Park => "park",
-            ParkPhase.Settle => "settle",
-            ParkPhase.Success => "success",
+            GamePhase.Drive => "drive",
+            GamePhase.Park => "park",
+            GamePhase.Settle => "settle",
+            GamePhase.Success => "success",
             _ => "?",
         };
 
@@ -91,7 +91,7 @@ namespace PN3D.Validate
                     var checker = new ParkChecker
                     {
                         InZone = true,
-                        Phase = ParkPhase.Park,
+                        Phase = GamePhase.Park,
                         IsUfo = ctx.Veh.Drive == "ufo",
                     };
 

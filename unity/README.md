@@ -26,8 +26,8 @@ statement of what it wants. If you ever re-seed from a template, redo that.
 |---|---|---|
 | 1 | Route DSL + arc-length projection | **done, verified bit-exact** |
 | 2 | `hatch` with the §3.1 bicycle model at 120 Hz | **done, verified bit-exact** |
-| 3 | One parking spot with §6 tolerances + alignment widget | **check done, verified bit-exact; widget pending** |
-| 4 | Mission 1 end to end with §9 scoring | not started |
+| 3 | One parking spot with §6 tolerances + alignment widget | **done** |
+| 4 | Mission 1 end to end with §9 scoring | **done** (greybox; traffic/peds outstanding — see below) |
 | 5 | Take mission 1 to final visual quality | not started |
 
 ## Layout
@@ -46,7 +46,51 @@ ParkingNightmare3D/
     RoadGeom.cs               lane / parking-strip / sidewalk widths, road half-width
     ParkingSpot.cs            spot geometry per mission (§6)
     ParkChecker.cs            tolerance check + the 1.5 s settle hold (§6)
+    GamePhase.cs              the run's single state value
+    ShameSystem.cs            shame accrual, decay, thresholds (§10)
+    StyleSystem.cs            style awards + combo multiplier (§10)
+    SurfaceRules.cs           surface grip, curb, sidewalk, wrong way (§8, §10)
+    Scoring.cs                end-of-run score, stars, S-rank, coins (§9)
+    MissionRun.cs             owns all of the above in the reference's update order
+
+  Assets/Scripts/Game/        Unity layer (asmdef PN3D.Game)
+    Bootstrap.cs              builds the whole slice at runtime, from any scene
+    WorldBuilder.cs           greybox road/sidewalk/spot/car geometry
+    MissionDriver.cs          120 Hz FixedUpdate + render interpolation
+    ChaseCamera.cs            chase view easing to overhead assist in the zone
+    Hud.cs                    shame meter, timer, style, alignment widget (IMGUI)
+    DataPaths.cs              locates design-spec/data
+
+  Assets/Scripts/Editor/      batch-mode tools (asmdef PN3D.EditorTools)
+    SliceTools.cs             headless smoke test + screenshot capture
 ```
+
+### Running it
+
+Open the project and press Play in any scene — `Bootstrap` uses
+`[RuntimeInitializeOnLoadMethod]` and builds the world, car, camera and HUD itself, so
+there is no scene asset with serialized references to rot. WASD or arrows to drive,
+space for handbrake. Milestone step 5 replaces this with an authored scene.
+
+Headless, no editor interaction:
+
+```bash
+"C:/Program Files/Unity/Hub/Editor/6000.5.5f1/Editor/Unity.exe" -batchmode -quit -nographics -projectPath unity/ParkingNightmare3D -executeMethod PN3D.EditorTools.SliceTools.SmokeTest -logFile smoke.log
+```
+
+That autopilots mission 1 from the start line to a completed park and prints the full
+score breakdown — route, physics, parking and scoring through the same `MissionRun` the
+game uses. `SliceTools.Capture` renders greybox screenshots (omit `-nographics`).
+
+### What is not in the slice yet
+
+Traffic and pedestrian AI. That is a distinct subsystem — spawn rules, car following,
+ped walk/dive states, near-miss and overtake detection — and it gates the shame and style
+sources that depend on other actors: oncoming traffic (2.4/s), traffic honks (1.2),
+pedestrians filming (2) and diving (12), OVERTAKE! and CLOSE ONE! Everything else in §10
+is ported and verified: all the surface and curb sources, the collision formula, decay,
+the 25/50/75 thresholds, and the style combo. `MissionRun.RegisterCollision` and
+`SurfaceRules.OncomingDanger` are the seams those hook into.
 
 `VehicleSim` covers the `car` drive model, which is 7 of the 9 vehicles. `tank` (§3.2)
 and `ufo` (§3.3) are not ported yet — they are not needed until missions 10 and 11, and
@@ -78,7 +122,7 @@ evaluate them, so the reference is the actual shipped code:
 Regenerate the references (only needed when the corresponding `src/*.js` changes):
 
 ```bash
-node tools/gen_golden_routes.js && node tools/gen_golden_physics.js && node tools/gen_golden_parking.js
+node tools/gen_golden_routes.js && node tools/gen_golden_physics.js && node tools/gen_golden_parking.js && node tools/gen_golden_scoring.js
 ```
 
 Run the diff:
@@ -87,10 +131,10 @@ Run the diff:
 dotnet run --project tools/Validator
 ```
 
-Add `routes`, `physics` or `parking` to run one suite. Current result: **36,422 checks
-pass**, with a maximum relative deviation from JavaScript of **1.7e-13** — and that worst
-case is `accF`, a finite difference that multiplies error by 120. Geometry and pose agree
-to around 1 ULP.
+Add `routes`, `physics`, `parking` or `scoring` to run one suite. Current result:
+**74,090 checks pass**, with a maximum relative deviation from JavaScript of **1.7e-13**
+— and that worst case is `accF`, a finite difference that multiplies error by 120.
+Geometry and pose agree to around 1 ULP.
 
 Coverage:
 
@@ -107,6 +151,15 @@ Coverage:
   lateral offset, arc position, zone arming distance), a 343-pose grid per spot type
   sweeping longitudinal, lateral and angular offsets through every tolerance boundary,
   and 6 settle scripts replayed frame by frame against the recorded state machine.
+- **scoring** — 784 score cases crossing every clamp, sign and star boundary (all six
+  line items, total, stars, S-rank, perfect, coins and the formatted times), 6 shame and
+  style scripts covering the 25/50/75 thresholds, the 100 clamp, decay gating and the
+  combo multiplier, and 5 `surfaceLogic` runs over road, sidewalk, grass, curb hopping
+  and wrong-way driving.
+
+Scoring is inlined in `Game.succeed` rather than being a function, so the generator
+re-executes that expression sequence — and asserts each line of it is still present in
+`n3_e.js` verbatim, so the transcription cannot silently drift from the source.
 
 All three suites have been negative-controlled — perturbing the curve-tightening factor
 by 1.7%, rebuilding velocity from the pre-rotation heading, or collapsing the settle
@@ -117,8 +170,16 @@ that cannot fail proves nothing.
 
 - **Physics is 2D.** `x, y` metres on a flat plane plus heading `h` in radians.
   Elevation is cosmetic. Do not model the car in 3D physics.
-- **Heading maps as `Quaternion.Euler(0, 90f - h * Mathf.Rad2Deg, 0f)`**, position as
-  `(x, elev, y)`. Unity is left-handed — this is *not* the Three.js `-h`.
+- **Position maps as `(x, elev, -y)` and heading as
+  `Quaternion.Euler(0, 90f + h * Mathf.Rad2Deg, 0f)`.** The Z negation is not optional.
+  Mapping `y -> +Z` with yaw `90 - h` (what DESIGN_SPEC §2 originally said) still gives
+  the car a correct forward vector, but mirrors the whole world, because Unity is
+  left-handed and Three.js is not — the player ends up driving on the left with every
+  curbside spot on the wrong side of the road. The simulation cannot detect this; it is
+  2D and internally consistent either way. Full derivation is in §2.
+- **Mirroring flips triangle winding**, so `WorldBuilder.Ribbon` emits the order it does
+  *because* of the Z negation. Change one and you must change the other, or every road
+  surface faces the ground and is backface-culled.
 - **120 Hz fixed step.** `ProjectSettings/TimeManager.asset` is committed with
   `Fixed Timestep: 0.008333334` and `Maximum Allowed Timestep: 0.083333336`. The second
   one reproduces the reference loop's 10-substep clamp

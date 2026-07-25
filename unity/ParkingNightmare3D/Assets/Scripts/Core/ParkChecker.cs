@@ -2,17 +2,6 @@ using System;
 
 namespace PN3D.Core
 {
-    public enum ParkPhase
-    {
-        /// <summary>Driving the route; the spot is not armed yet.</summary>
-        Approach,
-        /// <summary>Inside the parking zone, not currently within tolerance.</summary>
-        Park,
-        /// <summary>Within tolerance and holding still; <see cref="ParkChecker.ParkT"/> is counting.</summary>
-        Settle,
-        Success,
-    }
-
     /// <summary>
     /// A single measurement of how well the car is sitting in the spot. This is exactly
     /// what the live alignment widget renders, so it is deliberately a value the UI can
@@ -57,7 +46,7 @@ namespace PN3D.Core
 
         public const double HoldSeconds = 1.5;
 
-        public ParkPhase Phase = ParkPhase.Approach;
+        public GamePhase Phase = GamePhase.Drive;
         public bool InZone;
         public double ParkT;
         public ParkMeasure Measure;
@@ -75,10 +64,10 @@ namespace PN3D.Core
         public void Step(double dt, VehicleSim car, ParkingSpot spot, CompiledRoute route,
                          Projection proj)
         {
-            if (!InZone && proj.S > spot.ZoneS && Phase == ParkPhase.Approach)
+            if (!InZone && proj.S > spot.ZoneS && Phase == GamePhase.Drive)
             {
                 InZone = true;
-                Phase = ParkPhase.Park;
+                Phase = GamePhase.Park;
             }
             if (!InZone) return;
 
@@ -128,23 +117,23 @@ namespace PN3D.Core
                 AngOk = angOk, CurbOk = curbOk, Still = still,
             };
 
-            if (Phase == ParkPhase.Park)
+            if (Phase == GamePhase.Park)
             {
                 if (inside && angOk && curbOk && still)
                 {
-                    Phase = ParkPhase.Settle;
+                    Phase = GamePhase.Settle;
                     ParkT = 0.0;
                 }
             }
-            else if (Phase == ParkPhase.Settle)
+            else if (Phase == GamePhase.Settle)
             {
                 if (!(inside && angOk && curbOk) || speedAbs > SettleBreakSpeed)
                 {
-                    Phase = ParkPhase.Park;
+                    Phase = GamePhase.Park;
                     return;
                 }
                 ParkT += dt;
-                if (ParkT >= HoldSeconds) Phase = ParkPhase.Success;
+                if (ParkT >= HoldSeconds) Phase = GamePhase.Success;
             }
         }
 

@@ -1,0 +1,19 @@
+{
+    "name": "PN3D.EditorTools",
+    "rootNamespace": "PN3D.EditorTools",
+    "references": [
+        "PN3D.Core",
+        "PN3D.Game"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
