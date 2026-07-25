@@ -1,0 +1,1193 @@
+[
+  {
+    "id": 1,
+    "district": 0,
+    "name": "Driving School Dropout",
+    "veh": "hatch",
+    "lanes": 1,
+    "brief": "\"Just drive to the corner store and park. Gently. GENTLY. My mother is watching from the porch.\" — Your instructor",
+    "par": 80,
+    "traffic": 0.35,
+    "peds": 5,
+    "tutorial": true,
+    "park": "parallel",
+    "margin": 2.6,
+    "segs": [
+      {
+        "t": "S",
+        "len": 120
+      },
+      {
+        "t": "R",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "L",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 130
+      }
+    ],
+    "s2": 1200,
+    "s3": 1900
+  },
+  {
+    "id": 2,
+    "district": 0,
+    "name": "The Milk Run",
+    "veh": "hatch",
+    "lanes": 1,
+    "brief": "One stop sign. Three cones. A whole neighborhood of opinions. Get the milk without becoming the neighborhood group chat.",
+    "par": 105,
+    "traffic": 0.5,
+    "peds": 7,
+    "park": "parallel",
+    "margin": 2.2,
+    "cones": 4,
+    "segs": [
+      {
+        "t": "S",
+        "len": 110
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 80
+      },
+      {
+        "t": "R",
+        "r": 36,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 150
+      },
+      {
+        "t": "L",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 120
+      }
+    ],
+    "s2": 1250,
+    "s3": 1950
+  },
+  {
+    "id": 3,
+    "district": 0,
+    "name": "Yard Sale Frenzy",
+    "veh": "wagon",
+    "lanes": 1,
+    "brief": "Half the street is a yard sale, the other half is a school zone. The wagon is full of \"bargains\". Nothing about this is a bargain.",
+    "par": 115,
+    "traffic": 0.55,
+    "peds": 10,
+    "park": "bay",
+    "margin": 1.3,
+    "cones": 8,
+    "segs": [
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "L",
+        "r": 36,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 120,
+        "zone": "school"
+      },
+      {
+        "t": "R",
+        "r": 36,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 130
+      }
+    ],
+    "s2": 1300,
+    "s3": 2000
+  },
+  {
+    "id": 4,
+    "district": 1,
+    "name": "Rush Hour Rodeo",
+    "veh": "wagon",
+    "lanes": 2,
+    "brief": "Downtown at lunch. Everyone is angry, everyone is honking, and your dentist appointment was eleven minutes ago.",
+    "par": 130,
+    "traffic": 1.5,
+    "peds": 9,
+    "park": "parallel",
+    "margin": 1.9,
+    "segs": [
+      {
+        "t": "S",
+        "len": 140
+      },
+      {
+        "t": "X"
+      },
+      {
+        "t": "S",
+        "len": 110
+      },
+      {
+        "t": "R",
+        "r": 44,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 140
+      },
+      {
+        "t": "X"
+      },
+      {
+        "t": "S",
+        "len": 150
+      }
+    ],
+    "s2": 1350,
+    "s3": 2050
+  },
+  {
+    "id": 5,
+    "district": 1,
+    "name": "The Limo Job",
+    "veh": "limo",
+    "lanes": 2,
+    "brief": "A pop star needs to reach the Grand Hotel. The limo is nine meters of pure liability and the paparazzi are already filming.",
+    "par": 135,
+    "traffic": 1.2,
+    "peds": 12,
+    "park": "parallel",
+    "margin": 2.4,
+    "segs": [
+      {
+        "t": "S",
+        "len": 120
+      },
+      {
+        "t": "L",
+        "r": 44,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "X"
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "R",
+        "r": 50,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 150
+      }
+    ],
+    "s2": 1300,
+    "s3": 2000
+  },
+  {
+    "id": 6,
+    "district": 1,
+    "name": "Meltdown at Noon",
+    "veh": "icecream",
+    "lanes": 2,
+    "brief": "Deliver the goods across downtown before everything melts. Warning: the jingle summons children. The children summon chaos.",
+    "par": 140,
+    "traffic": 1.3,
+    "peds": 14,
+    "park": "bay",
+    "margin": 1.4,
+    "segs": [
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "X"
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "R",
+        "r": 44,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 120
+      },
+      {
+        "t": "L",
+        "r": 44,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 160
+      }
+    ],
+    "s2": 1350,
+    "s3": 2050
+  },
+  {
+    "id": 7,
+    "district": 2,
+    "name": "Night Shift",
+    "veh": "hatch",
+    "lanes": 2,
+    "brief": "The city sleeps. The neon does not. Somewhere out there is a parking spot with your name on it, and a cat judging you from a dumpster.",
+    "par": 130,
+    "traffic": 0.9,
+    "peds": 6,
+    "park": "parallel",
+    "margin": 1.7,
+    "segs": [
+      {
+        "t": "S",
+        "len": 150
+      },
+      {
+        "t": "L",
+        "r": 40,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 120
+      },
+      {
+        "t": "X"
+      },
+      {
+        "t": "S",
+        "len": 110
+      },
+      {
+        "t": "R",
+        "r": 40,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 140
+      }
+    ],
+    "s2": 1350,
+    "s3": 2100
+  },
+  {
+    "id": 8,
+    "district": 2,
+    "name": "Bus Route Blues",
+    "veh": "bus",
+    "lanes": 2,
+    "brief": "Night school field trip. Eleven meters of yellow. The mirrors count as part of you. The stop-arm deploys whenever it feels like it.",
+    "par": 150,
+    "traffic": 0.7,
+    "peds": 8,
+    "park": "parallel",
+    "margin": 3.2,
+    "segs": [
+      {
+        "t": "S",
+        "len": 140
+      },
+      {
+        "t": "R",
+        "r": 50,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "X"
+      },
+      {
+        "t": "S",
+        "len": 170
+      }
+    ],
+    "s2": 1300,
+    "s3": 2000
+  },
+  {
+    "id": 9,
+    "district": 2,
+    "name": "Downpour Dash",
+    "veh": "wagon",
+    "lanes": 2,
+    "brief": "Rain slicks the streets, puddles lurk by every curb, and pedestrians have umbrellas but no forgiveness. Soak no one. SOAK. NO ONE.",
+    "par": 145,
+    "traffic": 1,
+    "peds": 10,
+    "park": "parallel",
+    "margin": 1.6,
+    "rain": true,
+    "segs": [
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "X"
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "L",
+        "r": 40,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 140
+      },
+      {
+        "t": "R",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 150
+      }
+    ],
+    "s2": 1350,
+    "s3": 2100
+  },
+  {
+    "id": 10,
+    "district": 3,
+    "name": "Tank on Main Street",
+    "veh": "tank",
+    "lanes": 2,
+    "brief": "The city ordered \"gentle urban renewal\". They sent you a tank. Park it between two priceless sports cars without redecorating the street.",
+    "par": 160,
+    "traffic": 0.8,
+    "peds": 10,
+    "park": "parallel",
+    "margin": 3.4,
+    "cones": 10,
+    "segs": [
+      {
+        "t": "S",
+        "len": 110
+      },
+      {
+        "t": "R",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 120
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "L",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 140
+      }
+    ],
+    "s2": 1250,
+    "s3": 1950
+  },
+  {
+    "id": 11,
+    "district": 3,
+    "name": "Close Encounters",
+    "veh": "ufo",
+    "lanes": 2,
+    "brief": "The mothership demands you fetch snacks. No friction, no brakes, no dignity. Beam down onto the pad — the whole galaxy is streaming this.",
+    "par": 135,
+    "traffic": 0.9,
+    "peds": 12,
+    "park": "bay",
+    "margin": 2,
+    "segs": [
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "L",
+        "r": 44,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 110
+      },
+      {
+        "t": "X"
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "R",
+        "r": 44,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 150
+      }
+    ],
+    "s2": 1300,
+    "s3": 2000
+  },
+  {
+    "id": 12,
+    "district": 3,
+    "name": "The Final Exam",
+    "veh": "limo",
+    "lanes": 2,
+    "brief": "Everything. All of it. At once. Traffic, cones, a school zone, two intersections, and a spot with 55 centimeters of forgiveness. Good luck.",
+    "par": 210,
+    "traffic": 1.4,
+    "peds": 14,
+    "park": "parallel",
+    "margin": 1.2,
+    "cones": 8,
+    "segs": [
+      {
+        "t": "S",
+        "len": 140
+      },
+      {
+        "t": "X"
+      },
+      {
+        "t": "S",
+        "len": 110,
+        "zone": "school"
+      },
+      {
+        "t": "R",
+        "r": 44,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "X"
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "L",
+        "r": 40,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "R",
+        "r": 40,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 160
+      }
+    ],
+    "s2": 1400,
+    "s3": 2200
+  },
+  {
+    "id": 13,
+    "district": 4,
+    "name": "Boardwalk Breakfast",
+    "veh": "hatch",
+    "lanes": 1,
+    "time": "dusk",
+    "brief": "Sunrise shift at the marina café. The seagulls have unionized, the joggers have opinions, and the croissants will not deliver themselves.",
+    "par": 110,
+    "traffic": 0.5,
+    "peds": 9,
+    "park": "parallel",
+    "margin": 2.2,
+    "segs": [
+      {
+        "t": "S",
+        "len": 120
+      },
+      {
+        "t": "R",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "L",
+        "r": 38,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 140
+      }
+    ],
+    "s2": 1300,
+    "s3": 2000
+  },
+  {
+    "id": 14,
+    "district": 4,
+    "name": "Kart Courier",
+    "veh": "kart",
+    "lanes": 1,
+    "time": "dusk",
+    "brief": "The go-kart is \"borrowed\" from the boardwalk track. It weighs nothing, it turns on a thought, and one solid bonk folds it like a beach chair.",
+    "par": 100,
+    "traffic": 0.7,
+    "peds": 10,
+    "park": "bay",
+    "margin": 1,
+    "cones": 8,
+    "segs": [
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "L",
+        "r": 34,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "R",
+        "r": 34,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 110
+      },
+      {
+        "t": "R",
+        "r": 36,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 130
+      }
+    ],
+    "s2": 1350,
+    "s3": 2050
+  },
+  {
+    "id": 15,
+    "district": 4,
+    "name": "Something Borrowed",
+    "veh": "limo",
+    "lanes": 2,
+    "time": "dusk",
+    "brief": "The bride is at the pier. The rings are in the limo. The photographer is ALREADY FILMING. Do not become the wedding story.",
+    "par": 140,
+    "traffic": 1.1,
+    "peds": 13,
+    "park": "parallel",
+    "margin": 1.8,
+    "segs": [
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "R",
+        "r": 46,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 120
+      },
+      {
+        "t": "L",
+        "r": 44,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 150
+      }
+    ],
+    "s2": 1350,
+    "s3": 2100
+  },
+  {
+    "id": 16,
+    "district": 4,
+    "name": "Monster Bay",
+    "veh": "monster",
+    "lanes": 2,
+    "time": "dusk",
+    "brief": "Someone entered a monster truck in the marina boat parade. That someone is you. The wheels are taller than the mayor. Park it like you mean it.",
+    "par": 135,
+    "traffic": 0.9,
+    "peds": 10,
+    "park": "bay",
+    "margin": 1.6,
+    "cones": 6,
+    "segs": [
+      {
+        "t": "S",
+        "len": 120
+      },
+      {
+        "t": "R",
+        "r": 42,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 110
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "L",
+        "r": 42,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 140
+      }
+    ],
+    "s2": 1300,
+    "s3": 2000
+  },
+  {
+    "id": 17,
+    "district": 4,
+    "name": "Last Scoop of Summer",
+    "veh": "icecream",
+    "lanes": 2,
+    "time": "dusk",
+    "rain": true,
+    "brief": "A storm rolls in off the water on the season's final evening. Warm rain, cold sprinkles, and every kid on the boardwalk knows your jingle.",
+    "par": 150,
+    "traffic": 1,
+    "peds": 14,
+    "park": "bay",
+    "margin": 1.3,
+    "segs": [
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "L",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 110
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "R",
+        "r": 40,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "L",
+        "r": 38,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 140
+      }
+    ],
+    "s2": 1350,
+    "s3": 2100
+  },
+  {
+    "id": 18,
+    "district": 4,
+    "name": "The Regatta Gauntlet",
+    "veh": "monster",
+    "lanes": 2,
+    "time": "night",
+    "brief": "Regatta night. The whole marina is out, the cones are out, the kart kids are out. One perfect park to end the season — or one very viral splash.",
+    "par": 190,
+    "traffic": 1.4,
+    "peds": 15,
+    "park": "parallel",
+    "margin": 1.4,
+    "cones": 10,
+    "segs": [
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 100,
+        "zone": "school"
+      },
+      {
+        "t": "L",
+        "r": 42,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 120
+      },
+      {
+        "t": "R",
+        "r": 40,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "R",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 150
+      }
+    ],
+    "s2": 1400,
+    "s3": 2200
+  },
+  {
+    "id": 19,
+    "district": 5,
+    "name": "First Frost",
+    "veh": "hatch",
+    "lanes": 1,
+    "snow": true,
+    "ice": 6,
+    "brief": "Overnight the village froze solid and your driveway became a luge track. Black ice doesn't honk before it gets you. Ease into it.",
+    "par": 120,
+    "traffic": 0.45,
+    "peds": 6,
+    "park": "parallel",
+    "margin": 2.4,
+    "segs": [
+      {
+        "t": "S",
+        "len": 120
+      },
+      {
+        "t": "R",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "L",
+        "r": 38,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 140
+      }
+    ],
+    "s2": 1300,
+    "s3": 2000
+  },
+  {
+    "id": 20,
+    "district": 5,
+    "name": "The School Run",
+    "veh": "bus",
+    "lanes": 1,
+    "snow": true,
+    "ice": 8,
+    "brief": "Snow day was CANCELLED and nobody is happy about it, least of all the bus. Eleven icy meters of yellow through a school zone. Gently now.",
+    "par": 155,
+    "traffic": 0.6,
+    "peds": 10,
+    "park": "parallel",
+    "margin": 3.2,
+    "segs": [
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "L",
+        "r": 44,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 110,
+        "zone": "school"
+      },
+      {
+        "t": "R",
+        "r": 46,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 150
+      }
+    ],
+    "s2": 1300,
+    "s3": 2050
+  },
+  {
+    "id": 21,
+    "district": 5,
+    "name": "Powder Express",
+    "veh": "wagon",
+    "lanes": 1,
+    "snow": true,
+    "ice": 10,
+    "brief": "Six sleds, four thermoses, one wagon, zero grip. The kids rated your last stop \"meh\" online. The mountain is watching. Deliver.",
+    "par": 135,
+    "traffic": 0.7,
+    "peds": 9,
+    "park": "bay",
+    "margin": 1.4,
+    "cones": 8,
+    "segs": [
+      {
+        "t": "S",
+        "len": 110
+      },
+      {
+        "t": "R",
+        "r": 36,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "L",
+        "r": 36,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "L",
+        "r": 38,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 140
+      }
+    ],
+    "s2": 1350,
+    "s3": 2100
+  },
+  {
+    "id": 22,
+    "district": 5,
+    "name": "Avalanche Avenue",
+    "veh": "monster",
+    "lanes": 2,
+    "snow": true,
+    "ice": 12,
+    "brief": "The plow broke. The village called the next best thing: you, and wheels taller than the snowbanks. Big tires, bigger ice, biggest responsibility.",
+    "par": 145,
+    "traffic": 0.8,
+    "peds": 8,
+    "park": "bay",
+    "margin": 1.7,
+    "cones": 6,
+    "segs": [
+      {
+        "t": "S",
+        "len": 120
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "R",
+        "r": 42,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 110
+      },
+      {
+        "t": "L",
+        "r": 42,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 150
+      }
+    ],
+    "s2": 1300,
+    "s3": 2000
+  },
+  {
+    "id": 23,
+    "district": 5,
+    "name": "Cold Scoop",
+    "veh": "icecream",
+    "lanes": 2,
+    "time": "dusk",
+    "snow": true,
+    "ice": 10,
+    "brief": "Selling ice cream in a snowstorm at dusk. Your accountant quit. The jingle echoes weirdly off the ice. And yet — a line is forming.",
+    "par": 150,
+    "traffic": 0.9,
+    "peds": 13,
+    "park": "parallel",
+    "margin": 1.6,
+    "segs": [
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "L",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "R",
+        "r": 40,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 150
+      }
+    ],
+    "s2": 1350,
+    "s3": 2100
+  },
+  {
+    "id": 24,
+    "district": 5,
+    "name": "Aurora Nights",
+    "veh": "limo",
+    "lanes": 2,
+    "time": "night",
+    "snow": true,
+    "ice": 12,
+    "brief": "The northern lights came out and so did everyone who owns a camera. Nine meters of limousine, a sky on fire, and one impossibly tight spot at the lookout.",
+    "par": 205,
+    "traffic": 1.1,
+    "peds": 12,
+    "park": "parallel",
+    "margin": 1.3,
+    "cones": 6,
+    "segs": [
+      {
+        "t": "S",
+        "len": 130
+      },
+      {
+        "t": "X",
+        "lights": false
+      },
+      {
+        "t": "S",
+        "len": 110
+      },
+      {
+        "t": "R",
+        "r": 44,
+        "a": 90
+      },
+      {
+        "t": "S",
+        "len": 100
+      },
+      {
+        "t": "L",
+        "r": 40,
+        "a": 60
+      },
+      {
+        "t": "S",
+        "len": 90
+      },
+      {
+        "t": "L",
+        "r": 40,
+        "a": 45
+      },
+      {
+        "t": "S",
+        "len": 160
+      }
+    ],
+    "s2": 1400,
+    "s3": 2250
+  }
+]

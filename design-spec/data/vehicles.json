@@ -1,0 +1,261 @@
+{
+  "hatch": {
+    "name": "Rusty Hatchback",
+    "horn": "hatch",
+    "drive": "car",
+    "flavor": "\"Runs on hope and expired coupons. Occasionally explodes a little, as a treat.\"",
+    "len": 3.9,
+    "wid": 1.78,
+    "hgt": 1.5,
+    "wb": 2.5,
+    "maxSpeed": 19,
+    "accel": 7.5,
+    "steerSpeed": 3.4,
+    "grip": 0.95,
+    "mass": 1,
+    "fragility": 1,
+    "stats": {
+      "size": 22,
+      "speed": 55,
+      "hand": 88,
+      "chaos": 25
+    },
+    "unlock": {
+      "type": "start"
+    },
+    "body": "#c0563b",
+    "roof": "#a84730"
+  },
+  "wagon": {
+    "name": "Family Wagon",
+    "horn": "hatch",
+    "drive": "car",
+    "flavor": "\"The kid in the back is your harshest critic. He has seen things. Mostly your parking.\"",
+    "len": 5,
+    "wid": 1.88,
+    "hgt": 1.55,
+    "wb": 3.1,
+    "maxSpeed": 18,
+    "accel": 7,
+    "steerSpeed": 3,
+    "grip": 0.95,
+    "mass": 1.3,
+    "fragility": 1,
+    "stats": {
+      "size": 38,
+      "speed": 50,
+      "hand": 72,
+      "chaos": 30
+    },
+    "unlock": {
+      "type": "level",
+      "lv": 3
+    },
+    "price": 900,
+    "body": "#3f8f8f",
+    "roof": "#337575"
+  },
+  "limo": {
+    "name": "Stretch Limo",
+    "horn": "limo",
+    "drive": "car",
+    "flavor": "\"Longer than your list of regrets. The middle section has never once seen the curb.\"",
+    "len": 8.6,
+    "wid": 1.95,
+    "hgt": 1.5,
+    "wb": 6.3,
+    "maxSpeed": 17,
+    "accel": 6,
+    "steerSpeed": 2.6,
+    "grip": 0.96,
+    "mass": 2,
+    "fragility": 1.2,
+    "stats": {
+      "size": 78,
+      "speed": 42,
+      "hand": 30,
+      "chaos": 55
+    },
+    "unlock": {
+      "type": "level",
+      "lv": 5
+    },
+    "price": 1800,
+    "body": "#23252e",
+    "roof": "#181a21"
+  },
+  "icecream": {
+    "name": "Ice Cream Truck",
+    "horn": "icecream",
+    "drive": "car",
+    "flavor": "\"The jingle cannot be stopped. The children cannot be stopped. Nothing can be stopped.\"",
+    "len": 5.8,
+    "wid": 2.15,
+    "hgt": 2.6,
+    "wb": 3.7,
+    "maxSpeed": 15,
+    "accel": 6,
+    "steerSpeed": 2.8,
+    "grip": 0.93,
+    "mass": 1.7,
+    "fragility": 1,
+    "stats": {
+      "size": 52,
+      "speed": 38,
+      "hand": 58,
+      "chaos": 75
+    },
+    "unlock": {
+      "type": "level",
+      "lv": 6
+    },
+    "price": 2600,
+    "body": "#fdf6ee",
+    "roof": "#f8b8cf"
+  },
+  "bus": {
+    "name": "School Bus",
+    "horn": "bus",
+    "drive": "car",
+    "flavor": "\"The mirrors count. The stop-sign arm has a mind of its own. The children are watching.\"",
+    "len": 10.6,
+    "wid": 2.45,
+    "hgt": 3,
+    "wb": 7.2,
+    "maxSpeed": 14,
+    "accel": 5,
+    "steerSpeed": 2.3,
+    "grip": 0.96,
+    "mass": 3,
+    "fragility": 0.8,
+    "stats": {
+      "size": 95,
+      "speed": 33,
+      "hand": 22,
+      "chaos": 60
+    },
+    "unlock": {
+      "type": "level",
+      "lv": 8
+    },
+    "price": 3600,
+    "body": "#f2b32b",
+    "roof": "#dda01f"
+  },
+  "tank": {
+    "name": "Tank",
+    "horn": "tank",
+    "drive": "tank",
+    "flavor": "\"Turns on a dime. Crushes the dime. Crushes everything. The turret has opinions.\"",
+    "len": 6.6,
+    "wid": 3.2,
+    "hgt": 2.4,
+    "wb": 4.5,
+    "maxSpeed": 9,
+    "accel": 6,
+    "steerSpeed": 3,
+    "grip": 1,
+    "mass": 8,
+    "fragility": 0.2,
+    "stats": {
+      "size": 70,
+      "speed": 18,
+      "hand": 80,
+      "chaos": 100
+    },
+    "unlock": {
+      "type": "level",
+      "lv": 10
+    },
+    "price": 5200,
+    "body": "#6b7a4a",
+    "roof": "#5a6840"
+  },
+  "ufo": {
+    "name": "UFO",
+    "horn": "ufo",
+    "drive": "ufo",
+    "flavor": "\"No friction. No brakes. No dignity. Beam down gently — the whole galaxy is filming.\"",
+    "len": 4.6,
+    "wid": 4.6,
+    "hgt": 1.9,
+    "wb": 3,
+    "maxSpeed": 18,
+    "accel": 7,
+    "steerSpeed": 3,
+    "grip": 0,
+    "mass": 0.8,
+    "fragility": 1,
+    "stats": {
+      "size": 45,
+      "speed": 65,
+      "hand": 8,
+      "chaos": 90
+    },
+    "unlock": {
+      "type": "stars",
+      "n": 30
+    },
+    "price": 7500,
+    "body": "#c8cede",
+    "roof": "#9ba3b8"
+  },
+  "kart": {
+    "name": "Go-Kart",
+    "horn": "hatch",
+    "drive": "car",
+    "flavor": "\"Technically street legal. Emotionally unhinged. Your knees ARE the crumple zone.\"",
+    "len": 2.3,
+    "wid": 1.35,
+    "hgt": 1,
+    "wb": 1.6,
+    "maxSpeed": 17,
+    "accel": 9.5,
+    "steerSpeed": 4.4,
+    "grip": 1.05,
+    "mass": 0.45,
+    "fragility": 1.7,
+    "stats": {
+      "size": 6,
+      "speed": 58,
+      "hand": 98,
+      "chaos": 45
+    },
+    "unlock": {
+      "type": "stars",
+      "n": 12
+    },
+    "price": 1500,
+    "body": "#ffd23e",
+    "roof": "#2b2d36"
+  },
+  "monster": {
+    "name": "Monster Pickup",
+    "horn": "bus",
+    "drive": "car",
+    "flavor": "\"The suspension is taller than your first car. Parking spots fear it. Physics respects it.\"",
+    "len": 5.7,
+    "wid": 2.7,
+    "hgt": 3.1,
+    "wb": 3.6,
+    "maxSpeed": 16,
+    "accel": 8,
+    "steerSpeed": 2.7,
+    "grip": 0.9,
+    "mass": 4.2,
+    "fragility": 0.4,
+    "stats": {
+      "size": 64,
+      "speed": 46,
+      "hand": 42,
+      "chaos": 88
+    },
+    "unlock": {
+      "type": "level",
+      "lv": 14
+    },
+    "price": 5000,
+    "body": "#7a3fd4",
+    "roof": "#5c2ba8"
+  }
+}

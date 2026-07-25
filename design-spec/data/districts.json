@@ -1,0 +1,255 @@
+[
+  {
+    "name": "SLEEPY SUBURBS",
+    "tag": "D1",
+    "sky": [
+      "#7cc4f0",
+      "#b8e4fa",
+      "#ffedc9"
+    ],
+    "fog": "#cfe6ef",
+    "fogFar": 300,
+    "hemi": [
+      "#cfe8ff",
+      "#8fa876",
+      1
+    ],
+    "sun": [
+      "#fff2d8",
+      2.4,
+      [
+        60,
+        90,
+        30
+      ]
+    ],
+    "ground": [
+      "#7fb069",
+      "#94c07d"
+    ],
+    "night": false,
+    "bWall": [
+      "#f2e3c9",
+      "#e8cfd8",
+      "#d8e8cf",
+      "#f7d9b8",
+      "#e0e8f0"
+    ],
+    "bWin": "#7ea8c4",
+    "houses": true,
+    "treeEvery": 14,
+    "lampEvery": 0,
+    "birds": true
+  },
+  {
+    "name": "DOWNTOWN CRUNCH",
+    "tag": "D2",
+    "sky": [
+      "#3f8fdd",
+      "#8fc4ee",
+      "#d8ecf7"
+    ],
+    "fog": "#b8d4e4",
+    "fogFar": 340,
+    "hemi": [
+      "#d8ecff",
+      "#8a8d95",
+      1.05
+    ],
+    "sun": [
+      "#ffffff",
+      2.6,
+      [
+        40,
+        110,
+        -50
+      ]
+    ],
+    "ground": [
+      "#8a8d92",
+      "#97999e"
+    ],
+    "night": false,
+    "bWall": [
+      "#8fa2b8",
+      "#c4b8a5",
+      "#a5b8c4",
+      "#b8a5a0",
+      "#7d8b9e"
+    ],
+    "bWin": "#4a6c8a",
+    "houses": false,
+    "treeEvery": 40,
+    "lampEvery": 28
+  },
+  {
+    "name": "NEON NIGHTS",
+    "tag": "D3",
+    "sky": [
+      "#070a1a",
+      "#101736",
+      "#252a55"
+    ],
+    "fog": "#0d1226",
+    "fogFar": 220,
+    "hemi": [
+      "#3a4a7a",
+      "#1a1e2e",
+      0.85
+    ],
+    "sun": [
+      "#a8bcff",
+      1,
+      [
+        -40,
+        90,
+        40
+      ]
+    ],
+    "ground": [
+      "#2a2d38",
+      "#33364a"
+    ],
+    "night": true,
+    "bWall": [
+      "#2e3346",
+      "#3a3050",
+      "#25293c",
+      "#402d44",
+      "#2a3644"
+    ],
+    "bWin": "#141824",
+    "houses": false,
+    "treeEvery": 0,
+    "lampEvery": 22,
+    "neon": true,
+    "stars": true
+  },
+  {
+    "name": "TOTAL NIGHTMARE",
+    "tag": "D4",
+    "sky": [
+      "#3d1e5c",
+      "#8a3a6e",
+      "#ff9a5c"
+    ],
+    "fog": "#6e3a5c",
+    "fogFar": 280,
+    "hemi": [
+      "#ffb88a",
+      "#4a2a55",
+      0.95
+    ],
+    "sun": [
+      "#ff9a5c",
+      2,
+      [
+        -80,
+        40,
+        20
+      ]
+    ],
+    "ground": [
+      "#6e5a50",
+      "#7d6658"
+    ],
+    "night": false,
+    "bWall": [
+      "#8a5a8a",
+      "#a5694a",
+      "#5c6e9e",
+      "#9e5c5c",
+      "#6e8a5a"
+    ],
+    "bWin": "#3d2e50",
+    "houses": false,
+    "treeEvery": 26,
+    "lampEvery": 30,
+    "weird": true
+  },
+  {
+    "name": "SUNSET MARINA",
+    "tag": "D5",
+    "sky": [
+      "#6ab4e8",
+      "#b0dcf4",
+      "#ffe4c0"
+    ],
+    "fog": "#dcd4c0",
+    "fogFar": 310,
+    "hemi": [
+      "#f0e4d0",
+      "#a89c78",
+      1
+    ],
+    "sun": [
+      "#ffe8c0",
+      2.3,
+      [
+        70,
+        80,
+        40
+      ]
+    ],
+    "ground": [
+      "#c9b083",
+      "#d6c194"
+    ],
+    "night": false,
+    "bWall": [
+      "#f7ead8",
+      "#f0dce8",
+      "#d8ecf0",
+      "#ffe9c8",
+      "#e4f0dc"
+    ],
+    "bWin": "#8ab8d0",
+    "houses": true,
+    "treeEvery": 15,
+    "lampEvery": 26,
+    "birds": true,
+    "marina": true
+  },
+  {
+    "name": "FROSTPEAK VILLAGE",
+    "tag": "D6",
+    "sky": [
+      "#7fb2de",
+      "#c2ddf1",
+      "#f2f7fc"
+    ],
+    "fog": "#dde9f2",
+    "fogFar": 250,
+    "hemi": [
+      "#eaf4ff",
+      "#b0becf",
+      1.08
+    ],
+    "sun": [
+      "#fff6e4",
+      2.2,
+      [
+        70,
+        75,
+        40
+      ]
+    ],
+    "ground": [
+      "#e6edf4",
+      "#f3f8fc"
+    ],
+    "night": false,
+    "bWall": [
+      "#8a5a3c",
+      "#7a4f34",
+      "#9c6844",
+      "#6e563e",
+      "#a86e48"
+    ],
+    "bWin": "#ffd890",
+    "houses": true,
+    "treeEvery": 11,
+    "lampEvery": 26,
+    "snow": true
+  }
+]
