@@ -372,11 +372,31 @@ must be inside** the box (6 cm tolerance) and:
 |---|---|---|
 | Heading error | ≤ 8° | UFO exempt. Parallel accepts either facing (±180°) |
 | Curb gap | −0.02 m to 0.40 m | Parallel spots only; measured from the furthest corner to `RW` |
-| Stationary | speed < 0.35 m/s | |
+| Stationary | speed < 0.35 m/s | To *enter* the hold — see the hysteresis note below |
 | Hold | 1.5 s continuous | Leaving tolerance resets to 0 |
 
-`margin` in the mission data is the slack in metres beyond the car's own footprint —
-so 1.0 is brutal and 3.4 is generous. The tightest in the game is mission 14
+**The speed check is hysteretic.** Entering the hold requires speed < 0.35 m/s, but an
+in-progress hold is only abandoned above **0.5 m/s**. Collapsing these to one threshold
+makes the hold flicker on and off against physics jitter, and a car settling at ~0.4 m/s
+never completes a park. The box/angle/curb conditions are not hysteretic: dropping out of
+any of those resets the hold immediately, regardless of speed.
+
+`margin` in the mission data is the slack in metres beyond the car's own footprint, but
+**which axis it applies to depends on the spot type**, which is why the same number reads
+very differently across missions:
+
+| | Parallel | Bay |
+|---|---|---|
+| half-length `hl` | `(veh.len + margin) / 2` | `veh.len / 2 + 0.6` |
+| half-width `hw` | `max(1.3, veh.wid / 2 + 0.35)` | `(veh.wid + margin) / 2 + 0.25` |
+| centre offset `t` | `RW - max(1.15, veh.wid / 2 + 0.15)` | `RW + 2.2 + veh.len / 2` |
+| heading | route heading | route heading + 90° (nose-in, away from the road) |
+
+So on a parallel spot `margin` is longitudinal — the gap between the bracketing cars —
+and lateral slack is fixed. On a bay it is the reverse. Both types sit at
+`s = routeLength - 24`, with the zone arming 42 m earlier at `s = routeLength - 66`.
+
+So 1.0 is brutal and 3.4 is generous. The tightest in the game is mission 14
 (Kart Courier, 1.0 m) and mission 12 (The Final Exam, 1.2 m with the 8.6 m limo).
 
 A live **alignment widget** shows angle and curb gap during the attempt. Do not omit it —

@@ -6,8 +6,19 @@ where this and the JavaScript disagree, the JavaScript is right.
 
 - **Editor:** Unity 6000.5.5f1 (Unity 6 LTS)
 - **Project:** `unity/ParkingNightmare3D`
-- **Pipeline:** URP, from the editor's own `3d-cross-platform` (mobile) template, so the
-  URP assets and quality tiers are the ones Unity ships rather than hand-authored ones
+- **Pipeline:** URP, seeded from the editor's own `3d-cross-platform` (mobile) template,
+  so the URP assets and quality tiers are the ones Unity ships rather than hand-authored
+  ones
+
+**The bundled project template is stale relative to the editor that ships it.** The
+`3d-cross-platform-17.0.14` template inside 6000.5.5f1 pins URP 17.0.1, inputsystem
+1.12.0 and collab-proxy 2.2.0, but 6000.5.5f1 wants 17.5.0 / 1.19.0 / 2.13.3. The older
+`collab-proxy` and `inputsystem` use a `TreeView` API that Unity 6000.5 marked obsolete
+*as an error*, so a straight template copy fails to compile with ~770 CS0619 errors —
+none of them in your own code — and `packages-lock.json` freezes the bad versions so it
+does not self-heal. `Packages/manifest.json` here is pinned to the versions listed in
+`Editor/Data/Resources/PackageManager/Editor/manifest.json`, which is the editor's own
+statement of what it wants. If you ever re-seed from a template, redo that.
 
 ## Milestone progress (spec §12)
 
@@ -15,7 +26,7 @@ where this and the JavaScript disagree, the JavaScript is right.
 |---|---|---|
 | 1 | Route DSL + arc-length projection | **done, verified bit-exact** |
 | 2 | `hatch` with the §3.1 bicycle model at 120 Hz | **done, verified bit-exact** |
-| 3 | One parking spot with §6 tolerances + alignment widget | not started |
+| 3 | One parking spot with §6 tolerances + alignment widget | **check done, verified bit-exact; widget pending** |
 | 4 | Mission 1 end to end with §9 scoring | not started |
 | 5 | Take mission 1 to final visual quality | not started |
 
@@ -31,6 +42,10 @@ ParkingNightmare3D/
     RouteCompiler.cs          DSL -> arc-length centreline + Project()
     VehicleDef.cs             handling constants, from design-spec/data/vehicles.json
     VehicleSim.cs             the §3.1 kinematic bicycle model
+    Obb.cs                    oriented box: corners + point containment
+    RoadGeom.cs               lane / parking-strip / sidewalk widths, road half-width
+    ParkingSpot.cs            spot geometry per mission (§6)
+    ParkChecker.cs            tolerance check + the 1.5 s settle hold (§6)
 ```
 
 `VehicleSim` covers the `car` drive model, which is 7 of the 9 vehicles. `tank` (§3.2)
@@ -54,11 +69,16 @@ evaluate them, so the reference is the actual shipped code:
 - `tools/gen_golden_physics.js` pulls `Vehicle3D.update` from `n3_e.js`, invokes it
   against a plain state object, and records state traces for 12 deterministic driving
   scenarios. The car branch never touches `game`, so passing null is safe.
+- `tools/gen_golden_parking.js` pulls `World.buildDestination` from `n3_d.js` and
+  `Game.parkingLogic` from `n3_e.js`. Those touch THREE, CarFactory, Assets, UI, SFX and
+  the HUD, so it substitutes a universal no-op stub (a Proxy that is callable,
+  constructible and assignable through any chain). What is left executing is exactly the
+  geometry and the state machine.
 
 Regenerate the references (only needed when the corresponding `src/*.js` changes):
 
 ```bash
-node tools/gen_golden_routes.js && node tools/gen_golden_physics.js
+node tools/gen_golden_routes.js && node tools/gen_golden_physics.js && node tools/gen_golden_parking.js
 ```
 
 Run the diff:
@@ -67,10 +87,10 @@ Run the diff:
 dotnet run --project tools/Validator
 ```
 
-Add `routes` or `physics` to run one suite. Current result: **24,603 checks pass**, with
-a maximum relative deviation from JavaScript of **1.7e-13** — and that worst case is
-`accF`, a finite difference that multiplies error by 120. Geometry and pose agree to
-around 1 ULP.
+Add `routes`, `physics` or `parking` to run one suite. Current result: **36,422 checks
+pass**, with a maximum relative deviation from JavaScript of **1.7e-13** — and that worst
+case is `accF`, a finite difference that multiplies error by 120. Geometry and pose agree
+to around 1 ULP.
 
 Coverage:
 
@@ -83,9 +103,15 @@ Coverage:
   comparing pose, velocity, steer, swept steer command, slide, body attitude and the
   braking/reversing flags.
 
-Both suites have been negative-controlled — perturbing the curve-tightening factor by
-1.7%, or rebuilding velocity from the pre-rotation heading, each produce thousands of
-failures. A suite that cannot fail proves nothing.
+- **parking** — spot geometry for all 24 missions (position, heading, half-extents,
+  lateral offset, arc position, zone arming distance), a 343-pose grid per spot type
+  sweeping longitudinal, lateral and angular offsets through every tolerance boundary,
+  and 6 settle scripts replayed frame by frame against the recorded state machine.
+
+All three suites have been negative-controlled — perturbing the curve-tightening factor
+by 1.7%, rebuilding velocity from the pre-rotation heading, or collapsing the settle
+hysteresis to a single threshold each produce hundreds to thousands of failures. A suite
+that cannot fail proves nothing.
 
 ## Conventions that must not drift
 

@@ -24,9 +24,11 @@ namespace PN3D.Validate
 
             bool routes = args.Length == 0 || Array.IndexOf(args, "routes") >= 0;
             bool physics = args.Length == 0 || Array.IndexOf(args, "physics") >= 0;
+            bool parking = args.Length == 0 || Array.IndexOf(args, "parking") >= 0;
 
             if (routes) RouteSuite.Run(repo);
             if (physics) PhysicsSuite.Run(repo);
+            if (parking) ParkingSuite.Run(repo);
 
             Console.WriteLine();
             Console.WriteLine($"{Checks.Count} checks");

@@ -46,7 +46,8 @@ unity/                   the Unity 6 rebuild — see unity/README.md
 tools/
   gen_golden_routes.js   runs the real JS route compiler, dumps a golden reference
   gen_golden_physics.js  same for the real JS vehicle physics
-  Validator/             diffs the C# port against both (dotnet)
+  gen_golden_parking.js  same for spot geometry + the parking tolerance check
+  Validator/             diffs the C# port against all three (dotnet)
 ```
 
 `src/_combined.js` and `shots/` are build/test artifacts and are gitignored.
@@ -148,7 +149,8 @@ mission and vehicle data as JSON that Unity can load directly. The web build rem
 reference implementation; where the spec and the code disagree, the code is right.
 
 The rebuild lives in `unity/` and is following the vertical-slice plan in DESIGN_SPEC
-§12. Steps 1 and 2 (route DSL + arc-length projection, and the `hatch` bicycle model at
-120 Hz) are done and verified bit-exact against the shipping JavaScript —
-`dotnet run --project tools/Validator` diffs the C# port against golden references
-extracted from `src/n3_d.js` and `src/n3_e.js` themselves. Details in `unity/README.md`.
+§12. The simulation core through step 3 — route DSL and arc-length projection, the
+`hatch` bicycle model at 120 Hz, and parking spot geometry with the §6 tolerance check —
+is ported and verified bit-exact against the shipping JavaScript.
+`dotnet run --project tools/Validator` diffs the C# against golden references extracted
+from `src/n3_d.js` and `src/n3_e.js` themselves. Details in `unity/README.md`.
