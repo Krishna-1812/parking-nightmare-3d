@@ -99,8 +99,22 @@ namespace PN3D.Game.Art
         /// A long bonnet drop with almost no boot drop is what reads as rear-wheel-drive
         /// executive; the reverse reads as a cheap front-drive hatch.
         /// </summary>
+        /// <remarks>
+        /// The transitions are deliberately short. Spread over 0.62..0.98 the bonnet never
+        /// became a surface — it was one continuous slope from the windscreen to the number
+        /// plate, so the car had no bonnet, no boot lid and no waist, just a loaf that
+        /// sagged at both ends. Dropping in 0.68..0.88 instead leaves a flat plane from 0.88
+        /// to the nose that reads as a bonnet, and the matching rear treatment leaves a boot
+        /// lid, with the beltline plateau between them. That is what makes it a three-box
+        /// car rather than an extrusion.
+        ///
+        /// The drop STARTS at the cowl, not before it. At 0.66 it began under the windscreen
+        /// and the bonnet was already falling where the scuttle should still be flat. The
+        /// depths were overshot on the first pass too — every archetype ended up nose-down,
+        /// because a bonnet 96 mm below the boot lid is a dive, not a wedge. Halved.
+        /// </remarks>
         public static Func<float, float> Deck(float bonnet, float boot)
-            => u => 1f - bonnet * S3(0.62f, 0.98f, u) - boot * (1f - S3(0.03f, 0.26f, u));
+            => u => 1f - bonnet * S3(0.68f, 0.88f, u) - boot * (1f - S3(0.12f, 0.30f, u));
 
         /// <summary>Sill line, lifted at both ends so the valances tuck under.</summary>
         public static Func<float, float> Sill(float rear, float front)
@@ -132,7 +146,7 @@ namespace PN3D.Game.Art
             BodyH = 0.60f, WheelR = 0.335f, Spokes = 10,
             CabHeight = 0.52f, CabLenFrac = 0.46f, CabOffFrac = -0.04f, CabWidFrac = 0.86f,
             PCross = 3.6f, PPlan = 6.0f, Tumble = 0.13f, WNose = 0.88f, WTail = 0.90f,
-            BonnetDrop = 0.19f, BootDrop = 0.05f,
+            BonnetDrop = 0.20f, BootDrop = 0.08f,
             RoofPeak = 0.44f, RoofFlat = 0.36f, RoofNose = 0.08f, RoofTail = 0.12f,
             Head = HeadSig.Slim, Tail = TailSig.LShape, Grille = GrilleKind.Wide,
         };
@@ -143,7 +157,7 @@ namespace PN3D.Game.Art
             BodyH = 0.56f, WheelR = 0.35f, Spokes = 5, WheelWFrac = 0.78f,
             CabHeight = 0.46f, CabLenFrac = 0.46f, CabOffFrac = -0.01f, CabWidFrac = 0.84f,
             PCross = 3.0f, PPlan = 5.0f, Tumble = 0.20f, WNose = 0.84f, WTail = 0.87f,
-            BonnetDrop = 0.21f, BootDrop = 0.09f,
+            BonnetDrop = 0.24f, BootDrop = 0.12f,
             RoofPeak = 0.54f, RoofFlat = 0.15f, RoofNose = 0.10f, RoofTail = 0.02f,
             Head = HeadSig.Slim, Tail = TailSig.Bar, Grille = GrilleKind.Wide,
             Spoiler = true,
@@ -155,7 +169,7 @@ namespace PN3D.Game.Art
             BodyH = 0.62f, WheelR = 0.32f, Spokes = 5,
             CabHeight = 0.58f, CabLenFrac = 0.52f, CabOffFrac = -0.06f,
             PCross = 3.4f, PPlan = 5.5f, Tumble = 0.10f,
-            BonnetDrop = 0.15f, BootDrop = 0.08f,
+            BonnetDrop = 0.18f, BootDrop = 0.09f,
             RoofPeak = 0.44f, RoofFlat = 0.46f, RoofNose = 0.12f, RoofTail = 0.34f,
             Head = HeadSig.Pods, Tail = TailSig.Pods, Grille = GrilleKind.Wide,
         };
@@ -166,7 +180,7 @@ namespace PN3D.Game.Art
             BodyH = 0.86f, WheelR = 0.40f, Spokes = 6, WheelWFrac = 0.72f,
             CabHeight = 0.62f, CabLenFrac = 0.54f, CabOffFrac = -0.04f, CabWidFrac = 0.88f,
             PCross = 4.6f, PPlan = 7.0f, Tumble = 0.06f, WNose = 0.92f, WTail = 0.95f,
-            BonnetDrop = 0.10f, BootDrop = 0.04f, SillFront = 0.05f, SillRear = 0.06f,
+            BonnetDrop = 0.13f, BootDrop = 0.05f, SillFront = 0.05f, SillRear = 0.06f,
             RoofPeak = 0.44f, RoofFlat = 0.56f, RoofNose = 0.14f, RoofTail = 0.26f,
             CabTumble = 0.18f, CabPCross = 3.6f, CabPPlan = 4.4f,
             Head = HeadSig.Quad, Tail = TailSig.Bar, Grille = GrilleKind.Tall,
@@ -179,7 +193,7 @@ namespace PN3D.Game.Art
             BodyH = 0.62f, WheelR = 0.34f, Spokes = 5,
             CabHeight = 0.56f, CabLenFrac = 0.60f, CabOffFrac = -0.10f, CabWidFrac = 0.87f,
             PCross = 3.8f, PPlan = 6.0f, Tumble = 0.09f,
-            BonnetDrop = 0.16f, BootDrop = 0.03f,
+            BonnetDrop = 0.19f, BootDrop = 0.04f,
             RoofPeak = 0.38f, RoofFlat = 0.58f, RoofNose = 0.11f, RoofTail = 0.52f,
             Head = HeadSig.Slim, Tail = TailSig.LShape, Grille = GrilleKind.Wide,
             RoofRails = true,
@@ -191,7 +205,7 @@ namespace PN3D.Game.Art
             BodyH = 0.63f, WheelR = 0.335f, Spokes = 6,
             CabHeight = 0.57f, CabLenFrac = 0.50f, CabOffFrac = -0.05f,
             PCross = 3.6f, PPlan = 5.8f, Tumble = 0.10f,
-            BonnetDrop = 0.15f, BootDrop = 0.07f,
+            BonnetDrop = 0.18f, BootDrop = 0.08f,
             RoofPeak = 0.44f, RoofFlat = 0.42f, RoofNose = 0.11f, RoofTail = 0.18f,
             Head = HeadSig.Pods, Tail = TailSig.Pods, Grille = GrilleKind.Wide,
             TaxiSign = true,
@@ -203,7 +217,7 @@ namespace PN3D.Game.Art
             BodyH = 0.61f, WheelR = 0.345f, Spokes = 5,
             CabHeight = 0.54f, CabLenFrac = 0.48f, CabOffFrac = -0.05f,
             PCross = 3.6f, PPlan = 5.8f, Tumble = 0.11f,
-            BonnetDrop = 0.17f, BootDrop = 0.06f,
+            BonnetDrop = 0.20f, BootDrop = 0.07f,
             RoofPeak = 0.44f, RoofFlat = 0.40f, RoofNose = 0.10f, RoofTail = 0.15f,
             Head = HeadSig.Quad, Tail = TailSig.Bar, Grille = GrilleKind.Wide,
             LightBar = true,
@@ -216,7 +230,7 @@ namespace PN3D.Game.Art
             BodyH = 1.55f, WheelR = 0.44f, Spokes = 6, WheelWFrac = 0.62f,
             CabHeight = 0.55f, CabLenFrac = 0.30f, CabOffFrac = 0.28f, CabWidFrac = 0.90f,
             PCross = 6.0f, PPlan = 8.0f, Tumble = 0.03f, WNose = 0.94f, WTail = 0.99f,
-            BonnetDrop = 0.06f, BootDrop = 0.01f, SillFront = 0.04f, SillRear = 0.04f,
+            BonnetDrop = 0.08f, BootDrop = 0.01f, SillFront = 0.04f, SillRear = 0.04f,
             RoofPeak = 0.40f, RoofFlat = 0.70f, RoofNose = 0.30f, RoofTail = 0.85f,
             CabTumble = 0.10f, CabPCross = 4.0f, CabPPlan = 4.0f,
             Head = HeadSig.Pods, Tail = TailSig.Bar, Grille = GrilleKind.Tall,
@@ -229,7 +243,7 @@ namespace PN3D.Game.Art
             BodyH = 0.60f, WheelR = 0.34f, Spokes = 10,
             CabHeight = 0.54f, CabLenFrac = 0.64f, CabOffFrac = -0.04f, CabWidFrac = 0.88f,
             PCross = 4.0f, PPlan = 7.0f, Tumble = 0.08f, WNose = 0.92f, WTail = 0.94f,
-            BonnetDrop = 0.14f, BootDrop = 0.05f,
+            BonnetDrop = 0.17f, BootDrop = 0.07f,
             RoofPeak = 0.46f, RoofFlat = 0.66f, RoofNose = 0.10f, RoofTail = 0.14f,
             Head = HeadSig.Quad, Tail = TailSig.Bar, Grille = GrilleKind.Tall,
         };
@@ -241,7 +255,7 @@ namespace PN3D.Game.Art
             BodyH = 1.05f, WheelR = 0.60f, Spokes = 6, WheelWFrac = 0.85f,
             CabHeight = 0.66f, CabLenFrac = 0.40f, CabOffFrac = 0.13f, CabWidFrac = 0.86f,
             PCross = 5.0f, PPlan = 7.5f, Tumble = 0.05f, WNose = 0.93f, WTail = 0.97f,
-            BonnetDrop = 0.13f, BootDrop = 0.02f, SillFront = 0.04f, SillRear = 0.04f,
+            BonnetDrop = 0.16f, BootDrop = 0.03f, SillFront = 0.04f, SillRear = 0.04f,
             RoofPeak = 0.56f, RoofFlat = 0.40f, RoofNose = 0.16f, RoofTail = 0.30f,
             CabTumble = 0.14f, CabPCross = 4.0f, CabPPlan = 4.5f,
             Head = HeadSig.Quad, Tail = TailSig.Pods, Grille = GrilleKind.Tall,
@@ -255,7 +269,7 @@ namespace PN3D.Game.Art
             BodyH = 0.62f, WheelR = 0.32f, Spokes = 5,
             CabHeight = 0.58f, CabLenFrac = 0.52f, CabOffFrac = -0.06f,
             PCross = 3.4f, PPlan = 5.5f, Tumble = 0.10f,
-            BonnetDrop = 0.15f, BootDrop = 0.08f,
+            BonnetDrop = 0.18f, BootDrop = 0.09f,
             RoofPeak = 0.44f, RoofFlat = 0.46f, RoofNose = 0.12f, RoofTail = 0.34f,
             Head = HeadSig.Pods, Tail = TailSig.Pods, Grille = GrilleKind.Wide,
             Rust = true, TwinExhaust = false, Bumpers = true,

@@ -47,10 +47,20 @@ namespace PN3D.Game.Art
         }
 
         /// <summary>
-        /// Segmented box deformed into a car shell. Vertices are welded across the cube's
-        /// face boundaries before deforming, so the smooth normals really are seamless —
-        /// the reference relies on Three.js's own box being indexed for the same effect.
+        /// Wheel-arch profile: 1 at the axle, 0 at the edges of the opening.
+        ///
+        /// The exponent shapes the arch. A plain smooth bump reads as a sag in the sill;
+        /// a true semicircle (0.5) meets the rocker at a vertical tangent and facets badly
+        /// at this mesh density. 0.75 keeps the round crown of an arch while landing on the
+        /// rocker at an angle the segments can actually follow.
         /// </summary>
+        static float ArchHump(float u, float centre, float halfWidth)
+        {
+            float d = Mathf.Abs(u - centre) / Mathf.Max(1e-4f, halfWidth);
+            if (d >= 1f) return 0f;
+            return Mathf.Pow(1f - d * d, 0.75f);
+        }
+
         /// <summary>
         /// One point of the deformed shell, from a cube coordinate to its final position.
         ///
@@ -148,6 +158,47 @@ namespace PN3D.Game.Art
         /// canopy at qy = +1 across the full lateral sweep traces exactly the arc the glass
         /// makes there, so a panel built on it covers by construction at any cabin height.
         /// </summary>
+        /// <summary>
+        /// The flank surface at a station along the length and a given HEIGHT, rather than a
+        /// given cube coordinate.
+        ///
+        /// The distinction matters once the sill has wheel arches in it. A cube-space height
+        /// is a fraction of the local section, and over an arch that section is squeezed to
+        /// a third of its depth — so a trim line held at constant qy climbs the arch, rides
+        /// over the wheel and exits at the nose as a horizontal blade hanging off the front
+        /// of the car. A shoulder crease is a roughly level line down the side; it has to be
+        /// specified in height, and only its lateral position taken from the shell.
+        ///
+        /// Solved in two 1-D passes, not one 2-D one: u falls out of the plan superellipse,
+        /// which never sees qy, so the station can be found once and the height scanned
+        /// along it. That matters because this runs per car at load, not in the editor.
+        /// </summary>
+        public static Vector3 FlankAtHeight(HullOpts o, float len, float hgt, float wid,
+                                            float targetU, float localY, float side)
+        {
+            const int NZ = 128, NY = 64;
+
+            float bestQLen = 0f, bestUErr = float.MaxValue;
+            for (int j = 0; j <= NZ; j++)
+            {
+                float qLen = -1f + 2f * j / NZ;
+                Deform(o, len, hgt, wid, side, 0f, qLen, out float uu, out _);
+                float e = Mathf.Abs(uu - targetU);
+                if (e < bestUErr) { bestUErr = e; bestQLen = qLen; }
+            }
+
+            Vector3 best = Vector3.zero;
+            float bestYErr = float.MaxValue;
+            for (int i = 0; i <= NY; i++)
+            {
+                float qy = -1f + 2f * i / NY;
+                var p = Deform(o, len, hgt, wid, side, qy, bestQLen, out _, out _);
+                float e = Mathf.Abs(p.y - localY);
+                if (e < bestYErr) { bestYErr = e; best = p; }
+            }
+            return best;
+        }
+
         public static Mesh RoofPanel(string key, HullOpts o, float len, float hgt, float wid,
                                      float u0, float u1)
             => Geo.Get(key, () =>
@@ -191,10 +242,18 @@ namespace PN3D.Game.Art
                 return m;
             });
 
+        /// <summary>
+        /// Segmented box deformed into a car shell. Vertices are welded across the cube's
+        /// face boundaries before deforming, so the smooth normals really are seamless —
+        /// the reference relies on Three.js's own box being indexed for the same effect.
+        /// </summary>
         public static Mesh Hull(float len, float hgt, float wid, HullOpts o) =>
             Geo.Get($"hull_{o.Key}", () =>
             {
-                const int SegLen = 28, SegY = 8, SegLat = 12;
+                // SegLen carries the wheel arches. An arch spans about 19% of the length,
+                // so at the old 28 it had five segments to round itself off with and came
+                // out visibly faceted; 48 gives it nine or ten.
+                const int SegLen = 48, SegY = 8, SegLat = 12;
                 var (cube, tris) = WeldedBox(SegLat, SegY, SegLen);
 
                 var verts = new Vector3[cube.Count];
@@ -322,12 +381,41 @@ namespace PN3D.Game.Art
             // happen to share a length, height and width — an exec and a patrol car, say —
             // would silently be handed the same hull and every visual difference between
             // them would vanish.
+            // WHEEL ARCHES, CUT INTO THE BODY RATHER THAN DRAWN ON IT.
+            //
+            // The sill used to run dead flat from u 0.20 to 0.80 — straight past both axles
+            // — so the shell was a constant-height extrusion over the entire wheelbase and
+            // the wheels were slots in a slab. Measured on the player hatch, the tyre stood
+            // proud of the flank by four millimetres at mid-height: the bodywork ran down
+            // past the wheel in the same plane as it, which no car does and which is most of
+            // why these read as blocks on castors.
+            //
+            // Lifting the sill over each axle makes the shell itself arch, so the opening is
+            // real geometry with the fender turning down around it on both sides. The lift
+            // clears the top of the tyre — anything less and the tyre's crown is hidden
+            // behind sheet metal, which looks like the wheel is punching through the wing.
+            var baseSill = st.Sill();
+            var deckFn = st.Deck();
+            float archLift = Mathf.Clamp01((2f * wheelR + 0.035f - baseY) / bodyH);
+            float archU = Mathf.Clamp(wheelR * 1.18f / len, 0.05f, 0.20f);
+
             var bdOpts = new HullOpts
             {
-                Key = $"bd_{st.Key}_{len}_{bodyH}_{wid}",
+                Key = $"bd_{st.Key}_{len}_{bodyH}_{wid}_{archLift:0.000}_{archU:0.000}",
                 PCross = st.PCross, PPlan = st.PPlan, Tumble = st.Tumble,
                 WNose = st.WNose, WTail = st.WTail,
-                Top = st.Deck(), Bot = st.Sill(),
+                Top = deckFn,
+                // Axles sit at +/- 0.32 of the length, so u 0.82 and 0.18. Max, not sum, so
+                // overlapping arches on a very short wheelbase cannot cut twice as deep. The
+                // final clamp guarantees the section never collapses to nothing however
+                // large a wheel an archetype asks for.
+                Bot = u =>
+                {
+                    float v = baseSill(u);
+                    float lift = archLift * Mathf.Max(ArchHump(u, 0.82f, archU),
+                                                      ArchHump(u, 0.18f, archU));
+                    return Mathf.Min(Mathf.Max(v, lift), Mathf.Max(v, deckFn(u) - 0.11f));
+                },
             };
             var hull = Hull(len, bodyH, wid, bdOpts);
             var paint = MatLib.CarPaint(
@@ -530,6 +618,36 @@ namespace PN3D.Game.Art
             // that made the mirrors read as black wings rather than painted caps.
             var paintFlat = MatLib.CarPaint("mat_paintflat" + ColorUtility.ToHtmlStringRGB(bodyC), bodyC);
 
+            // A trim line laid along the flank, following the shell instead of running
+            // straight past it.
+            //
+            // Every one of these used to be a single long box at a fixed lateral offset,
+            // which is only correct if the car is a cuboid. Measured on the player hatch,
+            // the rocker sat 122-133 mm outside the bodywork for its whole length — a dark
+            // rail hanging in mid-air under the doors — and the shoulder crease drifted from
+            // 24 mm proud at the waist to 101 mm by the front wheel, because the body tapers
+            // in plan and the crease did not. Both read as rails bolted to a slab, which is
+            // precisely the look being chased out here. Sampling the surface per segment
+            // puts them on the car and lets them follow its taper.
+            // The height is a world height, not a cube coordinate — see FlankAtHeight for
+            // why that distinction stopped the crease turning into a beak over the arches.
+            void FlankLine(Material mat, float u0, float u1, float worldY, float thick, int segs)
+            {
+                float localY = worldY - shellPos.y;
+                foreach (float s in new[] { 1f, -1f })
+                {
+                    var prev = Vector3.zero;
+                    for (int i = 0; i <= segs; i++)
+                    {
+                        var p = shellPos + FlankAtHeight(bdOpts, len, bodyH, wid,
+                                    Mathf.Lerp(u0, u1, (float)i / segs), localY, s);
+                        p.x += s * thick * 0.30f;      // stand proud, do not straddle
+                        if (i > 0) Strut(body, mat, prev, p, thick);
+                        prev = p;
+                    }
+                }
+            }
+
             // Hung off the base of the A-pillar on a stalk, which is where a door mirror
             // actually lives. Floating them beside the cabin with no visible attachment was
             // a large part of why the cars felt like assemblies of parts.
@@ -594,19 +712,13 @@ namespace PN3D.Game.Art
             //
             // The crease is body colour, not a dark stripe. What reads is the highlight on
             // its edge, not the colour — paint a line on instead and it looks like a decal.
-            foreach (float s in new[] { 1f, -1f })
-            {
-                Geo.Node("Shoulder", body, Geo.UnitCube, paintFlat,
-                         new Vector3(s * (wid * 0.5f - 0.008f), baseY + bodyH * 0.66f, len * 0.02f),
-                         Quaternion.identity,
-                         new Vector3(0.022f, bodyH * 0.075f, len * 0.70f), shadows: false);
+            // It runs high on the flank, above the arches, so it can sweep the full length.
+            FlankLine(paintFlat, 0.13f, 0.93f, baseY + bodyH * 0.66f, 0.024f, 18);
 
-                if (!st.Cladding)
-                    Geo.Node("Rocker", body, Geo.UnitCube, dark,
-                             new Vector3(s * (wid * 0.5f - 0.030f), baseY + bodyH * 0.10f, 0f),
-                             Quaternion.identity,
-                             new Vector3(0.035f, bodyH * 0.17f, len * 0.52f), shadows: false);
-            }
+            // The rocker only runs between the arches now. Carried across them it would
+            // climb the arch and back down, tracing a wave along the bottom of the car.
+            if (!st.Cladding)
+                FlankLine(dark, 0.29f, 0.71f, baseY + bodyH * 0.11f, 0.036f, 8);
 
             // Lower intake under the grille, and a matching rear valance. Without them the
             // nose is one flat painted face from the bonnet to the road, which no car has.
@@ -627,6 +739,13 @@ namespace PN3D.Game.Art
             var wellMat  = MatLib.Solid(new Color(0.10f, 0.10f, 0.11f), 0.35f);
             var calMat   = MatLib.Solid(new Color(0.55f, 0.14f, 0.11f), 0.45f);
 
+            // Track is deliberately unchanged. The wheels looked buried because the flank
+            // ran straight down past them — four millimetres of tyre proud at mid-height —
+            // and the instinct was to widen the track to push them out. Measured, that is
+            // the wrong lever: it puts the tyre 30 mm OUTSIDE the arch lip, which is a
+            // stanced show car, not a hatchback. The arch cut above exposes the wheel by
+            // removing the bodywork in front of it, so the track can stay where the lip
+            // still covers the tyre.
             float axF = len * 0.32f, axR = -len * 0.32f, wx = wid / 2f - 0.19f;
 
             var steer = new List<Transform>();
@@ -807,9 +926,8 @@ namespace PN3D.Game.Art
 
             if (st.Cladding)
             {
-                foreach (float sx in new[] { wid * 0.49f, -wid * 0.49f })
-                    Geo.Box("Cladding", body, new Vector3(0.04f, bodyH * 0.18f, len * 0.52f),
-                            new Vector3(sx, baseY + bodyH * 0.14f, 0), dark);
+                // On the surface, between the arches — same reason as the rocker above.
+                FlankLine(dark, 0.28f, 0.72f, baseY + bodyH * 0.15f, 0.042f, 8);
                 Geo.Box("SkidF", body, new Vector3(wid * 0.42f, bodyH * 0.10f, 0.10f),
                         new Vector3(0, baseY + bodyH * 0.06f, half - 0.10f),
                         MatLib.Solid(new Color(0.55f, 0.56f, 0.58f), 0.45f));
@@ -833,10 +951,8 @@ namespace PN3D.Game.Art
                         new Vector3(0, roofY + 0.06f, roofZ),
                         MatLib.Emissive(new Color(0.20f, 0.16f, 0.03f), new Color(1f, 0.82f, 0.25f), 0.9f));
                 // the chequer stripe down the flank, which is what actually says "taxi"
-                foreach (float sx in new[] { wid * 0.505f, -wid * 0.505f })
-                    Geo.Box("TaxiStripe", body, new Vector3(0.02f, bodyH * 0.16f, len * 0.46f),
-                            new Vector3(sx, baseY + bodyH * 0.44f, 0),
-                            MatLib.Solid(new Color(0.08f, 0.08f, 0.09f), 0.4f));
+                FlankLine(MatLib.Solid(new Color(0.08f, 0.08f, 0.09f), 0.4f),
+                          0.20f, 0.80f, baseY + bodyH * 0.45f, 0.026f, 12);
             }
 
             if (st.Rust)
