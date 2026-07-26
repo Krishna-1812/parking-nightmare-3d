@@ -206,11 +206,16 @@ namespace PN3D.Game.Art
             Geo.Node("Shell", body, hull, paint, new Vector3(0, baseY + bodyH / 2f, 0));
 
             // ---- glass canopy: the roofline that carries most of the silhouette ----
-            var canopy = Hull(cabLen + cabHeight * 0.9f, cabHeight * 0.92f, cabW, new HullOpts
+            var canopy = Hull(cabLen + cabHeight * 0.55f, cabHeight * 0.92f, cabW, new HullOpts
             {
                 Key = $"cn_{st.Key}_{cabLen}_{cabHeight}_{cabW}",
                 PCross = st.CabPCross, PPlan = st.CabPPlan, Tumble = st.CabTumble,
-                WNose = 0.95f, WTail = 0.97f,
+                // Taper the glass in at both ends. At 0.95/0.97 the greenhouse stayed
+                // almost full width to its tips while the body's plan superellipse pulls
+                // in hard at nose and tail, so on the long-roof styles the rounded end of
+                // the glass surfaced outside the rear quarter as a dark lump stuck to the
+                // tailgate. The cabin must always be narrower than the body it sits on.
+                WNose = 0.88f, WTail = 0.86f,
                 Top = st.Roof(), Bot = _ => 0f,
             });
             // Glass, not Textured. The canopy kept the pillar/seal detail map but was being
@@ -247,7 +252,11 @@ namespace PN3D.Game.Art
             // makes the roof narrower than the waist, so a pillar held at one width would
             // peel off the glass by the time it reached the top.
             var roofFn = st.Roof();
-            float canLen = cabLen + cabHeight * 0.9f;
+            // Padding for the raked ends, but 0.9 * cabHeight was too much: on the
+            // long-roof archetypes it pushed the greenhouse out past the tailgate, where
+            // the rounded end of the glass shell surfaced above the rear deck as a dark
+            // lump sitting outside the bodywork.
+            float canLen = cabLen + cabHeight * 0.55f;
             float canH = cabHeight * 0.92f;
             float canopyY = baseY + bodyH + cabHeight * 0.46f - 0.08f;
             float roofZ = cabOff - cabHeight * 0.1f;
@@ -263,19 +272,29 @@ namespace PN3D.Game.Art
             // A and C pillars should meet it.
             float uFront = Mathf.Clamp01(st.RoofPeak + st.RoofFlat * (1f - st.RoofPeak));
             float uRear = Mathf.Clamp01(st.RoofPeak - st.RoofFlat * st.RoofPeak);
-            const float UWind = 0.93f, UBack = 0.07f;
+            // The frame has to reach the ends of the glass. At 0.93/0.07 it stopped seven
+            // per cent short at each tip, and the unframed remainder surfaced as a dark
+            // stub past the C-pillar — very obvious on the estate, where RoofTail keeps the
+            // glass tall right to the tailgate.
+            const float UWind = 0.975f, UBack = 0.025f;
+
+            // Lateral taper of the canopy, matching the WNose/WTail above. The pillar feet
+            // land near the tips where the glass has already drawn in, so holding them at
+            // full cabin width would leave them hanging beside it in open air.
+            float Taper(float u) => Mathf.Lerp(0.86f, 1f, Mathf.Clamp01(u / 0.35f))
+                                  * Mathf.Lerp(0.88f, 1f, Mathf.Clamp01((1f - u) / 0.35f));
 
             float roofY = TopY(st.RoofPeak);   // for roof rails, light bars, taxi signs
             float pil = Mathf.Clamp(wid * 0.042f, 0.032f, 0.072f);
 
             foreach (float s in new[] { 1f, -1f })
             {
-                var aBot = new Vector3(s * latBelt, beltY, ZAt(UWind));
-                var aTop = new Vector3(s * latRoof, TopY(uFront), ZAt(uFront));
-                var cBot = new Vector3(s * latBelt, beltY, ZAt(UBack));
-                var cTop = new Vector3(s * latRoof, TopY(uRear), ZAt(uRear));
-                var bBot = new Vector3(s * latBelt, beltY, ZAt(st.RoofPeak));
-                var bTop = new Vector3(s * latRoof, TopY(st.RoofPeak), ZAt(st.RoofPeak));
+                var aBot = new Vector3(s * latBelt * Taper(UWind), beltY, ZAt(UWind));
+                var aTop = new Vector3(s * latRoof * Taper(uFront), TopY(uFront), ZAt(uFront));
+                var cBot = new Vector3(s * latBelt * Taper(UBack), beltY, ZAt(UBack));
+                var cTop = new Vector3(s * latRoof * Taper(uRear), TopY(uRear), ZAt(uRear));
+                var bBot = new Vector3(s * latBelt * Taper(st.RoofPeak), beltY, ZAt(st.RoofPeak));
+                var bTop = new Vector3(s * latRoof * Taper(st.RoofPeak), TopY(st.RoofPeak), ZAt(st.RoofPeak));
 
                 Strut(body, paint, aBot, aTop, pil);           // A-pillar
                 Strut(body, paint, cBot, cTop, pil * 1.30f);   // C-pillar, always the thick one
@@ -307,15 +326,24 @@ namespace PN3D.Game.Art
                          new Vector3(wid * 0.24f, wheelR - 0.06f, -half + 0.09f),
                          Quaternion.Euler(90, 0, 0));
 
-            // mirrors
-            float cabF = cabOff + cabLen / 2f;
-            // flat body colour, not the panel texture: a 15 cm box lands on whatever part
-            // of the flank atlas its UVs happen to hit, which was the wheel-arch AO —
-            // making the mirrors read as black wings rather than painted caps
+            // ---- door mirrors ----
+            // Flat body colour, not the panel texture: a 13 cm box lands on whatever part
+            // of the flank atlas its UVs happen to hit, which was the wheel-arch AO, and
+            // that made the mirrors read as black wings rather than painted caps.
             var paintFlat = MatLib.CarPaint("mat_paintflat" + ColorUtility.ToHtmlStringRGB(bodyC), bodyC);
-            foreach (float x in new[] { cabW / 2f + 0.07f, -(cabW / 2f + 0.07f) })
-                Geo.Box("Mirror", body, new Vector3(0.13f, 0.08f, 0.07f),
-                        new Vector3(x, baseY + bodyH + 0.05f, cabF - 0.04f), paintFlat);
+
+            // Hung off the base of the A-pillar on a stalk, which is where a door mirror
+            // actually lives. Floating them beside the cabin with no visible attachment was
+            // a large part of why the cars felt like assemblies of parts.
+            foreach (float s in new[] { 1f, -1f })
+            {
+                var stalk = new Vector3(s * cabW * 0.50f, beltY - 0.03f, ZAt(UWind) - 0.06f);
+                var tip = new Vector3(s * (cabW * 0.50f + 0.10f), beltY + 0.005f, ZAt(UWind) - 0.13f);
+                Strut(body, dark, stalk, tip, 0.026f);
+                Geo.Node("Mirror", body, Geo.UnitCube, paintFlat, tip,
+                         Quaternion.Euler(0, s * 10f, 0),
+                         new Vector3(0.05f, 0.07f, 0.135f), shadows: false);
+            }
 
             // ---- grille ----
             // Sized off the body, not a constant: a 44 cm slot is right on a hatchback and
@@ -347,6 +375,36 @@ namespace PN3D.Game.Art
                     new Vector3(0, baseY + bodyH * 0.26f, -half + 0.02f),
                     MatLib.Solid(new Color(0.88f, 0.88f, 0.84f), 0.3f));
 
+            // ---- flank relief ----
+            // A car's side is never a bare slab. Two features do nearly all the work of
+            // making it not one: a shoulder crease running the length of the flank, which
+            // catches a hard highlight and splits the side into an upper and lower surface,
+            // and a rocker below the doors that puts the sill in shadow and stops the body
+            // looking like it was extruded straight down to the road.
+            //
+            // The crease is body colour, not a dark stripe. What reads is the highlight on
+            // its edge, not the colour — paint a line on instead and it looks like a decal.
+            foreach (float s in new[] { 1f, -1f })
+            {
+                Geo.Node("Shoulder", body, Geo.UnitCube, paintFlat,
+                         new Vector3(s * (wid * 0.5f - 0.008f), baseY + bodyH * 0.66f, len * 0.02f),
+                         Quaternion.identity,
+                         new Vector3(0.022f, bodyH * 0.075f, len * 0.70f), shadows: false);
+
+                if (!st.Cladding)
+                    Geo.Node("Rocker", body, Geo.UnitCube, dark,
+                             new Vector3(s * (wid * 0.5f - 0.030f), baseY + bodyH * 0.10f, 0f),
+                             Quaternion.identity,
+                             new Vector3(0.035f, bodyH * 0.17f, len * 0.52f), shadows: false);
+            }
+
+            // Lower intake under the grille, and a matching rear valance. Without them the
+            // nose is one flat painted face from the bonnet to the road, which no car has.
+            Geo.Box("Intake", body, new Vector3(wid * 0.56f, bodyH * 0.15f, 0.03f),
+                    new Vector3(0, baseY + bodyH * 0.10f, half - 0.035f), dark);
+            Geo.Box("Valance", body, new Vector3(wid * 0.60f, bodyH * 0.13f, 0.03f),
+                    new Vector3(0, baseY + bodyH * 0.09f, -half + 0.035f), dark);
+
             // ---- wheels ----
             // Width scales with radius, so a lifted pickup gets fat tyres and a coupe gets
             // wide low ones without either being hand-tuned.
@@ -363,7 +421,13 @@ namespace PN3D.Game.Art
 
             var steer = new List<Transform>();
             var spin = new List<Transform>();
-            var archMesh = Geo.HalfTorus(wheelR + 0.06f, 0.06f);
+            // A FENDER LIP, NOT A HOOP. This was a 6 cm dark tube arching over each wheel,
+            // and at 6 cm in near-black it read as a roll bar bolted to the side rather
+            // than as bodywork. Thinner, tucked closer to the tyre, and painted — except on
+            // the archetypes that carry plastic arch trim in real life, where dark is
+            // correct and is part of what says "SUV".
+            var archMesh = Geo.HalfTorus(wheelR + 0.045f, 0.030f);
+            var archMat = st.Cladding ? dark : paintFlat;
 
             foreach (var (az, x, front) in new[]
                      { (axF, wx, true), (axF, -wx, true), (axR, wx, false), (axR, -wx, false) })
@@ -386,8 +450,11 @@ namespace PN3D.Game.Art
                 BuildWheel(wheel, mount, wheel.localPosition, wheelR, wheelW, x > 0, st.Spokes,
                            tyreMat, alloyMat, lipMat, wellMat, calMat);
 
-                Geo.Node("Arch", body, archMesh, dark,
-                         new Vector3(x > 0 ? wid / 2f - 0.02f : -(wid / 2f - 0.02f), wheelR, az),
+                // Half-buried in the flank on purpose. Sat on the surface it is a hoop; sunk
+                // three centimetres in, only the lip shows and it becomes the edge of the
+                // wing where the metal turns down to the tyre.
+                Geo.Node("Arch", body, archMesh, archMat,
+                         new Vector3(x > 0 ? wid / 2f - 0.032f : -(wid / 2f - 0.032f), wheelR, az),
                          Quaternion.Euler(0, 90, 0), shadows: false);
             }
 
@@ -428,21 +495,38 @@ namespace PN3D.Game.Art
                     // 18% of the beam, not 30%. At 30% these were 55 cm boxes reading as
                     // white handlebars bolted across the nose.
                     foreach (float lx in new[] { wid * 0.25f, -wid * 0.25f })
+                    {
+                        Geo.Node("LampBezel", body, Geo.UnitCube, dark,
+                                 new Vector3(lx, lightY, half - 0.055f), Quaternion.identity,
+                                 new Vector3(wid * 0.21f, bodyH * 0.105f, 0.06f), shadows: false);
                         Geo.Node("Headlamp", body, Geo.UnitCube, headMat,
                                  new Vector3(lx, lightY, half - 0.025f), Quaternion.identity,
                                  new Vector3(wid * 0.18f, bodyH * 0.075f, 0.09f), shadows: false);
+                    }
                     break;
                 case HeadSig.Quad:
                     foreach (float lx in new[] { wid * 0.30f, wid * 0.18f, -wid * 0.18f, -wid * 0.30f })
+                    {
+                        Geo.Node("LampBezel", body, Geo.Cylinder(0.055f, 0.055f, 0.06f, 12), dark,
+                                 new Vector3(lx, lightY, half - 0.055f), Quaternion.Euler(90, 0, 0),
+                                 shadows: false);
                         Geo.Node("Headlamp", body, Geo.Cylinder(0.043f, 0.043f, 0.09f, 12), headMat,
                                  new Vector3(lx, lightY, half - 0.03f), Quaternion.Euler(90, 0, 0),
                                  shadows: false);
+                    }
                     break;
                 default:
+                    // The bezel is what makes a lamp look set into the wing. Without it the
+                    // lens is a pale nub glued to the paint, which is how these read before.
                     foreach (float lx in new[] { wid * 0.27f, -wid * 0.27f })
+                    {
+                        Geo.Node("LampBezel", body, Geo.Cylinder(0.071f, 0.071f, 0.06f, 12), dark,
+                                 new Vector3(lx, lightY, half - 0.055f), Quaternion.Euler(90, 0, 0),
+                                 shadows: false);
                         Geo.Node("Headlamp", body, Geo.Cylinder(0.058f, 0.058f, 0.10f, 12), headMat,
                                  new Vector3(lx, lightY, half - 0.03f), Quaternion.Euler(90, 0, 0),
                                  shadows: false);
+                    }
                     break;
             }
 
@@ -482,10 +566,13 @@ namespace PN3D.Game.Art
             }
 
             // ---- archetype extras ----
+            // Rails follow the roof panel, not the cabin: latRoof is the width the roof
+            // actually is after tumblehome, and the plateau is where it is flat enough to
+            // mount anything. Sized off cabW they hung out past the roof edge in mid-air.
             if (st.RoofRails)
-                foreach (float rx in new[] { cabW * 0.36f, -cabW * 0.36f })
-                    Geo.Box("RoofRail", body, new Vector3(0.05f, 0.04f, cabLen * 0.72f),
-                            new Vector3(rx, roofY + 0.02f, roofZ), dark);
+                foreach (float rx in new[] { latRoof * 0.80f, -latRoof * 0.80f })
+                    Geo.Box("RoofRail", body, new Vector3(0.045f, 0.035f, (uFront - uRear) * canLen * 0.88f),
+                            new Vector3(rx, roofY + 0.030f, ZAt((uFront + uRear) * 0.5f)), dark);
 
             if (st.Spoiler)
                 Geo.Box("Spoiler", body, new Vector3(wid * 0.62f, 0.04f, 0.16f),
