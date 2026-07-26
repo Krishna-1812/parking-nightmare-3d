@@ -152,12 +152,32 @@ namespace PN3D.Game.Art
             const float h = 0.5f;
             var X = new Vector3(1, 0, 0); var Y = new Vector3(0, 1, 0); var Z = new Vector3(0, 0, 1);
 
+            // WINDING. A face's outward normal is cross(du, dv), and `flip` negates it.
+            // Four of these six were inside out, which is not a subtle defect: back-face
+            // culling then deletes the flanks and the roof, so the car renders as a floor
+            // pan with a nose and a tail and you look straight through where the doors
+            // should be. It reads as a chassis with no body on it, because that is
+            // literally what is left.
+            //
+            //   +Z  X*Y = +Z   keep
+            //   -Z  X*Y = +Z   flip
+            //   +X  Z*Y = -X   flip   <- was keep
+            //   -X  Z*Y = -X   keep   <- was flip
+            //   +Y  X*Z = -Y   flip   <- was keep
+            //   -Y  X*Z = -Y   keep   <- was flip
+            //
+            // Worth stating why it hid for so long: the two Z faces were correct, so the
+            // nose and tail were solid and the grille, lamps and bumpers all looked right.
+            // Only the sides and roof were missing, and the bright plane left behind is the
+            // inside of the floor — whose inverted normal points up at the camera, so it
+            // lights convincingly. It was mistaken twice for a sky reflection washing out
+            // the flanks.
             Face(new Vector3(-h, -h, h), X, Y, sx, sy, false);    // +Z
             Face(new Vector3(-h, -h, -h), X, Y, sx, sy, true);    // -Z
-            Face(new Vector3(h, -h, -h), Z, Y, sz, sy, false);    // +X
-            Face(new Vector3(-h, -h, -h), Z, Y, sz, sy, true);    // -X
-            Face(new Vector3(-h, h, -h), X, Z, sx, sz, false);    // +Y
-            Face(new Vector3(-h, -h, -h), X, Z, sx, sz, true);    // -Y
+            Face(new Vector3(h, -h, -h), Z, Y, sz, sy, true);     // +X
+            Face(new Vector3(-h, -h, -h), Z, Y, sz, sy, false);   // -X
+            Face(new Vector3(-h, h, -h), X, Z, sx, sz, true);     // +Y
+            Face(new Vector3(-h, -h, -h), X, Z, sx, sz, false);   // -Y
 
             return (verts, tris);
         }
@@ -290,7 +310,10 @@ namespace PN3D.Game.Art
                                   * Mathf.Lerp(0.88f, 1f, Mathf.Clamp01((1f - u) / 0.35f));
 
             float roofY = TopY(st.RoofPeak);   // for roof rails, light bars, taxi signs
-            float pil = Mathf.Clamp(wid * 0.042f, 0.032f, 0.072f);
+            // Slimmer than they were. The frame was sized when the shell was invisible, so
+            // the pillars were carrying the whole cabin and had to be chunky to read at
+            // all. With bodywork behind them they only need to be pillars.
+            float pil = Mathf.Clamp(wid * 0.030f, 0.024f, 0.052f);
 
             foreach (float s in new[] { 1f, -1f })
             {
@@ -458,7 +481,7 @@ namespace PN3D.Game.Art
             // than as bodywork. Thinner, tucked closer to the tyre, and painted — except on
             // the archetypes that carry plastic arch trim in real life, where dark is
             // correct and is part of what says "SUV".
-            var archMesh = Geo.HalfTorus(wheelR + 0.045f, 0.030f);
+            var archMesh = Geo.HalfTorus(wheelR + 0.040f, 0.023f);
             var archMat = st.Cladding ? dark : paintFlat;
 
             foreach (var (az, x, front) in new[]
@@ -486,7 +509,7 @@ namespace PN3D.Game.Art
                 // three centimetres in, only the lip shows and it becomes the edge of the
                 // wing where the metal turns down to the tyre.
                 Geo.Node("Arch", body, archMesh, archMat,
-                         new Vector3(x > 0 ? wid / 2f - 0.032f : -(wid / 2f - 0.032f), wheelR, az),
+                         new Vector3(x > 0 ? wid / 2f - 0.040f : -(wid / 2f - 0.040f), wheelR, az),
                          Quaternion.Euler(0, 90, 0), shadows: false);
             }
 
