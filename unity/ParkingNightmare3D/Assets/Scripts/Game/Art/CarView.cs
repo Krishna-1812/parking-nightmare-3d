@@ -216,45 +216,83 @@ namespace PN3D.Game.Art
             // Glass, not Textured. The canopy kept the pillar/seal detail map but was being
             // built at metallic 0, which is why it read as painted plastic rather than a
             // windscreen — see MatLib.Glass for why near-mirror beats alpha here.
-            var glassMat = MatLib.Glass(new Color(0.075f, 0.085f, 0.105f), ProcTex.CanopySide());
+            // Lifted off near-black. Once the frame went in, the glass stopped being the
+            // whole cabin and became panels between pillars — and at that tint the panels
+            // read as holes punched through the car rather than windows. Real glazing seen
+            // from outside is dark but never void: it carries a sky reflection.
+            var glassMat = MatLib.Glass(new Color(0.135f, 0.150f, 0.175f), ProcTex.CanopySide());
+            // Inset laterally so the frame built below stands proud of it. Without this the
+            // pillars sit exactly on the glass surface, half in and half out, and the cabin
+            // reads as a roll cage strapped over a bubble instead of glazing dropped into
+            // bodywork. Windows are recessed on a real car and that shadow line is most of
+            // what tells you so.
             Geo.Node("Canopy", body, canopy, glassMat,
-                     new Vector3(0, baseY + bodyH + cabHeight * 0.46f - 0.08f, cabOff - cabHeight * 0.1f));
+                     new Vector3(0, baseY + bodyH + cabHeight * 0.46f - 0.08f, cabOff - cabHeight * 0.1f),
+                     Quaternion.identity, new Vector3(0.93f, 1f, 0.99f));
 
             var dark = MatLib.Solid(new Color(0.063f, 0.071f, 0.086f), 0.35f);
             var chrome = MatLib.Chrome();
 
-            // Top of the greenhouse. The canopy hull is 0.92 * cabHeight tall and is centred
-            // at 0.46 of it, so its crown sits at exactly this height — get the 0.92 wrong
-            // and anything "mounted on the roof" is in fact buried inside the glass.
-            float roofZ = cabOff - cabHeight * 0.1f;
-            float roofY = baseY + bodyH + cabHeight * 0.92f - 0.08f;
-
-            // ---- painted roof panel ----
-            // Only the windows are glass on a real car; the roof and the pillars are body
-            // colour. Without this the greenhouse is a single dark shell and every car
-            // reads as a bubble-top — ruinous on the tall archetypes, where an all-glass
-            // SUV cabin looks like a conservatory on wheels.
+            // ---- greenhouse frame ----
+            // A cabin is not a glass dome. It is painted structure with windows cut into
+            // it, and modelling it as one shell is why every archetype wore a black bubble
+            // however the tint was tuned. Laying a cap on top could never fix that: the
+            // dome flares out below the cap's edge, so glass kept showing where bodywork
+            // belonged. There is no boolean cutter here, so instead of cutting holes in
+            // paint we build the frame around the glass — A, B and C pillars, a cant rail
+            // over the side glass, a beltline under it, and a roof across the plateau.
+            // What is left showing between them is a window, which is what a window is.
             //
-            // Width is derived from the canopy's tumblehome, not from cabW: the glass leans
-            // inward as it rises, so a cap cut to the full cabin width would overhang the
-            // side windows like a mushroom.
+            // Pillars lean inward as they rise because the glass does. Cabin tumblehome
+            // makes the roof narrower than the waist, so a pillar held at one width would
+            // peel off the glass by the time it reached the top.
+            var roofFn = st.Roof();
             float canLen = cabLen + cabHeight * 0.9f;
-            float capW = cabW * (1f - st.CabTumble) * 1.03f;
-            // Generous: the roof should be most of the greenhouse, with glass only where
-            // the windows are. Cut too short, the car keeps its dark bubble and the panel
-            // reads as a sunroof. The RoofFlat term still lets a fastback keep more glass
-            // than an estate, which is the difference between the two silhouettes.
-            float capLen = Mathf.Clamp(canLen * (st.RoofFlat * 1.2f + 0.42f), 0.22f, canLen * 0.93f);
-            var roofCap = Hull(capLen, 0.09f, capW, new HullOpts
+            float canH = cabHeight * 0.92f;
+            float canopyY = baseY + bodyH + cabHeight * 0.46f - 0.08f;
+            float roofZ = cabOff - cabHeight * 0.1f;
+
+            float TopY(float u) => canopyY + (roofFn(u) - 0.5f) * canH;
+            float ZAt(float u) => roofZ + (u - 0.5f) * canLen;
+
+            float beltY = canopyY - canH * 0.5f;
+            float latBelt = cabW * 0.5f * 0.99f;
+            float latRoof = cabW * 0.5f * (1f - st.CabTumble);
+
+            // Plateau edges are where the roof stops being flat, which is exactly where the
+            // A and C pillars should meet it.
+            float uFront = Mathf.Clamp01(st.RoofPeak + st.RoofFlat * (1f - st.RoofPeak));
+            float uRear = Mathf.Clamp01(st.RoofPeak - st.RoofFlat * st.RoofPeak);
+            const float UWind = 0.93f, UBack = 0.07f;
+
+            float roofY = TopY(st.RoofPeak);   // for roof rails, light bars, taxi signs
+            float pil = Mathf.Clamp(wid * 0.042f, 0.032f, 0.072f);
+
+            foreach (float s in new[] { 1f, -1f })
             {
-                Key = $"rf_{st.Key}_{capLen}_{capW}",
-                PCross = 2.8f, PPlan = 3.0f, Tumble = 0.05f, WNose = 0.88f, WTail = 0.90f,
-                Top = _ => 1f, Bot = _ => 0f,
-            });
-            // Sunk just enough that the glass meets it, and proud enough that it is the
-            // roof rather than a plate suspended inside the cabin.
+                var aBot = new Vector3(s * latBelt, beltY, ZAt(UWind));
+                var aTop = new Vector3(s * latRoof, TopY(uFront), ZAt(uFront));
+                var cBot = new Vector3(s * latBelt, beltY, ZAt(UBack));
+                var cTop = new Vector3(s * latRoof, TopY(uRear), ZAt(uRear));
+                var bBot = new Vector3(s * latBelt, beltY, ZAt(st.RoofPeak));
+                var bTop = new Vector3(s * latRoof, TopY(st.RoofPeak), ZAt(st.RoofPeak));
+
+                Strut(body, paint, aBot, aTop, pil);           // A-pillar
+                Strut(body, paint, cBot, cTop, pil * 1.30f);   // C-pillar, always the thick one
+                Strut(body, paint, bBot, bTop, pil * 0.85f);   // B-pillar
+                Strut(body, paint, aTop, cTop, pil * 0.85f);   // cant rail over the side glass
+                Strut(body, paint, aBot, cBot, pil * 0.75f);   // beltline under it
+            }
+
+            var roofCap = Hull(Mathf.Max(0.18f, (uFront - uRear) * canLen), 0.09f, latRoof * 2f,
+                new HullOpts
+                {
+                    Key = $"rf_{st.Key}_{uFront - uRear}_{canLen}_{latRoof}",
+                    PCross = 2.8f, PPlan = 3.0f, Tumble = 0.05f, WNose = 0.90f, WTail = 0.92f,
+                    Top = _ => 1f, Bot = _ => 0f,
+                });
             Geo.Node("Roof", body, roofCap, paint,
-                     new Vector3(0, roofY - 0.025f, roofZ + (st.RoofPeak - 0.5f) * canLen));
+                     new Vector3(0, roofY - 0.030f, ZAt((uFront + uRear) * 0.5f)));
 
             // shark fin + exhaust tips
             Geo.Box("Fin", body, new Vector3(0.05f, 0.07f, 0.16f),
@@ -501,6 +539,26 @@ namespace PN3D.Game.Art
                 WheelRadius = wheelR,
                 BrakeLight = brakeMat,
             };
+        }
+
+        /// <summary>
+        /// A square-section bar between two points — pillars, cant rails, beltlines.
+        ///
+        /// The up-hint matters. A B-pillar is very nearly vertical, and
+        /// Quaternion.LookRotation(dir, Vector3.up) with dir parallel to up is degenerate:
+        /// Unity returns identity and the bar silently lies down flat along +Z. Swap the
+        /// hint to forward when the bar is steep.
+        /// </summary>
+        static void Strut(Transform body, Material mat, Vector3 a, Vector3 b, float thick)
+        {
+            var d = b - a;
+            float len = d.magnitude;
+            if (len < 1e-3f) return;
+            var dir = d / len;
+            var up = Mathf.Abs(Vector3.Dot(dir, Vector3.up)) > 0.985f ? Vector3.forward : Vector3.up;
+            Geo.Node("Pillar", body, Geo.UnitCube, mat, (a + b) * 0.5f,
+                     Quaternion.LookRotation(dir, up),
+                     new Vector3(thick, thick, len), shadows: false);
         }
 
         /// <summary>

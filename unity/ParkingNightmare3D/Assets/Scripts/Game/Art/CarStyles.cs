@@ -133,7 +133,7 @@ namespace PN3D.Game.Art
             CabHeight = 0.52f, CabLenFrac = 0.46f, CabOffFrac = -0.04f, CabWidFrac = 0.86f,
             PCross = 3.6f, PPlan = 6.0f, Tumble = 0.13f, WNose = 0.88f, WTail = 0.90f,
             BonnetDrop = 0.19f, BootDrop = 0.05f,
-            RoofPeak = 0.44f, RoofFlat = 0.24f, RoofNose = 0.08f, RoofTail = 0.12f,
+            RoofPeak = 0.44f, RoofFlat = 0.36f, RoofNose = 0.08f, RoofTail = 0.12f,
             Head = HeadSig.Slim, Tail = TailSig.LShape, Grille = GrilleKind.Wide,
         };
 
@@ -144,7 +144,7 @@ namespace PN3D.Game.Art
             CabHeight = 0.46f, CabLenFrac = 0.46f, CabOffFrac = -0.01f, CabWidFrac = 0.84f,
             PCross = 3.0f, PPlan = 5.0f, Tumble = 0.20f, WNose = 0.84f, WTail = 0.87f,
             BonnetDrop = 0.21f, BootDrop = 0.09f,
-            RoofPeak = 0.54f, RoofFlat = 0.08f, RoofNose = 0.10f, RoofTail = 0.02f,
+            RoofPeak = 0.54f, RoofFlat = 0.15f, RoofNose = 0.10f, RoofTail = 0.02f,
             Head = HeadSig.Slim, Tail = TailSig.Bar, Grille = GrilleKind.Wide,
             Spoiler = true,
         };
@@ -156,7 +156,7 @@ namespace PN3D.Game.Art
             CabHeight = 0.58f, CabLenFrac = 0.52f, CabOffFrac = -0.06f,
             PCross = 3.4f, PPlan = 5.5f, Tumble = 0.10f,
             BonnetDrop = 0.15f, BootDrop = 0.08f,
-            RoofPeak = 0.44f, RoofFlat = 0.34f, RoofNose = 0.12f, RoofTail = 0.34f,
+            RoofPeak = 0.44f, RoofFlat = 0.46f, RoofNose = 0.12f, RoofTail = 0.34f,
             Head = HeadSig.Pods, Tail = TailSig.Pods, Grille = GrilleKind.Wide,
         };
 
@@ -192,7 +192,7 @@ namespace PN3D.Game.Art
             CabHeight = 0.57f, CabLenFrac = 0.50f, CabOffFrac = -0.05f,
             PCross = 3.6f, PPlan = 5.8f, Tumble = 0.10f,
             BonnetDrop = 0.15f, BootDrop = 0.07f,
-            RoofPeak = 0.44f, RoofFlat = 0.30f, RoofNose = 0.11f, RoofTail = 0.18f,
+            RoofPeak = 0.44f, RoofFlat = 0.42f, RoofNose = 0.11f, RoofTail = 0.18f,
             Head = HeadSig.Pods, Tail = TailSig.Pods, Grille = GrilleKind.Wide,
             TaxiSign = true,
         };
@@ -204,7 +204,7 @@ namespace PN3D.Game.Art
             CabHeight = 0.54f, CabLenFrac = 0.48f, CabOffFrac = -0.05f,
             PCross = 3.6f, PPlan = 5.8f, Tumble = 0.11f,
             BonnetDrop = 0.17f, BootDrop = 0.06f,
-            RoofPeak = 0.44f, RoofFlat = 0.28f, RoofNose = 0.10f, RoofTail = 0.15f,
+            RoofPeak = 0.44f, RoofFlat = 0.40f, RoofNose = 0.10f, RoofTail = 0.15f,
             Head = HeadSig.Quad, Tail = TailSig.Bar, Grille = GrilleKind.Wide,
             LightBar = true,
         };
@@ -242,7 +242,7 @@ namespace PN3D.Game.Art
             CabHeight = 0.66f, CabLenFrac = 0.40f, CabOffFrac = 0.13f, CabWidFrac = 0.86f,
             PCross = 5.0f, PPlan = 7.5f, Tumble = 0.05f, WNose = 0.93f, WTail = 0.97f,
             BonnetDrop = 0.13f, BootDrop = 0.02f, SillFront = 0.04f, SillRear = 0.04f,
-            RoofPeak = 0.56f, RoofFlat = 0.30f, RoofNose = 0.16f, RoofTail = 0.30f,
+            RoofPeak = 0.56f, RoofFlat = 0.40f, RoofNose = 0.16f, RoofTail = 0.30f,
             CabTumble = 0.14f, CabPCross = 4.0f, CabPPlan = 4.5f,
             Head = HeadSig.Quad, Tail = TailSig.Pods, Grille = GrilleKind.Tall,
             Cladding = true,
@@ -256,7 +256,7 @@ namespace PN3D.Game.Art
             CabHeight = 0.58f, CabLenFrac = 0.52f, CabOffFrac = -0.06f,
             PCross = 3.4f, PPlan = 5.5f, Tumble = 0.10f,
             BonnetDrop = 0.15f, BootDrop = 0.08f,
-            RoofPeak = 0.44f, RoofFlat = 0.34f, RoofNose = 0.12f, RoofTail = 0.34f,
+            RoofPeak = 0.44f, RoofFlat = 0.46f, RoofNose = 0.12f, RoofTail = 0.34f,
             Head = HeadSig.Pods, Tail = TailSig.Pods, Grille = GrilleKind.Wide,
             Rust = true, TwinExhaust = false, Bumpers = true,
         };
