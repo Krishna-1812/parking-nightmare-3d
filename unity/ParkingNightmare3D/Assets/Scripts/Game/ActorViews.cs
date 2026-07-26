@@ -254,8 +254,7 @@ namespace PN3D.Game
 
         static void SetBrake(CarView.Rig rig, bool on)
         {
-            if (rig.BrakeLight == null) return;
-            rig.BrakeLight.SetColor("_EmissionColor",
+            MatLib.SetGlow(rig.BrakeLight,
                 new Color(1f, 0.23f, 0.19f) * (on ? 2.4f : 0.35f));
         }
     }

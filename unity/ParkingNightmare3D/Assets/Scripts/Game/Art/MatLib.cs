@@ -92,30 +92,138 @@ namespace PN3D.Game.Art
                 return m;
             });
 
-        /// <summary>Emissive bar or bulb. Bloom in the volume profile does the rest.</summary>
-        public static Material Emissive(Color body, Color emission, float intensity)
-            => Get($"emit{ColorUtility.ToHtmlStringRGB(body)}_{ColorUtility.ToHtmlStringRGB(emission)}_{intensity:0.00}", () =>
+        /// <summary>
+        /// Automotive paint.
+        ///
+        /// The distinction that matters: <see cref="Textured"/> pins metallic at 0, which
+        /// is correct for siding and asphalt and completely wrong for a car. A dielectric
+        /// at metallic 0 reflects the environment at grazing angles only, so the body
+        /// caught no sky at all and read as matte plastic — which is most of why the cars
+        /// looked like bath toys.
+        ///
+        /// Real metallic paint is a dielectric base with aluminium flake under clear coat,
+        /// and URP/Lit has one specular lobe to spend. Biasing metallic high and smoothness
+        /// just short of a mirror buys the flake sparkle and the clear-coat sheen out of
+        /// that single lobe. Reflections come from the skybox: SceneEnv already sets
+        /// DefaultReflectionMode.Skybox at 0.9 intensity, and a curved hull sweeping the
+        /// sky gradient is what sells painted metal.
+        /// </summary>
+        /// <remarks>
+        /// Metallic is deliberately modest. The first attempt used 0.82, on the theory that
+        /// "metallic paint" wants a metallic surface, and it came out wrong: a metal has no
+        /// diffuse term, so the hull went from rusty orange to dark maroon and the colour
+        /// survived only in the specular tint. Real coloured paint is a pigmented dielectric
+        /// under clear coat — the hue lives in the diffuse, and the *gloss* is what reads as
+        /// automotive. Low metallic with very high smoothness is the honest model of that,
+        /// and it keeps the livery colours the missions actually author.
+        /// </remarks>
+        public static Material CarPaint(string key, Color tint, Texture2D map = null,
+                                        float metallic = 0.25f, float smoothness = 0.90f)
+            => Get(key, () =>
             {
                 var m = new Material(Lit);
-                SetBase(m, body);
-                m.SetFloat("_Smoothness", 0.6f);
-                m.SetColor("_EmissionColor", emission * intensity);
-                m.EnableKeyword("_EMISSION");
-                m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+                SetBase(m, tint);
+                if (map != null)
+                {
+                    m.SetTexture("_BaseMap", map);
+                    m.SetTextureScale("_BaseMap", Vector2.one);
+                }
+                m.SetFloat("_Metallic", metallic);
+                m.SetFloat("_Smoothness", smoothness);
+                // Specular highlights and environment reflections are both on by default,
+                // but say so: with metallic this high, a build that stripped either would
+                // render the whole fleet flat black rather than merely dull.
+                m.SetFloat("_SpecularHighlights", 1f);
+                m.SetFloat("_EnvironmentReflections", 1f);
+                return m;
+            });
+
+        /// <summary>Polished metal for bumper blades, exhaust tips and rim lips.</summary>
+        public static Material Chrome(float smoothness = 0.93f)
+            => Get($"chrome{smoothness:0.00}", () =>
+            {
+                var m = new Material(Lit);
+                SetBase(m, new Color(0.86f, 0.88f, 0.92f));
+                m.SetFloat("_Metallic", 1f);
+                m.SetFloat("_Smoothness", smoothness);
                 return m;
             });
 
         /// <summary>
-        /// Car glass. Kept opaque and dark rather than alpha-blended: the reference reads
-        /// as a tinted canopy from the outside, and an opaque canopy sorts correctly
-        /// against the body panels at every camera angle without a transparent queue.
+        /// Tyre rubber. Deliberately not pure black: a real tyre in daylight sits around
+        /// 0.05–0.08 albedo with a faint sheen on the sidewall, and clamping it to 0 makes
+        /// the wheel a silhouette-shaped hole with no form at all.
         /// </summary>
-        public static Material Glass(Color tint) => Get("glass" + ColorUtility.ToHtmlStringRGB(tint), () =>
+        public static Material Rubber()
+            => Get("rubber", () =>
+            {
+                var m = new Material(Lit);
+                SetBase(m, new Color(0.055f, 0.058f, 0.065f));
+                m.SetFloat("_Metallic", 0f);
+                m.SetFloat("_Smoothness", 0.32f);
+                return m;
+            });
+
+        /// <summary>
+        /// Self-illuminated lens: headlight bars, tail bars. Bloom in the volume profile
+        /// turns an over-1 colour into an actual glow.
+        ///
+        /// Unlit rather than Lit-with-_EMISSION, and that is a deliberate retreat from the
+        /// obvious approach. No material ASSET in this project carries the _EMISSION
+        /// keyword — every material is born at runtime — so Unity's built-in stripper drops
+        /// the emissive variant of URP/Lit. That is the 12288 -> 24 cut visible in the
+        /// build log, and it is why the brake lights did not light on the first device
+        /// build no matter what the driver wrote into _EmissionColor.
+        ///
+        /// The tempting fix, clearing StripUnusedVariants in the URP global settings, is a
+        /// trap worth recording: it does not surgically keep _EMISSION, it disables keyword
+        /// stripping wholesale and takes the build from 48 shader variants to 248,832. That
+        /// compiles at roughly 1.5 variants a second — a two-day build. It was measured,
+        /// not estimated.
+        ///
+        /// A lamp does not need shading anyway. Unlit ships unconditionally, costs less,
+        /// and looks the same, because what reads as "glowing" is the bloom.
+        /// </summary>
+        public static Material Emissive(Color body, Color emission, float intensity)
+            => Get($"emit{ColorUtility.ToHtmlStringRGB(body)}_{ColorUtility.ToHtmlStringRGB(emission)}_{intensity:0.00}", () =>
+            {
+                var m = new Material(Unlit);
+                SetBase(m, body + emission * intensity);
+                return m;
+            });
+
+        /// <summary>
+        /// Drive a lamp's brightness. The property name lives here and nowhere else,
+        /// because the lamps moved from Lit's _EmissionColor to Unlit's _BaseColor and the
+        /// two call sites that flare the brake lights should not have to know that.
+        /// </summary>
+        public static void SetGlow(Material m, Color c)
+        {
+            if (m == null) return;
+            m.SetColor("_BaseColor", c);
+            m.color = c;
+        }
+
+        /// <summary>
+        /// Car glass. Still opaque, deliberately: there is no interior geometry behind the
+        /// canopy, so a transparent one would show the road through the cabin, and opaque
+        /// also sorts correctly against the body at every camera angle with no transparent
+        /// queue. What makes it read as glass is not alpha, it is that a windscreen is
+        /// almost a mirror — dark base, very high smoothness, and enough metallic to keep
+        /// the reflection strong when the surface faces you rather than only at grazing
+        /// angles. Tinted near-black plus a bright sky reflection is exactly how glass
+        /// photographs from outside.
+        /// </summary>
+        public static Material Glass(Color tint, Texture2D map = null)
+            => Get("glass" + ColorUtility.ToHtmlStringRGB(tint) + (map != null ? "_m" : ""), () =>
         {
             var m = new Material(Lit);
             SetBase(m, tint);
+            if (map != null) m.SetTexture("_BaseMap", map);
             m.SetFloat("_Smoothness", 0.94f);
-            m.SetFloat("_Metallic", 0.1f);
+            m.SetFloat("_Metallic", 0.22f);
+            m.SetFloat("_SpecularHighlights", 1f);
+            m.SetFloat("_EnvironmentReflections", 1f);
             return m;
         });
 

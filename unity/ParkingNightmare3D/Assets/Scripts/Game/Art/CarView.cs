@@ -193,8 +193,8 @@ namespace PN3D.Game.Art
                 Top = u => 1f - 0.15f * S3(0.7f, 0.98f, u) - 0.08f * (1f - S3(0.03f, 0.22f, u)),
                 Bot = u => 0.10f * S3(0.82f, 1f, u) + 0.08f * (1f - S3(0f, 0.14f, u)),
             });
-            var paint = MatLib.Textured("mat_paint" + ColorUtility.ToHtmlStringRGB(bodyC),
-                ProcTex.CarSide(bodyC), Color.white, Vector2.one, smoothness: 0.72f);
+            var paint = MatLib.CarPaint("mat_paint" + ColorUtility.ToHtmlStringRGB(bodyC),
+                                        Color.white, ProcTex.CarSide(bodyC));
             Geo.Node("Shell", body, hull, paint, new Vector3(0, baseY + bodyH / 2f, 0));
 
             // ---- glass canopy: plateau roof with a raked windscreen, sunk into the body ----
@@ -206,19 +206,21 @@ namespace PN3D.Game.Art
                     Mathf.Sin(Mathf.PI * Mathf.Pow(Mathf.Clamp(u, 0.001f, 0.999f), 0.9f)), 0.8f)),
                 Bot = _ => 0f,
             });
-            var glassMat = MatLib.Textured("mat_canopy", ProcTex.CanopySide(), Color.white,
-                                           Vector2.one, smoothness: 0.92f);
+            // Glass, not Textured. The canopy kept the pillar/seal detail map but was being
+            // built at metallic 0, which is why it read as painted plastic rather than a
+            // windscreen — see MatLib.Glass for why near-mirror beats alpha here.
+            var glassMat = MatLib.Glass(new Color(0.075f, 0.085f, 0.105f), ProcTex.CanopySide());
             Geo.Node("Canopy", body, canopy, glassMat,
                      new Vector3(0, baseY + bodyH + cabHeight * 0.46f - 0.08f, cabOff - cabHeight * 0.1f));
 
             var dark = MatLib.Solid(new Color(0.063f, 0.071f, 0.086f), 0.35f);
-            var chrome = MatLib.Solid(new Color(0.72f, 0.74f, 0.78f), 0.85f, 0.9f);
+            var chrome = MatLib.Chrome();
 
             // shark fin + twin exhaust tips
             Geo.Box("Fin", body, new Vector3(0.05f, 0.07f, 0.16f),
                     new Vector3(0, baseY + bodyH + cabHeight * 0.8f, cabOff - cabLen * 0.3f), dark);
             foreach (float x in new[] { wid * 0.3f, wid * 0.18f })
-                Geo.Node("Exhaust", body, Geo.Cylinder(0.045f, 0.045f, 0.14f, 8), dark,
+                Geo.Node("Exhaust", body, Geo.Cylinder(0.045f, 0.045f, 0.14f, 10), chrome,
                          new Vector3(x, wheelR - 0.04f, -half + 0.03f),
                          Quaternion.Euler(90, 0, 0));
 
@@ -227,7 +229,7 @@ namespace PN3D.Game.Art
             // flat body colour, not the panel texture: a 15 cm box lands on whatever part
             // of the flank atlas its UVs happen to hit, which was the wheel-arch AO —
             // making the mirrors read as black wings rather than painted caps
-            var paintFlat = MatLib.Solid(bodyC, 0.72f);
+            var paintFlat = MatLib.CarPaint("mat_paintflat" + ColorUtility.ToHtmlStringRGB(bodyC), bodyC);
             foreach (float x in new[] { cabW / 2f + 0.07f, -(cabW / 2f + 0.07f) })
                 Geo.Box("Mirror", body, new Vector3(0.13f, 0.08f, 0.07f),
                         new Vector3(x, baseY + bodyH + 0.05f, cabF - 0.04f), paintFlat);
@@ -243,8 +245,15 @@ namespace PN3D.Game.Art
                     MatLib.Solid(new Color(0.88f, 0.88f, 0.84f), 0.3f));
 
             // ---- wheels ----
-            var tyre = MatLib.Solid(new Color(0.086f, 0.090f, 0.102f), 0.18f);
-            var hubMat = MatLib.Solid(new Color(0.62f, 0.64f, 0.68f), 0.72f, 0.85f);
+            const float WheelW = 0.24f;
+            var tyreMat  = MatLib.Rubber();
+            // metallic 0.72 rather than near-1: with only a skybox reflection to draw on,
+            // a near-mirror alloy just samples the ground and reads as a khaki blob
+            var alloyMat = MatLib.Solid(new Color(0.70f, 0.72f, 0.75f), 0.65f, 0.72f);
+            var lipMat   = MatLib.Chrome(0.88f);
+            var wellMat  = MatLib.Solid(new Color(0.10f, 0.10f, 0.11f), 0.35f);
+            var calMat   = MatLib.Solid(new Color(0.55f, 0.14f, 0.11f), 0.45f);
+
             float axF = len * 0.32f, axR = -len * 0.32f, wx = wid / 2f - 0.19f;
 
             var steer = new List<Transform>();
@@ -267,13 +276,10 @@ namespace PN3D.Game.Art
                 var wheel = new GameObject("Wheel").transform;
                 wheel.SetParent(mount, false);
                 wheel.localPosition = front ? Vector3.zero : new Vector3(x, wheelR, az);
-
-                // cylinder is about +Y; roll it onto the lateral axis so it spins about X
-                var tyreGo = Geo.Node("Tyre", wheel, Geo.Cylinder(wheelR, wheelR, 0.26f, 20), tyre,
-                                      Vector3.zero, Quaternion.Euler(0, 0, 90));
-                Geo.Node("Hub", wheel, Geo.Cylinder(wheelR * 0.55f, wheelR * 0.55f, 0.28f, 12), hubMat,
-                         Vector3.zero, Quaternion.Euler(0, 0, 90));
                 spin.Add(wheel);
+
+                BuildWheel(wheel, mount, wheel.localPosition, wheelR, WheelW, x > 0,
+                           tyreMat, alloyMat, lipMat, wellMat, calMat);
 
                 Geo.Node("Arch", body, archMesh, dark,
                          new Vector3(x > 0 ? wid / 2f - 0.02f : -(wid / 2f - 0.02f), wheelR, az),
@@ -291,18 +297,37 @@ namespace PN3D.Game.Art
                      new Vector3(0, wheelR + 0.05f, -half + 0.13f), Quaternion.Euler(0, 0, 90));
 
             float lightY = baseY + bodyH * 0.62f;
-            var headMat = MatLib.Emissive(new Color(0.13f, 0.13f, 0.13f),
-                                          new Color(1f, 0.95f, 0.75f), 2.2f);
-            Geo.Node("Headlights", body, Geo.Cylinder(0.045f, 0.045f, wid * 0.56f, 10), headMat,
-                     new Vector3(0, lightY, half - 0.05f), Quaternion.Euler(0, 0, 90), shadows: false);
+            // A lens, not a lamp. Mission 1 is broad daylight and headlights are off, so
+            // this is glossy pale glass catching the sun. It was Emissive at 2.2, which
+            // was invisible while _EMISSION was being stripped and then, the moment the
+            // lamps moved to Unlit and actually worked, became a blazing white rod across
+            // the nose at midday. Give it a lamp when there is a night district to need one.
+            var headMat = MatLib.Solid(new Color(0.82f, 0.81f, 0.76f), 0.92f, 0.15f);
+
+            // PAIRED PODS, NOT A FULL-WIDTH BAR. Same trap the bumpers above already
+            // dodge: the plan superellipse (pPlan 5.5) rounds the nose and tail hard, so
+            // any bar sized to the beam and pushed up against the tip escapes the
+            // bodywork at both corners. As a single cylinder this rendered as a cream rod
+            // sticking out of the nose and a red one out of the tail, clearly outside the
+            // silhouette. Two pods inboard of the corner radius cannot do that, and two
+            // round lenses look more like a car than one continuous strip anyway.
+            //
+            // They must still sit PROUD of the surface: at this lateral offset the nose
+            // has already drawn back from `half`, so a pod tucked fully inside z = half is
+            // swallowed by the hull and renders as nothing at all.
+            foreach (float lx in new[] { wid * 0.27f, -wid * 0.27f })
+                Geo.Node("Headlamp", body, Geo.Cylinder(0.058f, 0.058f, 0.10f, 12), headMat,
+                         new Vector3(lx, lightY, half - 0.03f), Quaternion.Euler(90, 0, 0),
+                         shadows: false);
 
             // brake light gets its own instance: the driver flares it, so it must not be
-            // shared with any other car's tail bar
+            // shared with any other car's tail lamps
             var brakeMat = new Material(MatLib.Emissive(new Color(0.33f, 0.07f, 0.07f),
                                                         new Color(1f, 0.23f, 0.19f), 0.35f));
-            Geo.Node("Taillights", body, Geo.Cylinder(0.04f, 0.04f, wid * 0.6f, 10), brakeMat,
-                     new Vector3(0, lightY + 0.04f, -half + 0.04f), Quaternion.Euler(0, 0, 90),
-                     shadows: false);
+            foreach (float lx in new[] { wid * 0.28f, -wid * 0.28f })
+                Geo.Node("Taillamp", body, Geo.Cylinder(0.052f, 0.052f, 0.10f, 12), brakeMat,
+                         new Vector3(lx, lightY + 0.04f, -half + 0.03f), Quaternion.Euler(90, 0, 0),
+                         shadows: false);
 
             return new Rig
             {
@@ -313,6 +338,82 @@ namespace PN3D.Game.Art
                 WheelRadius = wheelR,
                 BrakeLight = brakeMat,
             };
+        }
+
+        /// <summary>
+        /// One wheel: tyre, alloy rim with spokes and a polished flange, and the brake
+        /// hardware behind it.
+        ///
+        /// Everything is modelled about +Y and the whole assembly is then rolled a quarter
+        /// turn onto the lateral axis, so the parts can be placed in plain polar terms
+        /// instead of every spoke carrying a compound rotation. The roll flips per side so
+        /// the dished face and the flange point outboard on both wheels rather than one
+        /// wheel showing the world its rim barrel.
+        ///
+        /// The caliper hangs off <paramref name="mount"/> rather than the spinning wheel,
+        /// because a caliper that rotates with the disc is the sort of detail nobody
+        /// consciously notices and everybody feels. The disc itself does spin, correctly.
+        /// </summary>
+        static void BuildWheel(Transform wheel, Transform mount, Vector3 wheelPos,
+                               float r, float w, bool rightSide,
+                               Material tyre, Material alloy, Material lip,
+                               Material well, Material caliper)
+        {
+            var roll = Quaternion.Euler(0, 0, rightSide ? -90f : 90f);
+
+            var gfx = new GameObject("WheelGfx").transform;
+            gfx.SetParent(wheel, false);
+            gfx.localRotation = roll;
+
+            float out_ = w * 0.5f;   // +Y is outboard inside gfx
+
+            Geo.Node("Tyre", gfx, Geo.Tyre(r, w), tyre);
+
+            // THE WELL FLOOR, AND WHY IT IS WHERE IT IS. Geo.Cylinder is capped, so this
+            // disc hides everything inboard of it. The first version centred the barrel on
+            // the axle, which put its outboard cap at 0.46w — beyond the spokes, the hub
+            // cap and the flange — and the entire rim rendered as one blank grey disc.
+            // Sinking it to 0.11w turns that same cap into the floor of the wheel well,
+            // with the spokes standing proud in front of it and daylight between them.
+            Geo.Node("Well", gfx, Geo.Cylinder(r * 0.60f, r * 0.60f, w * 0.60f, 20), well,
+                     new Vector3(0, -w * 0.19f, 0));
+
+            // Open ring, not a cylinder, for exactly the reason above: a capped cylinder
+            // here would be a solid disc across the whole face again.
+            Geo.Node("Flange", gfx, Geo.Lathe($"rimlip{r}_{w}", new[]
+            {
+                new Vector2(r * 0.600f, w * 0.34f),
+                new Vector2(r * 0.638f, w * 0.40f),
+                new Vector2(r * 0.638f, w * 0.44f),
+                new Vector2(r * 0.600f, w * 0.48f),
+            }, 24), lip, shadows: false);
+
+            const int Spokes = 5;
+            for (int i = 0; i < Spokes; i++)
+            {
+                float a = Mathf.PI * 2f * i / Spokes;
+                // box local +Z points radially outward: Euler(0, 90 - a, 0) maps +Z to
+                // (cos a, 0, sin a)
+                Geo.Node("Spoke", gfx, Geo.UnitCube, alloy,
+                         new Vector3(Mathf.Cos(a) * r * 0.37f, out_ * 0.46f, Mathf.Sin(a) * r * 0.37f),
+                         Quaternion.Euler(0, 90f - a * Mathf.Rad2Deg, 0),
+                         new Vector3(r * 0.145f, w * 0.10f, r * 0.48f),
+                         shadows: false);
+            }
+
+            Geo.Node("HubCap", gfx, Geo.Cylinder(r * 0.185f, r * 0.165f, w * 0.13f, 14), lip,
+                     new Vector3(0, out_ * 0.56f, 0), shadows: false);
+
+            // Fixed to the upright, not to the spinning wheel — a caliper that rotated with
+            // the disc is the sort of thing nobody consciously notices and everybody feels.
+            var stat = new GameObject("WheelStatic").transform;
+            stat.SetParent(mount, false);
+            stat.localPosition = wheelPos;
+            stat.localRotation = roll;
+            Geo.Node("Caliper", stat, Geo.UnitCube, caliper,
+                     new Vector3(-r * 0.40f, -w * 0.02f, r * 0.26f),
+                     Quaternion.Euler(0, -35f, 0),
+                     new Vector3(r * 0.11f, w * 0.26f, r * 0.30f), shadows: false);
         }
 
         /// <summary>The player's hatch, with the rust patch the flavour text promises.</summary>

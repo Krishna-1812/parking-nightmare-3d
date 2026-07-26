@@ -234,6 +234,97 @@ namespace PN3D.Game.Art
         }
 
         /// <summary>
+        /// Surface of revolution about +Y. The profile is a list of (radius, y) points
+        /// walked from one end to the other; consecutive points become a ring of quads.
+        ///
+        /// Normals are smoothed across the whole surface and then stitched at the seam,
+        /// because the duplicated seam column would otherwise light as a visible crease
+        /// running down the shape. Open at both ends by design — callers cap it with
+        /// whatever belongs there, which for a tyre is the rim.
+        /// </summary>
+        public static Mesh Lathe(string key, IReadOnlyList<Vector2> profile, int segs)
+            => Get($"lathe{key}_{segs}", () =>
+            {
+                int cols = segs + 1;                     // +1 duplicates the seam for UVs
+                var v = new List<Vector3>(cols * profile.Count);
+                var uv = new List<Vector2>(cols * profile.Count);
+                var t = new List<int>();
+
+                for (int i = 0; i < cols; i++)
+                {
+                    float a = Mathf.PI * 2f * i / segs;
+                    float cos = Mathf.Cos(a), sin = Mathf.Sin(a);
+                    for (int j = 0; j < profile.Count; j++)
+                    {
+                        v.Add(new Vector3(cos * profile[j].x, profile[j].y, sin * profile[j].x));
+                        uv.Add(new Vector2((float)i / segs, (float)j / (profile.Count - 1)));
+                    }
+                }
+
+                int rows = profile.Count;
+                for (int i = 0; i < segs; i++)
+                    for (int j = 0; j < rows - 1; j++)
+                    {
+                        int a0 = i * rows + j, a1 = a0 + 1;
+                        int b0 = (i + 1) * rows + j, b1 = b0 + 1;
+                        t.Add(a0); t.Add(a1); t.Add(b0);
+                        t.Add(a1); t.Add(b1); t.Add(b0);
+                    }
+
+                var mesh = new Mesh();
+                mesh.SetVertices(v); mesh.SetUVs(0, uv); mesh.SetTriangles(t, 0);
+                mesh.RecalculateNormals();
+
+                // stitch: the first and last columns are the same ring of positions, so
+                // give them the same normal or the seam lights as a crease
+                var nrm = mesh.normals;
+                for (int j = 0; j < rows; j++)
+                {
+                    var avg = (nrm[j] + nrm[segs * rows + j]).normalized;
+                    nrm[j] = avg;
+                    nrm[segs * rows + j] = avg;
+                }
+                mesh.SetNormals(nrm);
+                mesh.RecalculateTangents();
+                mesh.RecalculateBounds();
+                return mesh;
+            });
+
+        /// <summary>
+        /// A tyre: bead, bulged sidewall, shoulder and a flat tread crown, revolved about
+        /// the axle (+Y here; the caller rolls it onto the lateral axis).
+        ///
+        /// The bulge is the whole point. A plain cylinder has a straight wall and a hard
+        /// 90-degree shoulder, which is what made the old wheels read as cotton reels — a
+        /// real tyre swells past the rim and turns the corner over a radius, so it catches
+        /// a soft band of light all the way round.
+        /// </summary>
+        public static Mesh Tyre(float radius, float width, int segs = 24)
+            => Lathe($"tyre{radius}_{width}", BuildTyreProfile(radius, width), segs);
+
+        static Vector2[] BuildTyreProfile(float r, float w)
+        {
+            float hw = w * 0.5f;
+            // (radius, y) from the inboard bead round to the outboard bead
+            var half = new[]
+            {
+                new Vector2(0.615f * r, 1.00f * hw),   // bead, sits on the rim flange
+                new Vector2(0.780f * r, 1.00f * hw),
+                new Vector2(0.905f * r, 0.90f * hw),   // sidewall bulge
+                new Vector2(0.968f * r, 0.72f * hw),
+                new Vector2(0.997f * r, 0.44f * hw),   // shoulder radius
+                new Vector2(1.000f * r, 0.16f * hw),   // tread crown
+            };
+            var full = new Vector2[half.Length * 2];
+            for (int i = 0; i < half.Length; i++)
+            {
+                full[i] = new Vector2(half[i].x, -half[i].y);                    // inboard
+                full[full.Length - 1 - i] = half[i];                             // outboard
+            }
+            return full;
+        }
+
+        /// <summary>
         /// Half torus arching over +Y in the XY plane, axis along Z — the fender arch trim
         /// above each wheel. A full torus would poke through the sill.
         /// </summary>

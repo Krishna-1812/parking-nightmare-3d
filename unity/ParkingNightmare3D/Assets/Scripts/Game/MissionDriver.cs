@@ -154,9 +154,8 @@ namespace PN3D.Game
                 // and rolling them in FixedUpdate would tie an art decision to the
                 // simulation's timestep for no reason.
                 Art.CarView.Animate(_rig, car.Speed, car.Steer, Time.deltaTime, ref _wheelRoll);
-                if (_rig.BrakeLight != null)
-                    _rig.BrakeLight.SetColor("_EmissionColor",
-                        new Color(1f, 0.23f, 0.19f) * (car.Braking ? 3.0f : 0.35f));
+                Art.MatLib.SetGlow(_rig.BrakeLight,
+                    new Color(1f, 0.23f, 0.19f) * (car.Braking ? 3.0f : 0.35f));
             }
         }
 

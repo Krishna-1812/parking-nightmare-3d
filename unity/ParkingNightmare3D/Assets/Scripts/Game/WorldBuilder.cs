@@ -150,7 +150,13 @@ namespace PN3D.Game
             return go;
         }
 
-        static District LoadDistrict(Mission m)
+        /// <summary>
+        /// Public rather than private so the art-review capture in CarShot lights its shot
+        /// from the same palette the mission does — a studio rig that flattered the paint
+        /// would be worse than useless. Not internal: CarShot lives in the PN3D.EditorTools
+        /// assembly, and internal does not cross an asmdef boundary.
+        /// </summary>
+        public static District LoadDistrict(Mission m)
         {
             string json = DataPaths.Load("districts.json");
             if (json != null) return District.Load(json, m.District);
