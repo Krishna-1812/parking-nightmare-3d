@@ -51,15 +51,151 @@ namespace PN3D.Game.Art
         /// face boundaries before deforming, so the smooth normals really are seamless —
         /// the reference relies on Three.js's own box being indexed for the same effect.
         /// </summary>
+        /// <summary>
+        /// One point of the deformed shell, from a cube coordinate to its final position.
+        ///
+        /// THIS IS THE ONLY PLACE THE SHELL'S SHAPE IS DEFINED, and it is public for a
+        /// reason worth spelling out, because getting it wrong cost several rounds of
+        /// "fixes" that each looked like progress.
+        ///
+        /// Everything bolted onto the cabin — pillars, cant rails, the roof cap, roof rails
+        /// — has to be positioned ON the glass surface. The placement code used to compute
+        /// that position with its own simplified formula: half-width times (1 - Tumble) for
+        /// the roof edge, a hand-written Taper() for the ends. That formula is not the
+        /// deformation. It ignores the cross-section superellipse entirely, which at the
+        /// roof edge pulls the surface in by 2^(-1/PCross) BEFORE tumblehome is applied on
+        /// the already-reduced height. For the coupe the shortcut says 0.680 of half-width
+        /// and the real surface is at 0.591 — the frame sat 15% outboard of the glass it
+        /// was supposed to be holding, which is exactly the gap that made every archetype
+        /// read as a roll cage floating over a bubble.
+        ///
+        /// Two implementations of one surface will always drift apart. There is now one,
+        /// and <see cref="SurfaceAtU"/> samples it, so a pillar cannot float by construction.
+        /// </summary>
+        public static Vector3 Deform(HullOpts o, float len, float hgt, float wid,
+                                     float qLat, float qy, float qLen,
+                                     out float u, out float y01)
+        {
+            float pC = o.PCross, pP = o.PPlan;
+            var top = o.Top ?? (_ => 1f);
+            var bot = o.Bot ?? (_ => 0f);
+
+            // plan-view corner rounding (nose and tail)
+            float m = Mathf.Max(Mathf.Abs(qLen), Mathf.Abs(qLat));
+            if (m > 1e-4f)
+            {
+                float pn = Mathf.Pow(Mathf.Pow(Mathf.Abs(qLen), pP) +
+                                     Mathf.Pow(Mathf.Abs(qLat), pP), 1f / pP);
+                float k = m / pn; qLen *= k; qLat *= k;
+            }
+
+            // cross-section corner rounding (sills, roof edges)
+            m = Mathf.Max(Mathf.Abs(qy), Mathf.Abs(qLat));
+            if (m > 1e-4f)
+            {
+                float pn = Mathf.Pow(Mathf.Pow(Mathf.Abs(qy), pC) +
+                                     Mathf.Pow(Mathf.Abs(qLat), pC), 1f / pC);
+                float k = m / pn; qy *= k; qLat *= k;
+            }
+
+            u = qLen * 0.5f + 0.5f;   // 0 = tail, 1 = nose
+            qLat *= Mathf.Lerp(o.WTail, 1f, Mathf.Clamp01(u / 0.35f))
+                  * Mathf.Lerp(o.WNose, 1f, Mathf.Clamp01((1f - u) / 0.35f));
+
+            // tumblehome: the upper body leans inward like real sheet metal
+            y01 = qy * 0.5f + 0.5f;
+            qLat *= 1f - o.Tumble * Mathf.Pow(Mathf.Max(0f, y01 - 0.35f) / 0.65f, 1.6f);
+
+            float yy = bot(u) + y01 * (top(u) - bot(u));
+            return new Vector3(qLat * 0.5f * wid, (yy - 0.5f) * hgt, qLen * 0.5f * len);
+        }
+
+        /// <summary>
+        /// Where the shell's surface actually is at a target position along its length.
+        ///
+        /// <paramref name="qy"/> selects the height in cube space: +1 the roof, -1 the sill.
+        /// <paramref name="side"/> selects the flank: +1, -1, or 0 for the centreline crown.
+        ///
+        /// Solved by sampling rather than inverted algebraically, because u falls out of the
+        /// plan superellipse and is not analytically invertible in closed form. 192 samples
+        /// at build time is free and, unlike an approximation, cannot be subtly wrong.
+        /// </summary>
+        public static Vector3 SurfaceAtU(HullOpts o, float len, float hgt, float wid,
+                                         float targetU, float qy, float side)
+        {
+            const int N = 192;
+            Vector3 best = Vector3.zero;
+            float bestErr = float.MaxValue;
+            for (int i = 0; i <= N; i++)
+            {
+                float qLen = -1f + 2f * i / N;
+                var p = Deform(o, len, hgt, wid, side, qy, qLen, out float uu, out _);
+                float e = Mathf.Abs(uu - targetU);
+                if (e < bestErr) { bestErr = e; best = p; }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// The roof panel: the cabin's own upper surface between the two cant rails, over
+        /// the length of the roof plateau.
+        ///
+        /// It is generated from the shell rather than approximated by a box because a box
+        /// cannot cover a dome. The previous cap was a rounded cuboid laid across the crown,
+        /// and its own corner rounding pulled its edges DOWN below the canopy's — so on the
+        /// tall-cabin archetypes the glass surfaced on both shoulders and the whole cabin
+        /// read as one black blob with a painted stripe along the very top. Sampling the
+        /// canopy at qy = +1 across the full lateral sweep traces exactly the arc the glass
+        /// makes there, so a panel built on it covers by construction at any cabin height.
+        /// </summary>
+        public static Mesh RoofPanel(string key, HullOpts o, float len, float hgt, float wid,
+                                     float u0, float u1)
+            => Geo.Get(key, () =>
+            {
+                const int NU = 16, NL = 14;
+                var verts = new Vector3[(NU + 1) * (NL + 1)];
+                var uvs = new Vector2[verts.Length];
+                var tris = new List<int>();
+
+                for (int i = 0; i <= NU; i++)
+                {
+                    // u maps to qLen exactly on the centreline, which is where the plateau
+                    // bounds were measured.
+                    float qLen = Mathf.Lerp(u0, u1, (float)i / NU) * 2f - 1f;
+                    for (int j = 0; j <= NL; j++)
+                    {
+                        float qLat = Mathf.Lerp(-1f, 1f, (float)j / NL);
+                        int idx = i * (NL + 1) + j;
+                        verts[idx] = Deform(o, len, hgt, wid, qLat, 1f, qLen, out _, out _);
+                        uvs[idx] = new Vector2((float)j / NL, (float)i / NU);
+                    }
+                }
+
+                // a->c runs +Z and a->b runs +X, so (a, c, b) gives cross(+Z, +X) = +Y and
+                // the panel faces the sky rather than the cabin floor.
+                for (int i = 0; i < NU; i++)
+                    for (int j = 0; j < NL; j++)
+                    {
+                        int a = i * (NL + 1) + j, b = a + 1, c = a + NL + 1, d = c + 1;
+                        tris.Add(a); tris.Add(c); tris.Add(b);
+                        tris.Add(b); tris.Add(c); tris.Add(d);
+                    }
+
+                var m = new Mesh();
+                m.SetVertices(verts);
+                m.SetUVs(0, uvs);
+                m.SetTriangles(tris, 0);
+                m.RecalculateNormals();
+                m.RecalculateTangents();
+                m.RecalculateBounds();
+                return m;
+            });
+
         public static Mesh Hull(float len, float hgt, float wid, HullOpts o) =>
             Geo.Get($"hull_{o.Key}", () =>
             {
                 const int SegLen = 28, SegY = 8, SegLat = 12;
                 var (cube, tris) = WeldedBox(SegLat, SegY, SegLen);
-
-                float pC = o.PCross, pP = o.PPlan;
-                var top = o.Top ?? (_ => 1f);
-                var bot = o.Bot ?? (_ => 0f);
 
                 var verts = new Vector3[cube.Count];
                 var uvs = new Vector2[cube.Count];
@@ -67,36 +203,9 @@ namespace PN3D.Game.Art
                 for (int i = 0; i < cube.Count; i++)
                 {
                     // cube space in [-1, 1]: x lateral, y up, z along the length
-                    float qLat = cube[i].x * 2f, qy = cube[i].y * 2f, qLen = cube[i].z * 2f;
-
-                    // plan-view corner rounding (nose and tail)
-                    float m = Mathf.Max(Mathf.Abs(qLen), Mathf.Abs(qLat));
-                    if (m > 1e-4f)
-                    {
-                        float pn = Mathf.Pow(Mathf.Pow(Mathf.Abs(qLen), pP) +
-                                             Mathf.Pow(Mathf.Abs(qLat), pP), 1f / pP);
-                        float k = m / pn; qLen *= k; qLat *= k;
-                    }
-
-                    // cross-section corner rounding (sills, roof edges)
-                    m = Mathf.Max(Mathf.Abs(qy), Mathf.Abs(qLat));
-                    if (m > 1e-4f)
-                    {
-                        float pn = Mathf.Pow(Mathf.Pow(Mathf.Abs(qy), pC) +
-                                             Mathf.Pow(Mathf.Abs(qLat), pC), 1f / pC);
-                        float k = m / pn; qy *= k; qLat *= k;
-                    }
-
-                    float u = qLen * 0.5f + 0.5f;   // 0 = tail, 1 = nose
-                    qLat *= Mathf.Lerp(o.WTail, 1f, Mathf.Clamp01(u / 0.35f))
-                          * Mathf.Lerp(o.WNose, 1f, Mathf.Clamp01((1f - u) / 0.35f));
-
-                    // tumblehome: the upper body leans inward like real sheet metal
-                    float y01 = qy * 0.5f + 0.5f;
-                    qLat *= 1f - o.Tumble * Mathf.Pow(Mathf.Max(0f, y01 - 0.35f) / 0.65f, 1.6f);
-
-                    float yy = bot(u) + y01 * (top(u) - bot(u));
-                    verts[i] = new Vector3(qLat * 0.5f * wid, (yy - 0.5f) * hgt, qLen * 0.5f * len);
+                    verts[i] = Deform(o, len, hgt, wid,
+                                      cube[i].x * 2f, cube[i].y * 2f, cube[i].z * 2f,
+                                      out float u, out float y01);
                     // planar UVs down the flank, which is the only face the panel-detail
                     // texture needs to land on correctly
                     uvs[i] = new Vector2(u, y01);
@@ -213,20 +322,32 @@ namespace PN3D.Game.Art
             // happen to share a length, height and width — an exec and a patrol car, say —
             // would silently be handed the same hull and every visual difference between
             // them would vanish.
-            var hull = Hull(len, bodyH, wid, new HullOpts
+            var bdOpts = new HullOpts
             {
                 Key = $"bd_{st.Key}_{len}_{bodyH}_{wid}",
                 PCross = st.PCross, PPlan = st.PPlan, Tumble = st.Tumble,
                 WNose = st.WNose, WTail = st.WTail,
                 Top = st.Deck(), Bot = st.Sill(),
-            });
+            };
+            var hull = Hull(len, bodyH, wid, bdOpts);
             var paint = MatLib.CarPaint(
                 $"mat_paint{ColorUtility.ToHtmlStringRGB(bodyC)}_{st.PaintMetallic:0.00}_{st.PaintSmooth:0.00}",
                 Color.white, ProcTex.CarSide(bodyC), st.PaintMetallic, st.PaintSmooth);
-            Geo.Node("Shell", body, hull, paint, new Vector3(0, baseY + bodyH / 2f, 0));
+            var shellPos = new Vector3(0, baseY + bodyH / 2f, 0);
+            Geo.Node("Shell", body, hull, paint, shellPos);
+
+            // The painted shell's real surface, same contract as GLASS below: anything that
+            // lands on the bonnet or the boot lid asks this rather than assuming the body is
+            // a flat-topped box. It is not — Deck() rakes the bonnet down and drops the boot
+            // — so "baseY + bodyH" is the top of the bounding box, not of the car. The rear
+            // spoiler was pinned there and floated 99 mm clear of the boot it was bolted to.
+            Vector3 BODY(float u, float qy, float side)
+                => shellPos + SurfaceAtU(bdOpts, len, bodyH, wid, u, qy, side);
 
             // ---- glass canopy: the roofline that carries most of the silhouette ----
-            var canopy = Hull(cabLen + cabHeight * 0.55f, cabHeight * 0.92f, cabW, new HullOpts
+            float canLen = cabLen + cabHeight * 0.55f;
+            float canH = cabHeight * 0.92f;
+            var cnOpts = new HullOpts
             {
                 Key = $"cn_{st.Key}_{cabLen}_{cabHeight}_{cabW}",
                 PCross = st.CabPCross, PPlan = st.CabPPlan, Tumble = st.CabTumble,
@@ -237,7 +358,8 @@ namespace PN3D.Game.Art
                 // tailgate. The cabin must always be narrower than the body it sits on.
                 WNose = 0.88f, WTail = 0.86f,
                 Top = st.Roof(), Bot = _ => 0f,
-            });
+            };
+            var canopy = Hull(canLen, canH, cabW, cnOpts);
             // Glass, not Textured. The canopy kept the pillar/seal detail map but was being
             // built at metallic 0, which is why it read as painted plastic rather than a
             // windscreen — see MatLib.Glass for why near-mirror beats alpha here.
@@ -251,31 +373,36 @@ namespace PN3D.Game.Art
             // 0.025..0.975) something to sit on, and the lateral inset gives the pillars a
             // sliver of glass to overlap rather than butting against its raw edge.
             //
-            // GLASS INSET LAT/Z, AND WHY THEY ARE NOT DECORATIVE. The greenhouse frame below
-            // computes pillar anchors from cabW directly, and it MUST scale them down by
-            // these same two factors. The first cut of this got that wrong: the frame was
-            // anchored to the cabin's raw half-width while the glass mesh actually built here
-            // was already squeezed 7% lateral / 5% longitudinal around the same pivot, so
-            // every pillar sat 5-7% outboard of the glass surface it was meant to frame —
-            // a real, measurable gap, not a subtle one. The result was a bar cage floating
-            // over a smaller dark bubble, with sky visible in the ring between them. A pillar
-            // is supposed to overlap the glass it borders; use the same two constants
-            // wherever the frame touches the canopy and it will.
+            // The frame below anchors to this surface via SurfaceAtU, which runs the same
+            // deformation the mesh did and then applies this same inset — so the two cannot
+            // disagree. Anything that instead recomputes "where the glass is" by hand will
+            // be wrong; see the note on Deform for the 15% that cost.
             const float GlassInsetLat = 0.93f, GlassInsetZ = 0.95f;
-            Geo.Node("Canopy", body, canopy, glassMat,
-                     new Vector3(0, baseY + bodyH + cabHeight * 0.46f - 0.08f, cabOff - cabHeight * 0.1f),
-                     Quaternion.identity, new Vector3(GlassInsetLat, 1f, GlassInsetZ));
+            var canopyPos = new Vector3(0, baseY + bodyH + cabHeight * 0.46f - 0.08f,
+                                        cabOff - cabHeight * 0.1f);
+            var glassScale = new Vector3(GlassInsetLat, 1f, GlassInsetZ);
+            Geo.Node("Canopy", body, canopy, glassMat, canopyPos,
+                     Quaternion.identity, glassScale);
 
             var dark = MatLib.Solid(new Color(0.063f, 0.071f, 0.086f), 0.35f);
             var chrome = MatLib.Chrome();
-            // Satin black, not body paint. A pillar this thin, painted at the body's high
-            // smoothness, catches a blown-out white rim highlight across its whole visible
-            // curve — thin structure at grazing angle reflects almost pure sky regardless of
-            // hue — and every archetype read as a chrome roll cage welded over the glass, no
-            // matter how close the frame sat to it. Real cars sidestep this the same way:
-            // gloss-black DLO trim (the "floating roof" look) rather than body colour, which
-            // both kills the hot rim and reads correctly against any body colour without
-            // needing to match it.
+            // PILLAR FINISH, arrived at by overcorrecting once in each direction.
+            //
+            // Painting the frame in the body's own gloss made every car a chrome roll cage:
+            // thin structure at a grazing angle reflects nearly pure sky whatever its hue,
+            // so each bar wore a blown-out white rim. Blacking the whole frame out killed
+            // that, and replaced it with a worse fault — black pillars against black glass
+            // leave the greenhouse one undifferentiated dark mass, which is exactly the
+            // "black bubble" this work started out trying to remove. It was invisible on the
+            // white coupe and unmissable on the red SUV.
+            //
+            // The culprit was gloss, not colour. Body colour at low smoothness has no rim to
+            // blow out, and it is also what a real car does: A-pillars, the cant rail and
+            // the screen surrounds are painted metal, while the B-pillar and the beltline
+            // are deliberately blacked-out trim. Splitting the frame that way gives the
+            // silhouette its shape back and is period-correct at the same time.
+            var pillarPaint = MatLib.CarPaint(
+                "mat_pillar" + ColorUtility.ToHtmlStringRGB(bodyC), bodyC, null, 0.04f, 0.34f);
             var pillarMat = MatLib.Solid(new Color(0.045f, 0.048f, 0.055f), 0.30f, 0.05f);
 
             // ---- greenhouse frame ----
@@ -291,31 +418,21 @@ namespace PN3D.Game.Art
             // Pillars lean inward as they rise because the glass does. Cabin tumblehome
             // makes the roof narrower than the waist, so a pillar held at one width would
             // peel off the glass by the time it reached the top.
-            var roofFn = st.Roof();
-            // Padding for the raked ends, but 0.9 * cabHeight was too much: on the
-            // long-roof archetypes it pushed the greenhouse out past the tailgate, where
-            // the rounded end of the glass shell surfaced above the rear deck as a dark
-            // lump sitting outside the bodywork.
-            float canLen = cabLen + cabHeight * 0.55f;
-            // The glass mesh itself is squeezed by GlassInsetZ around this same pivot (see
-            // the Canopy Node above), so any distance measured along it — where the frame's
-            // headers land, how long the roof cap and rails run — has to use the squeezed
-            // length, not the raw one, or every one of those keeps landing outboard again.
             float canLenGlass = canLen * GlassInsetZ;
-            float canH = cabHeight * 0.92f;
-            float canopyY = baseY + bodyH + cabHeight * 0.46f - 0.08f;
-            float roofZ = cabOff - cabHeight * 0.1f;
+            float roofZ = canopyPos.z;
 
-            float TopY(float u) => canopyY + (roofFn(u) - 0.5f) * canH;
+            // Every anchor below comes from here. GLASS(u, qy, side) is the real surface:
+            // qy +1 is the roof, -1 the sill; side +1/-1 picks a flank, 0 the centreline
+            // crown. Nothing in this section is allowed to guess a coordinate any more.
+            Vector3 GLASS(float u, float qy, float side)
+                => canopyPos + Vector3.Scale(
+                       SurfaceAtU(cnOpts, canLen, canH, cabW, u, qy, side), glassScale);
+
+            // Z along the centreline is the one coordinate the superellipse leaves alone
+            // (at qLat = qy = 0 both roundings are identity), so it stays closed-form —
+            // used by the fin, mirrors, wipers and rails, which hang off the cabin rather
+            // than sitting on its glass.
             float ZAt(float u) => roofZ + (u - 0.5f) * canLenGlass;
-
-            float beltY = canopyY - canH * 0.5f;
-            // Flush with the actual (inset) glass edge — see GlassInsetLat/Z above. latRoof
-            // carries the same (1 - CabTumble) narrowing the canopy hull itself applies at
-            // its very top edge, so this lands where the glass crown really is, not where
-            // the cabin's nominal half-width says it ought to be.
-            float latBelt = cabW * 0.5f * GlassInsetLat;
-            float latRoof = cabW * 0.5f * (1f - st.CabTumble) * GlassInsetLat;
 
             // Plateau edges are where the roof stops being flat, which is exactly where the
             // A and C pillars should meet it.
@@ -327,31 +444,35 @@ namespace PN3D.Game.Art
             // glass tall right to the tailgate.
             const float UWind = 0.975f, UBack = 0.025f;
 
-            // Lateral taper of the canopy, matching the WNose/WTail above. The pillar feet
-            // land near the tips where the glass has already drawn in, so holding them at
-            // full cabin width would leave them hanging beside it in open air.
-            float Taper(float u) => Mathf.Lerp(0.86f, 1f, Mathf.Clamp01(u / 0.35f))
-                                  * Mathf.Lerp(0.88f, 1f, Mathf.Clamp01((1f - u) / 0.35f));
-
-            float roofY = TopY(st.RoofPeak);   // for roof rails, light bars, taxi signs
+            // Crown and roof-edge half-width, both read off the real surface rather than
+            // reconstructed. roofY drives the roof cap, rails, light bars and taxi signs.
+            float roofY = GLASS(st.RoofPeak, 1f, 0f).y;
+            float latRoof = Mathf.Abs(GLASS(st.RoofPeak, 1f, 1f).x);
+            // The canopy's floor is flat (Bot is identically zero), so the beltline is one
+            // height for the whole cabin — mirrors and wipers hang off it.
+            float beltY = canopyPos.y - canH * 0.5f;
             // A touch heavier than before: now that they read as trim rather than chrome,
             // they can afford the extra substance a real pillar has instead of a wire's.
             float pil = Mathf.Clamp(wid * 0.034f, 0.028f, 0.060f);
 
+            // Sit the bar's inner face on the glass instead of centring it there, so the
+            // pillar covers the seam rather than straddling it half-sunk.
+            Vector3 Proud(Vector3 p, float s, float t) => p + new Vector3(s * t * 0.42f, 0f, 0f);
+
             foreach (float s in new[] { 1f, -1f })
             {
-                var aBot = new Vector3(s * latBelt * Taper(UWind), beltY, ZAt(UWind));
-                var aTop = new Vector3(s * latRoof * Taper(uFront), TopY(uFront), ZAt(uFront));
-                var cBot = new Vector3(s * latBelt * Taper(UBack), beltY, ZAt(UBack));
-                var cTop = new Vector3(s * latRoof * Taper(uRear), TopY(uRear), ZAt(uRear));
-                var bBot = new Vector3(s * latBelt * Taper(st.RoofPeak), beltY, ZAt(st.RoofPeak));
-                var bTop = new Vector3(s * latRoof * Taper(st.RoofPeak), TopY(st.RoofPeak), ZAt(st.RoofPeak));
+                var aBot = Proud(GLASS(UWind, -1f, s), s, pil);
+                var aTop = Proud(GLASS(uFront, 1f, s), s, pil);
+                var cBot = Proud(GLASS(UBack, -1f, s), s, pil * 1.30f);
+                var cTop = Proud(GLASS(uRear, 1f, s), s, pil * 1.30f);
+                var bBot = Proud(GLASS(st.RoofPeak, -1f, s), s, pil * 0.85f);
+                var bTop = Proud(GLASS(st.RoofPeak, 1f, s), s, pil * 0.85f);
 
-                Strut(body, pillarMat, aBot, aTop, pil);           // A-pillar
-                Strut(body, pillarMat, cBot, cTop, pil * 1.30f);   // C-pillar, always the thick one
-                Strut(body, pillarMat, bBot, bTop, pil * 0.85f);   // B-pillar
-                Strut(body, pillarMat, aTop, cTop, pil * 0.85f);   // cant rail over the side glass
-                Strut(body, pillarMat, aBot, cBot, pil * 0.75f);   // beltline under it
+                Strut(body, pillarPaint, aBot, aTop, pil);          // A-pillar, painted
+                Strut(body, pillarPaint, cBot, cTop, pil * 1.30f);  // C-pillar, the thick one
+                Strut(body, pillarMat, bBot, bTop, pil * 0.85f);    // B-pillar, blacked out
+                Strut(body, pillarPaint, aTop, cTop, pil * 0.85f);  // cant rail: roof edge
+                Strut(body, pillarMat, aBot, cBot, pil * 0.75f);    // beltline: window seal
             }
 
             // CROSS MEMBERS, and this is what the rear-quarter bulge actually was.
@@ -365,35 +486,34 @@ namespace PN3D.Game.Art
             // window. Three earlier attempts at this treated it as the glass being too
             // wide, too long, or outside the body. It was none of those: the geometry was
             // in the right place and simply had no frame around it.
-            float xTopF = latRoof * Taper(uFront), xTopR = latRoof * Taper(uRear);
-            float xBotF = latBelt * Taper(UWind), xBotR = latBelt * Taper(UBack);
-
-            Strut(body, pillarMat, new Vector3(xTopF, TopY(uFront), ZAt(uFront)),
-                               new Vector3(-xTopF, TopY(uFront), ZAt(uFront)), pil * 0.90f);
-            Strut(body, pillarMat, new Vector3(xTopR, TopY(uRear), ZAt(uRear)),
-                               new Vector3(-xTopR, TopY(uRear), ZAt(uRear)), pil * 0.90f);
-            Strut(body, pillarMat, new Vector3(xBotF, beltY, ZAt(UWind)),
-                               new Vector3(-xBotF, beltY, ZAt(UWind)), pil * 0.80f);
-            Strut(body, pillarMat, new Vector3(xBotR, beltY, ZAt(UBack)),
-                               new Vector3(-xBotR, beltY, ZAt(UBack)), pil * 0.80f);
+            // Headers are painted roof structure; the lower rails are the screen seals.
+            Strut(body, pillarPaint, GLASS(uFront, 1f, 1f), GLASS(uFront, 1f, -1f), pil * 0.90f);
+            Strut(body, pillarPaint, GLASS(uRear, 1f, 1f), GLASS(uRear, 1f, -1f), pil * 0.90f);
+            Strut(body, pillarMat, GLASS(UWind, -1f, 1f), GLASS(UWind, -1f, -1f), pil * 0.80f);
+            Strut(body, pillarMat, GLASS(UBack, -1f, 1f), GLASS(UBack, -1f, -1f), pil * 0.80f);
 
             // Slightly longer than the plateau it caps. Cut exactly to uRear..uFront it
             // ended flush with the headers, leaving a strip of bare glass crown just behind
             // each one — the roof only starts falling gently there, so a little overhang
             // still lands on the shell and closes the gap.
-            var roofCap = Hull(Mathf.Max(0.18f, (uFront - uRear + 0.10f) * canLenGlass), 0.09f, latRoof * 2f,
-                new HullOpts
-                {
-                    Key = $"rf_{st.Key}_{uFront - uRear}_{canLenGlass}_{latRoof}",
-                    PCross = 2.8f, PPlan = 3.0f, Tumble = 0.05f, WNose = 0.90f, WTail = 0.92f,
-                    Top = _ => 1f, Bot = _ => 0f,
-                });
-            Geo.Node("Roof", body, roofCap, paint,
-                     new Vector3(0, roofY - 0.030f, ZAt((uFront + uRear) * 0.5f)));
+            // The roof panel follows the cabin's own dome (see RoofPanel), so it covers at
+            // every archetype height instead of only where a flat cap happened to reach.
+            // A hair wider and a few millimetres up, which lifts it clear of z-fighting and
+            // tucks its edge under the cant rail.
+            var roofMesh = RoofPanel($"rp_{st.Key}_{canLen}_{canH}_{cabW}_{uRear}_{uFront}",
+                                     cnOpts, canLen, canH, cabW,
+                                     uRear - 0.045f, uFront + 0.045f);
+            Geo.Node("Roof", body, roofMesh, paint,
+                     canopyPos + new Vector3(0f, 0.007f, 0f), Quaternion.identity,
+                     new Vector3(GlassInsetLat * 1.016f, 1f, GlassInsetZ));
 
-            // shark fin + exhaust tips
+            // Shark fin, sat on the rear of the roof panel. It used to be pinned to
+            // "baseY + bodyH + 0.8 * cabHeight", a height with no relationship to the roof,
+            // and at the Z it was given — where the roofline has already begun to fall — it
+            // hung in the air beside the cabin as a small black block.
+            float finU = Mathf.Lerp(uRear, st.RoofPeak, 0.35f);
             Geo.Box("Fin", body, new Vector3(0.05f, 0.07f, 0.16f),
-                    new Vector3(0, baseY + bodyH + cabHeight * 0.8f, cabOff - cabLen * 0.3f), dark);
+                    new Vector3(0, GLASS(finU, 1f, 0f).y + 0.020f, ZAt(finU)), dark);
             if (st.TwinExhaust)
                 foreach (float x in new[] { wid * 0.26f, wid * 0.15f })
                     Geo.Node("Exhaust", body, Geo.Cylinder(0.040f, 0.040f, 0.11f, 10), chrome,
@@ -415,8 +535,11 @@ namespace PN3D.Game.Art
             // a large part of why the cars felt like assemblies of parts.
             foreach (float s in new[] { 1f, -1f })
             {
-                var stalk = new Vector3(s * cabW * 0.50f, beltY - 0.03f, ZAt(UWind) - 0.06f);
-                var tip = new Vector3(s * (cabW * 0.50f + 0.10f), beltY + 0.005f, ZAt(UWind) - 0.13f);
+                // Rooted at the A-pillar foot on the real glass edge, not at the cabin's
+                // nominal half-width — that put the stalk in open air beside the car.
+                float xFoot = Mathf.Abs(GLASS(UWind, -1f, s).x);
+                var stalk = new Vector3(s * xFoot, beltY - 0.03f, ZAt(UWind) - 0.06f);
+                var tip = new Vector3(s * (xFoot + 0.10f), beltY + 0.005f, ZAt(UWind) - 0.13f);
                 Strut(body, dark, stalk, tip, 0.026f);
                 Geo.Node("Mirror", body, Geo.UnitCube, paintFlat, tip,
                          Quaternion.Euler(0, s * 10f, 0),
@@ -508,13 +631,19 @@ namespace PN3D.Game.Art
 
             var steer = new List<Transform>();
             var spin = new List<Transform>();
-            // A FENDER LIP, NOT A HOOP. This was a 6 cm dark tube arching over each wheel,
-            // and at 6 cm in near-black it read as a roll bar bolted to the side rather
-            // than as bodywork. Thinner, tucked closer to the tyre, and painted — except on
-            // the archetypes that carry plastic arch trim in real life, where dark is
-            // correct and is part of what says "SUV".
-            var archMesh = Geo.HalfTorus(wheelR + 0.040f, 0.023f);
-            var archMat = st.Cladding ? dark : paintFlat;
+            // AN OPENING, NOT A HOOP. Painting this tube in body colour was the mistake: a
+            // pale torus standing off a pale flank is lit as its own object, so it read as a
+            // plastic band stuck to the side — worst on the white and silver cars, where it
+            // was the first thing the eye found. What a wheel arch actually looks like from
+            // ten feet away is a dark crescent: the shadowed gap between the tyre and the
+            // sheet metal turning in around it. So it is always dark now, thinner, and sunk
+            // far enough into the flank that only that crescent shows. Cladding archetypes
+            // get the same shape a shade lighter, because their arch trim is a visible
+            // plastic moulding rather than pure shadow.
+            var archMesh = Geo.HalfTorus(wheelR + 0.026f, 0.016f);
+            var archMat = st.Cladding
+                ? MatLib.Solid(new Color(0.115f, 0.120f, 0.132f), 0.30f)
+                : MatLib.Solid(new Color(0.048f, 0.050f, 0.056f), 0.22f);
 
             foreach (var (az, x, front) in new[]
                      { (axF, wx, true), (axF, -wx, true), (axR, wx, false), (axR, -wx, false) })
@@ -537,11 +666,11 @@ namespace PN3D.Game.Art
                 BuildWheel(wheel, mount, wheel.localPosition, wheelR, wheelW, x > 0, st.Spokes,
                            tyreMat, alloyMat, lipMat, wellMat, calMat);
 
-                // Half-buried in the flank on purpose. Sat on the surface it is a hoop; sunk
-                // three centimetres in, only the lip shows and it becomes the edge of the
-                // wing where the metal turns down to the tyre.
+                // Mostly buried in the flank on purpose. Sat on the surface it is a hoop;
+                // sunk deeper, only a crescent shows and it becomes the shadowed edge where
+                // the wing turns down to the tyre.
                 Geo.Node("Arch", body, archMesh, archMat,
-                         new Vector3(x > 0 ? wid / 2f - 0.040f : -(wid / 2f - 0.040f), wheelR, az),
+                         new Vector3(x > 0 ? wid / 2f - 0.062f : -(wid / 2f - 0.062f), wheelR, az),
                          Quaternion.Euler(0, 90, 0), shadows: false);
             }
 
@@ -661,9 +790,20 @@ namespace PN3D.Game.Art
                     Geo.Box("RoofRail", body, new Vector3(0.045f, 0.035f, (uFront - uRear) * canLenGlass * 0.88f),
                             new Vector3(rx, roofY + 0.030f, ZAt((uFront + uRear) * 0.5f)), dark);
 
+            // On the boot lid, and standing on two visible risers. Pinned to the bounding
+            // box top it floated 99 mm clear of the deck — a black slab hanging behind the
+            // car — and even seated, a lip spoiler with no attachment reads as a decal.
             if (st.Spoiler)
-                Geo.Box("Spoiler", body, new Vector3(wid * 0.62f, 0.04f, 0.16f),
-                        new Vector3(0, baseY + bodyH + 0.05f, -half + 0.16f), dark);
+            {
+                float spU = (-half + 0.16f) / len + 0.5f;
+                float deckY = BODY(spU, 1f, 0f).y;
+                float bladeY = deckY + 0.055f;
+                Geo.Box("Spoiler", body, new Vector3(wid * 0.62f, 0.035f, 0.16f),
+                        new Vector3(0, bladeY, -half + 0.16f), dark);
+                foreach (float rx in new[] { wid * 0.24f, -wid * 0.24f })
+                    Geo.Box("SpoilerRiser", body, new Vector3(0.035f, 0.055f, 0.10f),
+                            new Vector3(rx, (deckY + bladeY) * 0.5f, -half + 0.16f), dark);
+            }
 
             if (st.Cladding)
             {
