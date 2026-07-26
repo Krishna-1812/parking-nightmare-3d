@@ -226,14 +226,19 @@ namespace PN3D.Game.Art
             // read as holes punched through the car rather than windows. Real glazing seen
             // from outside is dark but never void: it carries a sky reflection.
             var glassMat = MatLib.Glass(new Color(0.135f, 0.150f, 0.175f), ProcTex.CanopySide());
-            // Inset laterally so the frame built below stands proud of it. Without this the
+            // Inset on both axes. Laterally so the frame built below stands proud of it,
+            // and 0.95 in Z so the glass tips tuck inside the frame — that spans u
+            // 0.025..0.975, so the last slice at each end would otherwise have no member
+            // around it and surface as a sliver past the pillar.
+            //
+            // Without the lateral inset the
             // pillars sit exactly on the glass surface, half in and half out, and the cabin
             // reads as a roll cage strapped over a bubble instead of glazing dropped into
             // bodywork. Windows are recessed on a real car and that shadow line is most of
             // what tells you so.
             Geo.Node("Canopy", body, canopy, glassMat,
                      new Vector3(0, baseY + bodyH + cabHeight * 0.46f - 0.08f, cabOff - cabHeight * 0.1f),
-                     Quaternion.identity, new Vector3(0.93f, 1f, 0.99f));
+                     Quaternion.identity, new Vector3(0.93f, 1f, 0.95f));
 
             var dark = MatLib.Solid(new Color(0.063f, 0.071f, 0.086f), 0.35f);
             var chrome = MatLib.Chrome();
@@ -303,7 +308,34 @@ namespace PN3D.Game.Art
                 Strut(body, paint, aBot, cBot, pil * 0.75f);   // beltline under it
             }
 
-            var roofCap = Hull(Mathf.Max(0.18f, (uFront - uRear) * canLen), 0.09f, latRoof * 2f,
+            // CROSS MEMBERS, and this is what the rear-quarter bulge actually was.
+            //
+            // The side frame gave every window a pillar fore and aft, but the windscreen
+            // and the backlight are not side windows: they span the full width, so their
+            // frame runs across the car, not along it. Without a header above and a rail
+            // below, the backlight was an unbounded sheet of near-black glass bounded only
+            // by the two C-pillars — which on the long-roof styles is a large area, and it
+            // read as a dark mass stuck to the rear quarter rather than as a tailgate
+            // window. Three earlier attempts at this treated it as the glass being too
+            // wide, too long, or outside the body. It was none of those: the geometry was
+            // in the right place and simply had no frame around it.
+            float xTopF = latRoof * Taper(uFront), xTopR = latRoof * Taper(uRear);
+            float xBotF = latBelt * Taper(UWind), xBotR = latBelt * Taper(UBack);
+
+            Strut(body, paint, new Vector3(xTopF, TopY(uFront), ZAt(uFront)),
+                               new Vector3(-xTopF, TopY(uFront), ZAt(uFront)), pil * 0.90f);
+            Strut(body, paint, new Vector3(xTopR, TopY(uRear), ZAt(uRear)),
+                               new Vector3(-xTopR, TopY(uRear), ZAt(uRear)), pil * 0.90f);
+            Strut(body, paint, new Vector3(xBotF, beltY, ZAt(UWind)),
+                               new Vector3(-xBotF, beltY, ZAt(UWind)), pil * 0.80f);
+            Strut(body, paint, new Vector3(xBotR, beltY, ZAt(UBack)),
+                               new Vector3(-xBotR, beltY, ZAt(UBack)), pil * 0.80f);
+
+            // Slightly longer than the plateau it caps. Cut exactly to uRear..uFront it
+            // ended flush with the headers, leaving a strip of bare glass crown just behind
+            // each one — the roof only starts falling gently there, so a little overhang
+            // still lands on the shell and closes the gap.
+            var roofCap = Hull(Mathf.Max(0.18f, (uFront - uRear + 0.10f) * canLen), 0.09f, latRoof * 2f,
                 new HullOpts
                 {
                     Key = $"rf_{st.Key}_{uFront - uRear}_{canLen}_{latRoof}",
