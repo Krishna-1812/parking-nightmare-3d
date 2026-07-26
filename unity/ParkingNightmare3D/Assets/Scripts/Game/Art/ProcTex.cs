@@ -454,10 +454,23 @@ namespace PN3D.Game.Art
                 c.FillRect(W * ax - H * 0.45f, H * 0.55f, H * 0.9f, H * 0.45f, gg);
             }
 
+            // Door shutlines. A single flat stroke read as a stripe painted on rather than a
+            // pressed seam, and at 2px/0.42 alpha the high-gloss paint's sky reflection
+            // buried it almost entirely. A seam is a shadow with a highlight riding its
+            // shoulder — the panel edge catches light on one side of the gap and casts it on
+            // the other — so pair a wider, darker line with a thin bright one beside it.
             foreach (float sx in new[] { 0.4f, 0.63f })
-                c.StrokeSegment(W * sx, H * 0.18f, W * sx, H * 0.88f, 2, RG.Rgba(0, 0, 0, .42f));
+            {
+                c.StrokeSegment(W * sx, H * 0.16f, W * sx, H * 0.90f, 3, RG.Rgba(0, 0, 0, .62f));
+                c.StrokeSegment(W * sx + 3, H * 0.16f, W * sx + 3, H * 0.90f, 1, RG.Rgba(255, 255, 255, .16f));
+            }
+            // Handles: a dark recess with a small pale insert, not a flat dark blob — the
+            // insert is what reads as the grip itself rather than a smudge on the door.
             foreach (float hx in new[] { 0.46f, 0.69f })
-                c.FillRect(W * hx, H * 0.46f, 26, 7, RG.Rgba(0, 0, 0, .5f));
+            {
+                c.FillRect(W * hx - 2, H * 0.44f, 30, 11, RG.Rgba(0, 0, 0, .58f));
+                c.FillRect(W * hx + 1, H * 0.465f, 24, 5, RG.Rgba(225, 227, 230, .60f));
+            }
 
             for (int i = 0; i < 260; i++)
                 c.FillRect((float)r.Rand(0, W), (float)r.Rand(0, H), 2, 2,

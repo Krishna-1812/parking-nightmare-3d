@@ -246,22 +246,37 @@ namespace PN3D.Game.Art
             // read as holes punched through the car rather than windows. Real glazing seen
             // from outside is dark but never void: it carries a sky reflection.
             var glassMat = MatLib.Glass(new Color(0.135f, 0.150f, 0.175f), ProcTex.CanopySide());
-            // Inset on both axes. Laterally so the frame built below stands proud of it,
-            // and 0.95 in Z so the glass tips tuck inside the frame — that spans u
-            // 0.025..0.975, so the last slice at each end would otherwise have no member
-            // around it and surface as a sliver past the pillar.
+            // Inset on both axes, purely so the glass tips tuck inside the frame instead of
+            // surfacing past it — 0.95 in Z leaves the frame's outermost members (u
+            // 0.025..0.975) something to sit on, and the lateral inset gives the pillars a
+            // sliver of glass to overlap rather than butting against its raw edge.
             //
-            // Without the lateral inset the
-            // pillars sit exactly on the glass surface, half in and half out, and the cabin
-            // reads as a roll cage strapped over a bubble instead of glazing dropped into
-            // bodywork. Windows are recessed on a real car and that shadow line is most of
-            // what tells you so.
+            // GLASS INSET LAT/Z, AND WHY THEY ARE NOT DECORATIVE. The greenhouse frame below
+            // computes pillar anchors from cabW directly, and it MUST scale them down by
+            // these same two factors. The first cut of this got that wrong: the frame was
+            // anchored to the cabin's raw half-width while the glass mesh actually built here
+            // was already squeezed 7% lateral / 5% longitudinal around the same pivot, so
+            // every pillar sat 5-7% outboard of the glass surface it was meant to frame —
+            // a real, measurable gap, not a subtle one. The result was a bar cage floating
+            // over a smaller dark bubble, with sky visible in the ring between them. A pillar
+            // is supposed to overlap the glass it borders; use the same two constants
+            // wherever the frame touches the canopy and it will.
+            const float GlassInsetLat = 0.93f, GlassInsetZ = 0.95f;
             Geo.Node("Canopy", body, canopy, glassMat,
                      new Vector3(0, baseY + bodyH + cabHeight * 0.46f - 0.08f, cabOff - cabHeight * 0.1f),
-                     Quaternion.identity, new Vector3(0.93f, 1f, 0.95f));
+                     Quaternion.identity, new Vector3(GlassInsetLat, 1f, GlassInsetZ));
 
             var dark = MatLib.Solid(new Color(0.063f, 0.071f, 0.086f), 0.35f);
             var chrome = MatLib.Chrome();
+            // Satin black, not body paint. A pillar this thin, painted at the body's high
+            // smoothness, catches a blown-out white rim highlight across its whole visible
+            // curve — thin structure at grazing angle reflects almost pure sky regardless of
+            // hue — and every archetype read as a chrome roll cage welded over the glass, no
+            // matter how close the frame sat to it. Real cars sidestep this the same way:
+            // gloss-black DLO trim (the "floating roof" look) rather than body colour, which
+            // both kills the hot rim and reads correctly against any body colour without
+            // needing to match it.
+            var pillarMat = MatLib.Solid(new Color(0.045f, 0.048f, 0.055f), 0.30f, 0.05f);
 
             // ---- greenhouse frame ----
             // A cabin is not a glass dome. It is painted structure with windows cut into
@@ -282,16 +297,25 @@ namespace PN3D.Game.Art
             // the rounded end of the glass shell surfaced above the rear deck as a dark
             // lump sitting outside the bodywork.
             float canLen = cabLen + cabHeight * 0.55f;
+            // The glass mesh itself is squeezed by GlassInsetZ around this same pivot (see
+            // the Canopy Node above), so any distance measured along it — where the frame's
+            // headers land, how long the roof cap and rails run — has to use the squeezed
+            // length, not the raw one, or every one of those keeps landing outboard again.
+            float canLenGlass = canLen * GlassInsetZ;
             float canH = cabHeight * 0.92f;
             float canopyY = baseY + bodyH + cabHeight * 0.46f - 0.08f;
             float roofZ = cabOff - cabHeight * 0.1f;
 
             float TopY(float u) => canopyY + (roofFn(u) - 0.5f) * canH;
-            float ZAt(float u) => roofZ + (u - 0.5f) * canLen;
+            float ZAt(float u) => roofZ + (u - 0.5f) * canLenGlass;
 
             float beltY = canopyY - canH * 0.5f;
-            float latBelt = cabW * 0.5f * 0.99f;
-            float latRoof = cabW * 0.5f * (1f - st.CabTumble);
+            // Flush with the actual (inset) glass edge — see GlassInsetLat/Z above. latRoof
+            // carries the same (1 - CabTumble) narrowing the canopy hull itself applies at
+            // its very top edge, so this lands where the glass crown really is, not where
+            // the cabin's nominal half-width says it ought to be.
+            float latBelt = cabW * 0.5f * GlassInsetLat;
+            float latRoof = cabW * 0.5f * (1f - st.CabTumble) * GlassInsetLat;
 
             // Plateau edges are where the roof stops being flat, which is exactly where the
             // A and C pillars should meet it.
@@ -310,10 +334,9 @@ namespace PN3D.Game.Art
                                   * Mathf.Lerp(0.88f, 1f, Mathf.Clamp01((1f - u) / 0.35f));
 
             float roofY = TopY(st.RoofPeak);   // for roof rails, light bars, taxi signs
-            // Slimmer than they were. The frame was sized when the shell was invisible, so
-            // the pillars were carrying the whole cabin and had to be chunky to read at
-            // all. With bodywork behind them they only need to be pillars.
-            float pil = Mathf.Clamp(wid * 0.030f, 0.024f, 0.052f);
+            // A touch heavier than before: now that they read as trim rather than chrome,
+            // they can afford the extra substance a real pillar has instead of a wire's.
+            float pil = Mathf.Clamp(wid * 0.034f, 0.028f, 0.060f);
 
             foreach (float s in new[] { 1f, -1f })
             {
@@ -324,11 +347,11 @@ namespace PN3D.Game.Art
                 var bBot = new Vector3(s * latBelt * Taper(st.RoofPeak), beltY, ZAt(st.RoofPeak));
                 var bTop = new Vector3(s * latRoof * Taper(st.RoofPeak), TopY(st.RoofPeak), ZAt(st.RoofPeak));
 
-                Strut(body, paint, aBot, aTop, pil);           // A-pillar
-                Strut(body, paint, cBot, cTop, pil * 1.30f);   // C-pillar, always the thick one
-                Strut(body, paint, bBot, bTop, pil * 0.85f);   // B-pillar
-                Strut(body, paint, aTop, cTop, pil * 0.85f);   // cant rail over the side glass
-                Strut(body, paint, aBot, cBot, pil * 0.75f);   // beltline under it
+                Strut(body, pillarMat, aBot, aTop, pil);           // A-pillar
+                Strut(body, pillarMat, cBot, cTop, pil * 1.30f);   // C-pillar, always the thick one
+                Strut(body, pillarMat, bBot, bTop, pil * 0.85f);   // B-pillar
+                Strut(body, pillarMat, aTop, cTop, pil * 0.85f);   // cant rail over the side glass
+                Strut(body, pillarMat, aBot, cBot, pil * 0.75f);   // beltline under it
             }
 
             // CROSS MEMBERS, and this is what the rear-quarter bulge actually was.
@@ -345,23 +368,23 @@ namespace PN3D.Game.Art
             float xTopF = latRoof * Taper(uFront), xTopR = latRoof * Taper(uRear);
             float xBotF = latBelt * Taper(UWind), xBotR = latBelt * Taper(UBack);
 
-            Strut(body, paint, new Vector3(xTopF, TopY(uFront), ZAt(uFront)),
+            Strut(body, pillarMat, new Vector3(xTopF, TopY(uFront), ZAt(uFront)),
                                new Vector3(-xTopF, TopY(uFront), ZAt(uFront)), pil * 0.90f);
-            Strut(body, paint, new Vector3(xTopR, TopY(uRear), ZAt(uRear)),
+            Strut(body, pillarMat, new Vector3(xTopR, TopY(uRear), ZAt(uRear)),
                                new Vector3(-xTopR, TopY(uRear), ZAt(uRear)), pil * 0.90f);
-            Strut(body, paint, new Vector3(xBotF, beltY, ZAt(UWind)),
+            Strut(body, pillarMat, new Vector3(xBotF, beltY, ZAt(UWind)),
                                new Vector3(-xBotF, beltY, ZAt(UWind)), pil * 0.80f);
-            Strut(body, paint, new Vector3(xBotR, beltY, ZAt(UBack)),
+            Strut(body, pillarMat, new Vector3(xBotR, beltY, ZAt(UBack)),
                                new Vector3(-xBotR, beltY, ZAt(UBack)), pil * 0.80f);
 
             // Slightly longer than the plateau it caps. Cut exactly to uRear..uFront it
             // ended flush with the headers, leaving a strip of bare glass crown just behind
             // each one — the roof only starts falling gently there, so a little overhang
             // still lands on the shell and closes the gap.
-            var roofCap = Hull(Mathf.Max(0.18f, (uFront - uRear + 0.10f) * canLen), 0.09f, latRoof * 2f,
+            var roofCap = Hull(Mathf.Max(0.18f, (uFront - uRear + 0.10f) * canLenGlass), 0.09f, latRoof * 2f,
                 new HullOpts
                 {
-                    Key = $"rf_{st.Key}_{uFront - uRear}_{canLen}_{latRoof}",
+                    Key = $"rf_{st.Key}_{uFront - uRear}_{canLenGlass}_{latRoof}",
                     PCross = 2.8f, PPlan = 3.0f, Tumble = 0.05f, WNose = 0.90f, WTail = 0.92f,
                     Top = _ => 1f, Bot = _ => 0f,
                 });
@@ -399,6 +422,15 @@ namespace PN3D.Game.Art
                          Quaternion.Euler(0, s * 10f, 0),
                          new Vector3(0.05f, 0.07f, 0.135f), shadows: false);
             }
+
+            // ---- wipers ----
+            // Resting at the base of the windscreen, offset off-centre like a real pair
+            // rather than mirrored — a windscreen with no wipers at all is one of the
+            // fastest "toy car" tells there is, and it costs two thin bars to fix.
+            float wiperZ = ZAt(UWind) - 0.015f;
+            foreach (var (wpx, wLen) in new[] { (cabW * 0.16f, 0.20f), (-cabW * 0.05f, 0.16f) })
+                Strut(body, dark, new Vector3(wpx, beltY + 0.012f, wiperZ),
+                      new Vector3(wpx - wLen, beltY + 0.045f, wiperZ - 0.02f), 0.013f);
 
             // ---- grille ----
             // Sized off the body, not a constant: a 44 cm slot is right on a hatchback and
@@ -626,7 +658,7 @@ namespace PN3D.Game.Art
             // mount anything. Sized off cabW they hung out past the roof edge in mid-air.
             if (st.RoofRails)
                 foreach (float rx in new[] { latRoof * 0.80f, -latRoof * 0.80f })
-                    Geo.Box("RoofRail", body, new Vector3(0.045f, 0.035f, (uFront - uRear) * canLen * 0.88f),
+                    Geo.Box("RoofRail", body, new Vector3(0.045f, 0.035f, (uFront - uRear) * canLenGlass * 0.88f),
                             new Vector3(rx, roofY + 0.030f, ZAt((uFront + uRear) * 0.5f)), dark);
 
             if (st.Spoiler)
