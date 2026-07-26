@@ -118,7 +118,7 @@ namespace PN3D.Game.Art
         /// and it keeps the livery colours the missions actually author.
         /// </remarks>
         public static Material CarPaint(string key, Color tint, Texture2D map = null,
-                                        float metallic = 0.25f, float smoothness = 0.90f)
+                                        float metallic = 0.25f, float smoothness = 0.84f)
             => Get(key, () =>
             {
                 var m = new Material(Lit);

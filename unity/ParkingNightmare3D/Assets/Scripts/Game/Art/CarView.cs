@@ -165,19 +165,22 @@ namespace PN3D.Game.Art
         // ------------------------------------------------------------------ assembly
 
         /// <summary>
-        /// A standard car: painted hull, glass canopy, four wheels with the front pair on
-        /// steering groups, light bars, bumpers, mirrors and plates.
+        /// A car in a given <see cref="CarStyle"/>: painted hull, glass canopy, four wheels
+        /// with the front pair on steering groups, the style's light signature, grille,
+        /// bumpers, mirrors, plates and whatever extras the archetype carries.
+        ///
+        /// Length and width are the caller's, always. Those two numbers are simulation
+        /// state — TrafficSystem sizes its gaps from them — so a style may reshape a roof
+        /// but never the footprint the physics tests.
         /// </summary>
-        public static Rig BuildStandard(Transform parent, string key, VehicleDef veh,
-                                        Color bodyC, Color roofC,
-                                        float bodyH = 0.62f, float cabHeight = 0.55f,
-                                        float cabLenFrac = 0.5f, float cabOffFrac = -0.06f,
-                                        float wheelR = 0.34f)
+        public static Rig Build(Transform parent, string key, VehicleDef veh,
+                                CarStyle st, Color bodyC)
         {
             float len = (float)veh.Len, wid = (float)veh.Wid;
-            float cabLen = len * cabLenFrac, cabOff = len * cabOffFrac;
+            float bodyH = st.BodyH, cabHeight = st.CabHeight, wheelR = st.WheelR;
+            float cabLen = len * st.CabLenFrac, cabOff = len * st.CabOffFrac;
             float baseY = wheelR - 0.05f;
-            float cabW = wid * 0.86f;
+            float cabW = wid * st.CabWidFrac;
             float half = len * 0.5f;
 
             var root = new GameObject("Car_" + key).transform;
@@ -186,25 +189,29 @@ namespace PN3D.Game.Art
             body.SetParent(root, false);
 
             // ---- painted shell ----
+            // The style key is part of the mesh cache key. Without it two archetypes that
+            // happen to share a length, height and width — an exec and a patrol car, say —
+            // would silently be handed the same hull and every visual difference between
+            // them would vanish.
             var hull = Hull(len, bodyH, wid, new HullOpts
             {
-                Key = $"bd{len}_{bodyH}_{wid}",
-                PCross = 3.4f, PPlan = 5.5f, Tumble = 0.10f, WNose = 0.86f, WTail = 0.92f,
-                Top = u => 1f - 0.15f * S3(0.7f, 0.98f, u) - 0.08f * (1f - S3(0.03f, 0.22f, u)),
-                Bot = u => 0.10f * S3(0.82f, 1f, u) + 0.08f * (1f - S3(0f, 0.14f, u)),
+                Key = $"bd_{st.Key}_{len}_{bodyH}_{wid}",
+                PCross = st.PCross, PPlan = st.PPlan, Tumble = st.Tumble,
+                WNose = st.WNose, WTail = st.WTail,
+                Top = st.Deck(), Bot = st.Sill(),
             });
-            var paint = MatLib.CarPaint("mat_paint" + ColorUtility.ToHtmlStringRGB(bodyC),
-                                        Color.white, ProcTex.CarSide(bodyC));
+            var paint = MatLib.CarPaint(
+                $"mat_paint{ColorUtility.ToHtmlStringRGB(bodyC)}_{st.PaintMetallic:0.00}_{st.PaintSmooth:0.00}",
+                Color.white, ProcTex.CarSide(bodyC), st.PaintMetallic, st.PaintSmooth);
             Geo.Node("Shell", body, hull, paint, new Vector3(0, baseY + bodyH / 2f, 0));
 
-            // ---- glass canopy: plateau roof with a raked windscreen, sunk into the body ----
+            // ---- glass canopy: the roofline that carries most of the silhouette ----
             var canopy = Hull(cabLen + cabHeight * 0.9f, cabHeight * 0.92f, cabW, new HullOpts
             {
-                Key = $"cn{cabLen}_{cabHeight}_{cabW}",
-                PCross = 2.7f, PPlan = 3.4f, Tumble = 0.32f, WNose = 0.95f, WTail = 0.97f,
-                Top = u => 0.14f + 0.86f * Mathf.Min(1f, 1.3f * Mathf.Pow(
-                    Mathf.Sin(Mathf.PI * Mathf.Pow(Mathf.Clamp(u, 0.001f, 0.999f), 0.9f)), 0.8f)),
-                Bot = _ => 0f,
+                Key = $"cn_{st.Key}_{cabLen}_{cabHeight}_{cabW}",
+                PCross = st.CabPCross, PPlan = st.CabPPlan, Tumble = st.CabTumble,
+                WNose = 0.95f, WTail = 0.97f,
+                Top = st.Roof(), Bot = _ => 0f,
             });
             // Glass, not Textured. The canopy kept the pillar/seal detail map but was being
             // built at metallic 0, which is why it read as painted plastic rather than a
@@ -216,12 +223,50 @@ namespace PN3D.Game.Art
             var dark = MatLib.Solid(new Color(0.063f, 0.071f, 0.086f), 0.35f);
             var chrome = MatLib.Chrome();
 
-            // shark fin + twin exhaust tips
+            // Top of the greenhouse. The canopy hull is 0.92 * cabHeight tall and is centred
+            // at 0.46 of it, so its crown sits at exactly this height — get the 0.92 wrong
+            // and anything "mounted on the roof" is in fact buried inside the glass.
+            float roofZ = cabOff - cabHeight * 0.1f;
+            float roofY = baseY + bodyH + cabHeight * 0.92f - 0.08f;
+
+            // ---- painted roof panel ----
+            // Only the windows are glass on a real car; the roof and the pillars are body
+            // colour. Without this the greenhouse is a single dark shell and every car
+            // reads as a bubble-top — ruinous on the tall archetypes, where an all-glass
+            // SUV cabin looks like a conservatory on wheels.
+            //
+            // Width is derived from the canopy's tumblehome, not from cabW: the glass leans
+            // inward as it rises, so a cap cut to the full cabin width would overhang the
+            // side windows like a mushroom.
+            float canLen = cabLen + cabHeight * 0.9f;
+            float capW = cabW * (1f - st.CabTumble) * 1.03f;
+            // Generous: the roof should be most of the greenhouse, with glass only where
+            // the windows are. Cut too short, the car keeps its dark bubble and the panel
+            // reads as a sunroof. The RoofFlat term still lets a fastback keep more glass
+            // than an estate, which is the difference between the two silhouettes.
+            float capLen = Mathf.Clamp(canLen * (st.RoofFlat * 1.2f + 0.42f), 0.22f, canLen * 0.93f);
+            var roofCap = Hull(capLen, 0.09f, capW, new HullOpts
+            {
+                Key = $"rf_{st.Key}_{capLen}_{capW}",
+                PCross = 2.8f, PPlan = 3.0f, Tumble = 0.05f, WNose = 0.88f, WTail = 0.90f,
+                Top = _ => 1f, Bot = _ => 0f,
+            });
+            // Sunk just enough that the glass meets it, and proud enough that it is the
+            // roof rather than a plate suspended inside the cabin.
+            Geo.Node("Roof", body, roofCap, paint,
+                     new Vector3(0, roofY - 0.025f, roofZ + (st.RoofPeak - 0.5f) * canLen));
+
+            // shark fin + exhaust tips
             Geo.Box("Fin", body, new Vector3(0.05f, 0.07f, 0.16f),
                     new Vector3(0, baseY + bodyH + cabHeight * 0.8f, cabOff - cabLen * 0.3f), dark);
-            foreach (float x in new[] { wid * 0.3f, wid * 0.18f })
-                Geo.Node("Exhaust", body, Geo.Cylinder(0.045f, 0.045f, 0.14f, 10), chrome,
-                         new Vector3(x, wheelR - 0.04f, -half + 0.03f),
+            if (st.TwinExhaust)
+                foreach (float x in new[] { wid * 0.26f, wid * 0.15f })
+                    Geo.Node("Exhaust", body, Geo.Cylinder(0.040f, 0.040f, 0.11f, 10), chrome,
+                             new Vector3(x, wheelR - 0.06f, -half + 0.10f),
+                             Quaternion.Euler(90, 0, 0));
+            else
+                Geo.Node("Exhaust", body, Geo.Cylinder(0.034f, 0.034f, 0.10f, 8), dark,
+                         new Vector3(wid * 0.24f, wheelR - 0.06f, -half + 0.09f),
                          Quaternion.Euler(90, 0, 0));
 
             // mirrors
@@ -234,9 +279,29 @@ namespace PN3D.Game.Art
                 Geo.Box("Mirror", body, new Vector3(0.13f, 0.08f, 0.07f),
                         new Vector3(x, baseY + bodyH + 0.05f, cabF - 0.04f), paintFlat);
 
-            // grille and plates
-            Geo.Box("Grille", body, new Vector3(0.44f, 0.13f, 0.02f),
-                    new Vector3(0, baseY + bodyH * 0.42f, half - 0.01f), dark);
+            // ---- grille ----
+            // Sized off the body, not a constant: a 44 cm slot is right on a hatchback and
+            // looks like a letterbox on a van. Deliberately generic shapes — an upright or
+            // a wide slot — because a manufacturer's grille outline is the one part of a
+            // car's face that is actually protected.
+            switch (st.Grille)
+            {
+                case GrilleKind.Wide:
+                    Geo.Box("Grille", body, new Vector3(wid * 0.46f, bodyH * 0.17f, 0.02f),
+                            new Vector3(0, baseY + bodyH * 0.38f, half - 0.01f), dark);
+                    break;
+                case GrilleKind.Tall:
+                    Geo.Box("Grille", body, new Vector3(wid * 0.40f, bodyH * 0.40f, 0.02f),
+                            new Vector3(0, baseY + bodyH * 0.50f, half - 0.01f), dark);
+                    Geo.Box("GrilleTrim", body, new Vector3(wid * 0.42f, bodyH * 0.05f, 0.03f),
+                            new Vector3(0, baseY + bodyH * 0.70f, half - 0.012f), chrome);
+                    break;
+                case GrilleKind.Twin:
+                    foreach (float gx in new[] { wid * 0.13f, -wid * 0.13f })
+                        Geo.Box("Grille", body, new Vector3(wid * 0.20f, bodyH * 0.26f, 0.02f),
+                                new Vector3(gx, baseY + bodyH * 0.44f, half - 0.01f), dark);
+                    break;
+            }
             Geo.Box("PlateF", body, new Vector3(0.34f, 0.12f, 0.02f),
                     new Vector3(0, baseY + bodyH * 0.2f, half - 0.045f),
                     MatLib.Solid(new Color(0.88f, 0.88f, 0.84f), 0.3f));
@@ -245,7 +310,9 @@ namespace PN3D.Game.Art
                     MatLib.Solid(new Color(0.88f, 0.88f, 0.84f), 0.3f));
 
             // ---- wheels ----
-            const float WheelW = 0.24f;
+            // Width scales with radius, so a lifted pickup gets fat tyres and a coupe gets
+            // wide low ones without either being hand-tuned.
+            float wheelW = wheelR * st.WheelWFrac;
             var tyreMat  = MatLib.Rubber();
             // metallic 0.72 rather than near-1: with only a skybox reflection to draw on,
             // a near-mirror alloy just samples the ground and reads as a khaki blob
@@ -278,7 +345,7 @@ namespace PN3D.Game.Art
                 wheel.localPosition = front ? Vector3.zero : new Vector3(x, wheelR, az);
                 spin.Add(wheel);
 
-                BuildWheel(wheel, mount, wheel.localPosition, wheelR, WheelW, x > 0,
+                BuildWheel(wheel, mount, wheel.localPosition, wheelR, wheelW, x > 0, st.Spokes,
                            tyreMat, alloyMat, lipMat, wellMat, calMat);
 
                 Geo.Node("Arch", body, archMesh, dark,
@@ -290,11 +357,14 @@ namespace PN3D.Game.Art
             // Inset from the reference's own 0.82 x width at +/-(half - 0.03): the hull's
             // plan superellipse rounds the nose and tail hard, so a bar sized to the full
             // beam pokes out of the corners as two floating black rods.
-            var bumper = MatLib.Solid(new Color(0.141f, 0.149f, 0.180f), 0.25f);
-            Geo.Node("BumperF", body, Geo.Cylinder(0.07f, 0.07f, wid * 0.70f, 10), bumper,
-                     new Vector3(0, wheelR + 0.05f, half - 0.13f), Quaternion.Euler(0, 0, 90));
-            Geo.Node("BumperR", body, Geo.Cylinder(0.07f, 0.07f, wid * 0.70f, 10), bumper,
-                     new Vector3(0, wheelR + 0.05f, -half + 0.13f), Quaternion.Euler(0, 0, 90));
+            if (st.Bumpers)
+            {
+                var bumper = MatLib.Solid(new Color(0.141f, 0.149f, 0.180f), 0.25f);
+                Geo.Node("BumperF", body, Geo.Cylinder(0.06f, 0.06f, wid * 0.66f, 10), bumper,
+                         new Vector3(0, wheelR + 0.05f, half - 0.16f), Quaternion.Euler(0, 0, 90));
+                Geo.Node("BumperR", body, Geo.Cylinder(0.06f, 0.06f, wid * 0.66f, 10), bumper,
+                         new Vector3(0, wheelR + 0.05f, -half + 0.16f), Quaternion.Euler(0, 0, 90));
+            }
 
             float lightY = baseY + bodyH * 0.62f;
             // A lens, not a lamp. Mission 1 is broad daylight and headlights are off, so
@@ -304,30 +374,123 @@ namespace PN3D.Game.Art
             // the nose at midday. Give it a lamp when there is a night district to need one.
             var headMat = MatLib.Solid(new Color(0.82f, 0.81f, 0.76f), 0.92f, 0.15f);
 
-            // PAIRED PODS, NOT A FULL-WIDTH BAR. Same trap the bumpers above already
-            // dodge: the plan superellipse (pPlan 5.5) rounds the nose and tail hard, so
-            // any bar sized to the beam and pushed up against the tip escapes the
-            // bodywork at both corners. As a single cylinder this rendered as a cream rod
-            // sticking out of the nose and a red one out of the tail, clearly outside the
-            // silhouette. Two pods inboard of the corner radius cannot do that, and two
-            // round lenses look more like a car than one continuous strip anyway.
+            // LIGHT SIGNATURE. This is doing more work than its size suggests — the shape
+            // and placement of the lamps is the single strongest cue for "what kind of car
+            // is that", more than the body, which at 30 px on a phone is mostly silhouette.
             //
-            // They must still sit PROUD of the surface: at this lateral offset the nose
-            // has already drawn back from `half`, so a pod tucked fully inside z = half is
-            // swallowed by the hull and renders as nothing at all.
-            foreach (float lx in new[] { wid * 0.27f, -wid * 0.27f })
-                Geo.Node("Headlamp", body, Geo.Cylinder(0.058f, 0.058f, 0.10f, 12), headMat,
-                         new Vector3(lx, lightY, half - 0.03f), Quaternion.Euler(90, 0, 0),
-                         shadows: false);
+            // Whatever the shape, lamps must sit PROUD of the surface. At these lateral
+            // offsets the nose has already drawn back from `half` (the plan superellipse
+            // rounds it hard), so anything tucked fully inside z = half is swallowed by the
+            // hull and renders as nothing. Equally, a bar sized to the full beam escapes
+            // the bodywork at both corners and floats — which is exactly how the original
+            // full-width cylinder failed.
+            switch (st.Head)
+            {
+                case HeadSig.Slim:
+                    // 18% of the beam, not 30%. At 30% these were 55 cm boxes reading as
+                    // white handlebars bolted across the nose.
+                    foreach (float lx in new[] { wid * 0.25f, -wid * 0.25f })
+                        Geo.Node("Headlamp", body, Geo.UnitCube, headMat,
+                                 new Vector3(lx, lightY, half - 0.025f), Quaternion.identity,
+                                 new Vector3(wid * 0.18f, bodyH * 0.075f, 0.09f), shadows: false);
+                    break;
+                case HeadSig.Quad:
+                    foreach (float lx in new[] { wid * 0.30f, wid * 0.18f, -wid * 0.18f, -wid * 0.30f })
+                        Geo.Node("Headlamp", body, Geo.Cylinder(0.043f, 0.043f, 0.09f, 12), headMat,
+                                 new Vector3(lx, lightY, half - 0.03f), Quaternion.Euler(90, 0, 0),
+                                 shadows: false);
+                    break;
+                default:
+                    foreach (float lx in new[] { wid * 0.27f, -wid * 0.27f })
+                        Geo.Node("Headlamp", body, Geo.Cylinder(0.058f, 0.058f, 0.10f, 12), headMat,
+                                 new Vector3(lx, lightY, half - 0.03f), Quaternion.Euler(90, 0, 0),
+                                 shadows: false);
+                    break;
+            }
 
             // brake light gets its own instance: the driver flares it, so it must not be
             // shared with any other car's tail lamps
             var brakeMat = new Material(MatLib.Emissive(new Color(0.33f, 0.07f, 0.07f),
                                                         new Color(1f, 0.23f, 0.19f), 0.35f));
-            foreach (float lx in new[] { wid * 0.28f, -wid * 0.28f })
-                Geo.Node("Taillamp", body, Geo.Cylinder(0.052f, 0.052f, 0.10f, 12), brakeMat,
-                         new Vector3(lx, lightY + 0.04f, -half + 0.03f), Quaternion.Euler(90, 0, 0),
-                         shadows: false);
+            float tailY = lightY + 0.04f;
+            switch (st.Tail)
+            {
+                case TailSig.Bar:
+                    foreach (float lx in new[] { wid * 0.23f, -wid * 0.23f })
+                        Geo.Node("Taillamp", body, Geo.UnitCube, brakeMat,
+                                 new Vector3(lx, tailY, -half + 0.025f), Quaternion.identity,
+                                 new Vector3(wid * 0.20f, bodyH * 0.07f, 0.08f), shadows: false);
+                    break;
+                case TailSig.LShape:
+                    foreach (float sgn in new[] { 1f, -1f })
+                    {
+                        Geo.Node("Taillamp", body, Geo.UnitCube, brakeMat,
+                                 new Vector3(sgn * wid * 0.26f, tailY, -half + 0.025f),
+                                 Quaternion.identity,
+                                 new Vector3(wid * 0.17f, bodyH * 0.07f, 0.08f), shadows: false);
+                        // the short vertical return that makes it an L rather than a dash
+                        Geo.Node("TaillampR", body, Geo.UnitCube, brakeMat,
+                                 new Vector3(sgn * wid * 0.325f, tailY - bodyH * 0.07f, -half + 0.025f),
+                                 Quaternion.identity,
+                                 new Vector3(wid * 0.045f, bodyH * 0.15f, 0.08f), shadows: false);
+                    }
+                    break;
+                default:
+                    foreach (float lx in new[] { wid * 0.28f, -wid * 0.28f })
+                        Geo.Node("Taillamp", body, Geo.Cylinder(0.052f, 0.052f, 0.10f, 12), brakeMat,
+                                 new Vector3(lx, tailY, -half + 0.03f), Quaternion.Euler(90, 0, 0),
+                                 shadows: false);
+                    break;
+            }
+
+            // ---- archetype extras ----
+            if (st.RoofRails)
+                foreach (float rx in new[] { cabW * 0.36f, -cabW * 0.36f })
+                    Geo.Box("RoofRail", body, new Vector3(0.05f, 0.04f, cabLen * 0.72f),
+                            new Vector3(rx, roofY + 0.02f, roofZ), dark);
+
+            if (st.Spoiler)
+                Geo.Box("Spoiler", body, new Vector3(wid * 0.62f, 0.04f, 0.16f),
+                        new Vector3(0, baseY + bodyH + 0.05f, -half + 0.16f), dark);
+
+            if (st.Cladding)
+            {
+                foreach (float sx in new[] { wid * 0.49f, -wid * 0.49f })
+                    Geo.Box("Cladding", body, new Vector3(0.04f, bodyH * 0.18f, len * 0.52f),
+                            new Vector3(sx, baseY + bodyH * 0.14f, 0), dark);
+                Geo.Box("SkidF", body, new Vector3(wid * 0.42f, bodyH * 0.10f, 0.10f),
+                        new Vector3(0, baseY + bodyH * 0.06f, half - 0.10f),
+                        MatLib.Solid(new Color(0.55f, 0.56f, 0.58f), 0.45f));
+            }
+
+            if (st.LightBar)
+            {
+                Geo.Box("BarBase", body, new Vector3(wid * 0.52f, 0.04f, 0.13f),
+                        new Vector3(0, roofY + 0.03f, roofZ), dark);
+                Geo.Box("BarRed", body, new Vector3(wid * 0.22f, 0.07f, 0.11f),
+                        new Vector3(wid * 0.13f, roofY + 0.08f, roofZ),
+                        MatLib.Emissive(new Color(0.30f, 0.02f, 0.02f), new Color(1f, 0.12f, 0.10f), 1.6f));
+                Geo.Box("BarBlue", body, new Vector3(wid * 0.22f, 0.07f, 0.11f),
+                        new Vector3(-wid * 0.13f, roofY + 0.08f, roofZ),
+                        MatLib.Emissive(new Color(0.02f, 0.04f, 0.30f), new Color(0.16f, 0.35f, 1f), 1.6f));
+            }
+
+            if (st.TaxiSign)
+            {
+                Geo.Box("TaxiSign", body, new Vector3(wid * 0.30f, 0.11f, 0.13f),
+                        new Vector3(0, roofY + 0.06f, roofZ),
+                        MatLib.Emissive(new Color(0.20f, 0.16f, 0.03f), new Color(1f, 0.82f, 0.25f), 0.9f));
+                // the chequer stripe down the flank, which is what actually says "taxi"
+                foreach (float sx in new[] { wid * 0.505f, -wid * 0.505f })
+                    Geo.Box("TaxiStripe", body, new Vector3(0.02f, bodyH * 0.16f, len * 0.46f),
+                            new Vector3(sx, baseY + bodyH * 0.44f, 0),
+                            MatLib.Solid(new Color(0.08f, 0.08f, 0.09f), 0.4f));
+            }
+
+            if (st.Rust)
+                Geo.Box("Rust", body, new Vector3(0.04f, bodyH * 0.24f, len * 0.13f),
+                        new Vector3(wid / 2f - 0.08f, baseY + bodyH * 0.40f, -len * 0.08f),
+                        MatLib.Solid(new Color(0.478f, 0.290f, 0.180f), 0.05f));
 
             return new Rig
             {
@@ -355,7 +518,7 @@ namespace PN3D.Game.Art
         /// consciously notices and everybody feels. The disc itself does spin, correctly.
         /// </summary>
         static void BuildWheel(Transform wheel, Transform mount, Vector3 wheelPos,
-                               float r, float w, bool rightSide,
+                               float r, float w, bool rightSide, int spokeCount,
                                Material tyre, Material alloy, Material lip,
                                Material well, Material caliper)
         {
@@ -388,16 +551,19 @@ namespace PN3D.Game.Art
                 new Vector2(r * 0.600f, w * 0.48f),
             }, 24), lip, shadows: false);
 
-            const int Spokes = 5;
-            for (int i = 0; i < Spokes; i++)
+            int spokes = Mathf.Max(3, spokeCount);
+            // thinner spokes as the count goes up, so a ten-spoke rim reads as fine and
+            // expensive rather than as a solid disc
+            float spokeW = Mathf.Lerp(0.155f, 0.075f, Mathf.InverseLerp(5f, 10f, spokes));
+            for (int i = 0; i < spokes; i++)
             {
-                float a = Mathf.PI * 2f * i / Spokes;
+                float a = Mathf.PI * 2f * i / spokes;
                 // box local +Z points radially outward: Euler(0, 90 - a, 0) maps +Z to
                 // (cos a, 0, sin a)
                 Geo.Node("Spoke", gfx, Geo.UnitCube, alloy,
                          new Vector3(Mathf.Cos(a) * r * 0.37f, out_ * 0.46f, Mathf.Sin(a) * r * 0.37f),
                          Quaternion.Euler(0, 90f - a * Mathf.Rad2Deg, 0),
-                         new Vector3(r * 0.145f, w * 0.10f, r * 0.48f),
+                         new Vector3(r * spokeW, w * 0.10f, r * 0.48f),
                          shadows: false);
             }
 
@@ -419,14 +585,13 @@ namespace PN3D.Game.Art
         /// <summary>The player's hatch, with the rust patch the flavour text promises.</summary>
         public static Rig BuildHatch(Transform parent, VehicleDef veh)
         {
+            // Livery comes from vehicles.json, shape from the archetype table. The rust
+            // patch is now part of the RustyHatch style rather than bolted on afterwards,
+            // so it scales with the body instead of being three fixed numbers that only
+            // happened to land correctly on a 3.9 m car.
             var bodyC = ParseHex(veh.BodyHex, new Color(0.753f, 0.337f, 0.231f));
-            var roofC = ParseHex(veh.RoofHex, bodyC * 0.86f);
-            var rig = BuildStandard(parent, "hatch", veh, bodyC, roofC);
-
-            Geo.Box("Rust", rig.Body, new Vector3(0.04f, 0.14f, 0.5f),
-                    new Vector3((float)veh.Wid / 2f - 0.08f, 0.52f, -(float)veh.Len * 0.08f),
-                    MatLib.Solid(new Color(0.478f, 0.290f, 0.180f), 0.05f));
-            return rig;
+            var st = CarStyles.ForVehicle(veh.Key);
+            return Build(parent, veh.Key ?? "player", veh, st, bodyC);
         }
 
         public static Color ParseHex(string hex, Color fallback)

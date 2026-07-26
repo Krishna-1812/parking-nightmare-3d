@@ -105,6 +105,10 @@ namespace PN3D.Game
             carRoot.transform.position = ToWorld(run.Car.X, run.Car.Y);
             carRoot.transform.rotation = ToRotation(run.Car.H);
 
+            // Something for the paint to reflect. Attach after the rig exists so the whole
+            // car is already built when its layer is reassigned.
+            CarReflection.Attach(carRoot.transform, rig.WheelRadius + 0.8f);
+
             return new Built
             {
                 Root = root,

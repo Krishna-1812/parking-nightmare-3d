@@ -27,17 +27,6 @@ namespace PN3D.Game
 
         Transform _root;
 
-        static readonly Color[] BodyColors =
-        {
-            new Color(0.82f, 0.28f, 0.26f), new Color(0.25f, 0.45f, 0.78f),
-            new Color(0.93f, 0.78f, 0.22f), new Color(0.30f, 0.62f, 0.40f),
-            new Color(0.85f, 0.85f, 0.87f), new Color(0.28f, 0.30f, 0.34f),
-            new Color(0.75f, 0.45f, 0.20f), new Color(0.55f, 0.35f, 0.65f),
-        };
-
-        static Color ColorFor(int id)
-            => BodyColors[((id % BodyColors.Length) + BodyColors.Length) % BodyColors.Length];
-
         void Awake()
         {
             _root = new GameObject("PN3D_Actors").transform;
@@ -54,13 +43,20 @@ namespace PN3D.Game
         static CarView.Rig MakeCar(Transform parent, int id, double len, double wid, string kind)
         {
             var veh = new VehicleDef { Key = kind, Len = len, Wid = wid, Hgt = 1.5 };
-            var body = ColorFor(id);
-            bool tall = kind == "truck" || kind == "bus";
-            var rig = CarView.BuildStandard(parent, $"{kind}_{id}", veh, body, body * 0.82f,
-                                            bodyH: tall ? 1.5f : 0.62f,
-                                            cabHeight: tall ? 0.9f : 0.55f,
-                                            cabLenFrac: tall ? 0.42f : 0.5f,
-                                            wheelR: tall ? 0.44f : 0.34f);
+
+            // Style and paint are both keyed off the car's id, so one "sedan" is an
+            // executive saloon in gunmetal and the next is a fastback coupe in pearl white.
+            // Deterministic on purpose: traffic cars are pooled and re-shown, and a car
+            // that changed shape when it was recycled would be very obvious in the mirror.
+            var st = CarStyles.ForTraffic(kind, id);
+            var body = kind switch
+            {
+                "taxi" => CarStyles.TaxiYellow,
+                "police" => CarStyles.PoliceWhite,
+                _ => CarStyles.PaintFor(id),
+            };
+
+            var rig = CarView.Build(parent, $"{kind}_{id}", veh, st, body);
             rig.Root.name = $"Traffic_{id}";
             return rig;
         }
