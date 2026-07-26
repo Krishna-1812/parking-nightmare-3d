@@ -32,9 +32,26 @@ namespace PN3D.Game
             Time.maximumDeltaTime = 10f / 120f;
 
             Run = CreateRun(MissionId);
-            if (Run == null) return;
+            if (Run == null)
+            {
+                FatalOverlay.Show(gameObject, $"mission {MissionId} could not be created",
+                                  new System.IO.FileNotFoundException(
+                                      "missions.json / vehicles.json did not load"));
+                return;
+            }
 
-            var built = WorldBuilder.Build(Run, transform);
+            WorldBuilder.Built built;
+            try
+            {
+                built = WorldBuilder.Build(Run, transform);
+            }
+            catch (System.Exception e)
+            {
+                // Without this the app runs happily at full framerate showing an empty
+                // world, which on a release build is indistinguishable from a camera bug.
+                FatalOverlay.Show(gameObject, "world construction failed", e);
+                return;
+            }
 
             Driver = gameObject.AddComponent<MissionDriver>();
             Driver.Init(Run, built.Car, built.CarBody, built.CarRig);

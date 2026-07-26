@@ -55,14 +55,43 @@
             </ui:VisualElement>
         </ui:VisualElement>
 
+        <!-- ============================ touch controls ===========================
+             Hidden unless the platform is actually touch. picking-mode Ignore on the
+             container so the empty middle of the screen never eats a tap; the pads
+             themselves pick normally.
+
+             The wheel is a rotary drag, not a slider, because that is what the web build
+             ships (src/n3_b.js setupTouch) and its +/-120 degrees of travel maps to the
+             same -1..1 the keyboard produces. Keeping the mapping identical is what lets
+             the tuned par times mean the same thing on a phone. -->
+        <ui:VisualElement name="touch" class="touch hidden" picking-mode="Ignore">
+            <ui:VisualElement name="wheel" class="wheel">
+                <ui:VisualElement name="wheel-gfx" class="wheel-gfx" picking-mode="Ignore">
+                    <ui:VisualElement class="wheel-spoke" picking-mode="Ignore" />
+                    <ui:VisualElement class="wheel-hub" picking-mode="Ignore" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="pedals" picking-mode="Ignore">
+                <ui:VisualElement name="pad-hb" class="pad pad-hb">
+                    <ui:Label text="HAND" class="pad-label" />
+                </ui:VisualElement>
+                <ui:VisualElement name="pad-brake" class="pad pad-brake">
+                    <ui:Label text="BRAKE" class="pad-label" />
+                </ui:VisualElement>
+                <ui:VisualElement name="pad-gas" class="pad pad-gas">
+                    <ui:Label text="GO" class="pad-label" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
         <!-- ============================== overlays ============================== -->
         <ui:VisualElement name="brief" class="overlay hidden" picking-mode="Ignore">
             <ui:VisualElement class="card" picking-mode="Ignore">
                 <ui:Label name="brief-title" text="MISSION 1" class="card-title" />
                 <ui:Label name="brief-text" text="" class="card-body" />
                 <ui:Label name="brief-meta" text="" class="card-meta" />
-                <ui:Label text="WASD or arrows to drive    ·    SPACE handbrake" class="card-keys" />
-                <ui:Label text="press any key to start" class="card-prompt" />
+                <ui:Label name="brief-keys" text="WASD or arrows to drive    ·    SPACE handbrake" class="card-keys" />
+                <ui:Label name="brief-prompt" text="press any key to start" class="card-prompt" />
             </ui:VisualElement>
         </ui:VisualElement>
 

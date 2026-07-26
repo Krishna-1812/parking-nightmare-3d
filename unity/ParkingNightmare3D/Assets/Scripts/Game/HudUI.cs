@@ -20,6 +20,13 @@ namespace PN3D.Game
     {
         public MissionDriver Driver;
 
+        /// <summary>
+        /// The on-screen controls, once the visual tree exists. Null until OnEnable has
+        /// run. Exposed because Attach cannot hand these to the driver from inside
+        /// OnEnable — see the note there.
+        /// </summary>
+        public TouchControls Touch { get; private set; }
+
         VisualElement _root;
         VisualElement _shamePanel, _shameFill, _mouth, _face, _align, _holdFill, _popups;
         VisualElement _brief, _results, _failed, _resLines;
@@ -53,8 +60,15 @@ namespace PN3D.Game
             doc.panelSettings = panel;
             doc.visualTreeAsset = tree;
 
+            // AddComponent runs OnEnable synchronously, so the line below is already too
+            // late for anything OnEnable reads — AttachTouch has run and found Driver null.
+            // The touch controls are therefore collected from the HUD afterwards rather
+            // than pushed from inside it. Symptom when this was wrong: the wheel and pads
+            // drew correctly and did absolutely nothing, because TouchControls unhides
+            // itself in its constructor but only the driver ever reads it.
             var hud = host.AddComponent<HudUI>();
             hud.Driver = driver;
+            if (hud.Touch != null && driver != null) driver.Touch = hud.Touch;
             return hud;
         }
 
@@ -109,6 +123,30 @@ namespace PN3D.Game
             _failed = _root.Q("failed");
             _failTitle = _root.Q<Label>("fail-title");
             _failSub = _root.Q<Label>("fail-sub");
+
+            AttachTouch();
+        }
+
+        /// <summary>
+        /// Build the on-screen controls and hand them to the driver. Done here rather
+        /// than in Attach because the visual tree only exists once the UIDocument is
+        /// enabled, and the controls need the live elements to hit-test against.
+        /// </summary>
+        void AttachTouch()
+        {
+            var touch = new TouchControls(_root);
+            Touch = touch;
+            // Set here too, for the authored-scene path where Driver is bound in the
+            // inspector and is therefore already live by the time OnEnable runs.
+            if (Driver != null) Driver.Touch = touch;
+            if (!touch.Enabled) return;
+
+            // The brief tells the player how to drive; on a phone the keyboard line is
+            // a lie and "press any key" has nothing to press.
+            var keys = _root.Q<Label>("brief-keys");
+            if (keys != null) keys.text = "wheel to steer    ·    GO and BRAKE    ·    HAND for handbrake";
+            var prompt = _root.Q<Label>("brief-prompt");
+            if (prompt != null) prompt.text = "tap to start";
         }
 
         static void Show(VisualElement e, bool on)

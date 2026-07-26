@@ -60,12 +60,15 @@ ParkingNightmare3D/
   Assets/Scripts/Game/        Unity layer (asmdef PN3D.Game)
     MissionHost.cs            assembles one mission: world, driver, camera, HUD
     Bootstrap.cs              fallback entry point when a scene has no MissionHost
+    AppConfig.cs              process-wide runtime settings; forces 60fps on mobile
     WorldBuilder.cs           orchestrates the world; owns the coordinate mapping
     MissionDriver.cs          120 Hz FixedUpdate + render interpolation
     ChaseCamera.cs            chase view easing to overhead assist in the zone
     ActorViews.cs             traffic cars and jointed pedestrians
     HudUI.cs                  binds the UI Toolkit HUD to the run
-    DataPaths.cs              locates design-spec/data
+    TouchControls.cs          on-screen wheel and pedals, ported from n3_b.js
+    FatalOverlay.cs           last-resort IMGUI error display for release builds
+    DataPaths.cs              locates the mission data (Resources, then the repo)
 
   Assets/Scripts/Game/Art/    the art pipeline (see below)
     Raster.cs                 software rasteriser: the Canvas 2D subset the painters need
@@ -94,6 +97,9 @@ ParkingNightmare3D/
     SliceTools.cs             headless smoke test + world screenshot capture
     SceneBuilder.cs           regenerates Mission01.unity and the panel settings
     PlayCapture.cs            play-mode run that captures the HUD
+    AndroidBuild.cs           Android player settings + APK / AAB build
+    DesktopBuild.cs           Windows player, the fast diagnostic loop
+    DataSync.cs               mirrors design-spec/data into Resources
 ```
 
 ### Running it
@@ -101,6 +107,13 @@ ParkingNightmare3D/
 Open `Assets/Scenes/Mission01.unity` and press Play. WASD or arrows to drive, space for
 handbrake. Pressing Play in any *other* scene also works: `Bootstrap` notices there is no
 `MissionHost` and spawns one, which is what the editor tooling relies on.
+
+On a touch platform the HUD also shows a rotary steering wheel and gas / brake /
+handbrake pads (`TouchControls`). They are hidden in the editor; call
+`Driver.Touch.ForceEnable()` to exercise them with the mouse. Their input does **not**
+come from UI Toolkit pointer events — it is read off the `Touchscreen` device and
+hit-tested against each element's rect, because UI Toolkit's runtime panel routes one
+primary pointer and holding gas while turning the wheel is two fingers at once.
 
 Headless, no editor interaction:
 
@@ -127,6 +140,117 @@ used either — it tears the editor down before play mode starts — so the runn
 similar: entering play mode reloads the domain, which silently drops static event
 subscriptions, so the handoff goes through `SessionState` rather than a
 `playModeStateChanged` handler registered just before the transition.
+
+### Android build
+
+The Android module is **not** part of a stock editor install — `Unity Hub.exe -- --headless
+install-modules --version 6000.5.5f1 --module android --childModules` adds it, together
+with the SDK, NDK and OpenJDK, for about 7.7 GB on disk.
+
+Everything Play cares about is set from script rather than clicked, in
+`Assets/Scripts/Editor/AndroidBuild.cs`, because the project arrived carrying the URP
+template's defaults and several of them produce a binary Google rejects outright:
+
+| Setting | Template default | Here | Why |
+|---|---|---|---|
+| Architecture | ARMv7 only | ARM64 | 64-bit has been mandatory on Play since 2019 |
+| Scripting backend | Mono | IL2CPP | forced by ARM64 |
+| Package id | `com.UnityTechnologies.com.unity.template.urpblank` | `com.krishnaladha.parkingnightmare3d` | **permanent after the first Play upload** |
+| Min SDK | 22 | 26 | 24 is requested; 6000.5.5f1 clamps up to its own floor of 26 |
+| Orientation | auto-rotate, all four | landscape only | portrait would reframe the parking approach mid-mission |
+| Signing | debug keystore | env-var keystore, debug if unset | Play rejects debug-signed uploads |
+
+```bash
+"C:/Program Files/Unity/Hub/Editor/6000.5.5f1/Editor/Unity.exe" -quit -batchmode -nographics -projectPath unity/ParkingNightmare3D -buildTarget Android -executeMethod PN3D.EditorTools.AndroidBuild.BuildApk -logFile android-build.log
+```
+
+`BuildAab` instead of `BuildApk` produces the App Bundle Play wants. Unlike the HUD
+capture, a player build **is** happy in `-batchmode`: it never enters play mode, so it
+never hits the assembly reload that wedges headless Unity. Pass `-buildTarget Android` so
+the editor opens already switched rather than switching mid-`executeMethod`.
+
+Release signing is read from the environment, so no password is ever committed:
+
+```bash
+export PN3D_KEYSTORE=/c/Users/<you>/.pn3d-keys/upload.keystore
+export PN3D_KEYSTORE_PASS=... PN3D_KEYALIAS=upload PN3D_KEYALIAS_PASS=...
+```
+
+With `PN3D_KEYSTORE` unset the build signs with Unity's debug keystore — installable over
+`adb`, rejected by Play. Create the real one with the JDK the Android module already
+installed, and **keep it somewhere backed up**: lose it and the listing can never be
+updated again.
+
+```bash
+"C:/Program Files/Unity/Hub/Editor/6000.5.5f1/Editor/Data/PlaybackEngines/AndroidPlayer/OpenJDK/bin/keytool" -genkeypair -v -keystore upload.keystore -alias upload -keyalg RSA -keysize 2048 -validity 10000
+```
+
+`adb` ships with the module, at
+`Editor/Data/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb.exe`.
+
+#### Connecting the device over Wi-Fi
+
+Preferred over USB — no cable to be flaky, and a reinstall is ~12 s for a 30 MB APK.
+Enable **Developer options → Wireless debugging**, tap *Pair device with pairing code*,
+then:
+
+```bash
+adb pair <ip>:<pairing-port> <code> && adb mdns services && adb connect <ip>:<connect-port>
+```
+
+Two traps, both of which cost time here:
+
+- **The pairing port and the connect port are different**, and the IP the pairing dialog
+  shows can be for a *different interface* than the one you can reach. `adb mdns services`
+  lists the true address for both `_adb-tls-pairing._tcp` and `_adb-tls-connect._tcp` —
+  read it from there rather than off the phone's screen.
+- **`adb pair` fails with `protocol fault (couldn't read status message)` when the network
+  is blocking client-to-client traffic**, which reads like a bad code but is not. Confirm
+  with `ping`: a reply of *"Destination host unreachable"* from your own IP, plus a null
+  MAC in `Get-NetNeighbor`, means ARP got no answer and the router has AP isolation on.
+  Turning the phone's **hotspot** on and joining the PC to it sidesteps the router
+  entirely and is the fastest fix.
+
+Because the phone is then the gateway, its own address is *not* `x.x.x.1` — on the OnePlus
+here it took `.140` while the PC got `.179`. Trust mDNS, not the convention.
+
+#### Debugging a player build
+
+**An Android release build logs nothing under the `Unity` tag**, so a crash and a
+mis-aimed camera look identical from the outside. `FatalOverlay` exists for this:
+`MissionHost` catches anything thrown out of world construction and draws the exception on
+screen in IMGUI, which has no dependency on the HUD assets that might themselves be what
+failed.
+
+**Filter logcat by PID, not by tag.** An earlier note here claimed ColorOS drops
+third-party output entirely. It does not — that conclusion came from filtering on `-s
+Unity`, which is silent on a release build, and reading nothing. The framework tags are
+all there and they are worth a great deal:
+
+```bash
+adb -s <serial> logcat -d --pid=$(adb -s <serial> shell pidof com.krishnaladha.parkingnightmare3d)
+```
+
+`VRI[UnityPlayerActivity]` gives surface size and rotation, and
+`DynamicFramerate`/`ViewRootImplExtImpl` log every `MotionEvent` the window receives with
+its action code. That is how the dead touch controls were pinned down: the events were
+provably arriving at the Unity view (`action = 0` then `action = 1`) while the game did
+nothing, which ruled out adb injection and pointed straight at the wiring.
+
+The **Windows player** is still the right loop for anything that isn't touch- or
+device-specific, because it is five times faster and writes a real `Player.log`:
+
+```bash
+"C:/Program Files/Unity/Hub/Editor/6000.5.5f1/Editor/Unity.exe" -quit -batchmode -nographics -projectPath unity/ParkingNightmare3D -buildTarget Win64 -executeMethod PN3D.EditorTools.DesktopBuild.BuildWindows -logFile win.log
+```
+
+It builds in **under a minute warm** against 12–18 for Android IL2CPP, writes a real
+`Player.log`, and reproduces what actually differs from the editor: shader variant
+stripping, engine code stripping, Resources-only data loading, and runtime-created
+materials with no material assets for the stripper to learn from. It is not a shipping
+target — it exists so a device bug can be reproduced in a minute instead of twenty.
+Run it with `-logFile <path>` and close it with `CloseMainWindow`, not `Kill`, or the tail
+of the log is lost.
 
 ### Art pipeline
 
@@ -196,6 +320,11 @@ beam). Their shame sources are wired (`ShameSystem.Pothole`, `Airborne`, `BusArm
 `VehicleSim` covers the `car` drive model, which is 7 of the 9 vehicles. `tank` (§3.2)
 and `ufo` (§3.3) are not ported yet — they are not needed until missions 10 and 11, and
 the slice is mission 1.
+
+Audio is entirely absent, and so is everything in §11 that needs a store account behind
+it: IAP, rewarded video, native leaderboards, analytics and cloud save. The Android build
+described above is a plain unsigned-for-Play player build — it proves the game runs on
+device, not that it is ready to list.
 
 `PN3D.Core` sets `"noEngineReferences": true`. That is load-bearing, not tidiness: it
 makes the core compile without `UnityEngine`, which is what lets the desktop .NET
@@ -301,10 +430,43 @@ hundreds to tens of thousands of failures. A suite that cannot fail proves nothi
   model; substituting real vehicle physics invalidates every par time and star threshold.
 - **Enrich before compiling.** `data/missions.json` is pre-enrichment. Use
   `RouteCompiler.CompileMission`, which does both in order. See DESIGN_SPEC §5.1.
+- **Every shader must be listed in Always Included Shaders**
+  (`ProjectSettings/GraphicsSettings.asset`) — `PN3D/SkyGradient`, `PN3D/Silhouette`,
+  **and URP's own `Lit` and `Unlit`.** There is not one material asset in this project;
+  `MatLib` creates all of them at runtime, so from the build pipeline's point of view no
+  shader is referenced by anything and none get shipped. The first Android build proved
+  it: `Shader.Find("Universal Render Pipeline/Lit")` returned null on device,
+  `new Material(null)` threw inside `BuildGround`, and the app ran at a locked 60fps
+  showing Unity's default skybox and nothing else. `MatLib.Resolve` now throws with the
+  reason, and `AndroidBuild.AssertShadersIncluded` fails the build if the list is undone.
+- **The on-screen wheel is not analog steering.** `SteerAnalog` stays false for it, only
+  tilt sets it true. That looks wrong — the wheel *is* an absolute position — but
+  src/n3_b.js:694 does exactly this on purpose so the wheel keeps the keyboard's feel,
+  and the par times were tuned against it.
+- **Flip Y before `RuntimePanelUtils.ScreenToPanel`.** The Input System reports screen
+  space bottom-left origin, UI Toolkit panel space is top-left, and `ScreenToPanel` only
+  undoes the panel's *scaling* — it does not flip. Miss it and every hit test against a
+  `VisualElement` is mirrored vertically while rendering looks perfect: on device, pressing
+  GO where it is drawn did nothing and pressing the empty sky above it pressed GO.
+  `TouchControls.ToPanel` is the only place this conversion should happen.
+- **Assign fields before `AddComponent` returns, not after.** `AddComponent` runs `OnEnable`
+  synchronously, so `host.AddComponent<HudUI>(); hud.Driver = driver;` leaves `Driver` null
+  for the whole of `OnEnable`. That silently cost the touch controls their driver reference
+  — they rendered and did nothing, because `TouchControls` unhides itself in its own
+  constructor. `HudUI.Attach` now collects `hud.Touch` afterwards instead of pushing it
+  from inside.
 
 ## Mission data
 
-`Assets/Scripts/Core` reads `design-spec/data/*.json` — those files stay the single
-source of truth and are not duplicated into the project. Wiring them in as a runtime
-asset (StreamingAssets or an addressable) comes with milestone step 4; the validator
-currently reads them straight off disk.
+`design-spec/data/*.json` stays the single source of truth and is still never edited in
+two places. `PN3D.EditorTools.DataSync` **mirrors** it into `Assets/Resources/Data/*.txt`
+on editor load and again at the top of every player build; the mirror is generated and
+gitignored, so it cannot drift. `DataPaths.Load` reads the mirror, falling back to the
+repo copy on disk so a fresh clone still plays before the sync has ever run. The
+validator reads `design-spec/data` directly, as before.
+
+**Resources, not StreamingAssets** — the original plan. On Android, StreamingAssets lives
+inside the compressed APK and has no filesystem path at all: `File.Exists` returns false
+and the only way in is an async `UnityWebRequest`. The files are small, wanted
+synchronously in `Awake`, and never patched at runtime, which is the case Resources is
+for. Revisit only if mission data ever needs to ship separately from the binary.

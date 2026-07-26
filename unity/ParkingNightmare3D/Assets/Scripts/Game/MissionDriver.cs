@@ -37,6 +37,9 @@ namespace PN3D.Game
         /// </summary>
         public System.Func<VehicleInput> InputOverride;
 
+        /// <summary>On-screen controls, attached by <see cref="HudUI"/>. Null on desktop.</summary>
+        public TouchControls Touch;
+
         Transform _car;
         Transform _carBody;
         Art.CarView.Rig _rig;
@@ -75,10 +78,13 @@ namespace PN3D.Game
             CountdownT = 3.0;
         }
 
-        static VehicleInput ReadInput()
+        VehicleInput ReadInput()
         {
             var kb = Keyboard.current;
-            if (kb == null) return VehicleInput.Idle;
+
+            // Keyboard wins when a key is actually down, otherwise the on-screen wheel
+            // takes over — the same precedence as the reference's Input.steer getter.
+            if (kb == null) return Touch != null && Touch.Enabled ? Touch.Read() : VehicleInput.Idle;
 
             double steer = 0, throttle = 0;
             if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) steer -= 1;
@@ -86,20 +92,33 @@ namespace PN3D.Game
             if (kb.wKey.isPressed || kb.upArrowKey.isPressed) throttle += 1;
             if (kb.sKey.isPressed || kb.downArrowKey.isPressed) throttle -= 1;
 
+            bool handbrake = kb.spaceKey.isPressed;
+
+            if (Touch != null && Touch.Enabled)
+            {
+                var t = Touch.Read();
+                if (steer == 0) steer = t.Steer;
+                if (throttle == 0) throttle = t.Throttle;
+                handbrake |= t.Handbrake;
+            }
+
             return new VehicleInput
             {
                 Steer = steer,
                 Throttle = throttle,
-                Handbrake = kb.spaceKey.isPressed,
+                Handbrake = handbrake,
                 SteerAnalog = false,   // keyboard takes the swept path (§4)
             };
         }
 
         void Update()
         {
+            Touch?.Update();
+
             var kb = Keyboard.current;
-            if (kb != null && kb.anyKey.wasPressedThisFrame && Stage == RunStage.Brief)
-                BeginCountdown();
+            bool start = (kb != null && kb.anyKey.wasPressedThisFrame)
+                         || (Touch != null && Touch.TappedThisFrame);
+            if (start && Stage == RunStage.Brief) BeginCountdown();
 
             if (Time.time > _thresholdUntil) ThresholdBanner = null;
             Popups.RemoveAll(p => Time.time > p.Until);

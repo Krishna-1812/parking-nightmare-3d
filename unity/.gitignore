@@ -1,6 +1,7 @@
 # Unity generated / machine-local — everything here is rebuilt on open
 [Ll]ibrary/
 [Tt]emp/
+.utmp/
 [Oo]bj/
 [Bb]uild/
 [Bb]uilds/
@@ -35,6 +36,20 @@ crashlytics-build.properties
 sysinfo.txt
 *.stackdump
 
+# NOTE ON THE PATTERNS BELOW. A pattern containing a slash anywhere but the end is
+# anchored to THIS file's directory, so "Assets/..." would only ever match unity/Assets
+# and silently never match unity/ParkingNightmare3D/Assets. The leading **/ is what makes
+# them match at any depth. Patterns like Library/ above are fine without it.
+
 # written when the editor is killed mid-edit; never part of the project
-[Aa]ssets/_Recovery/
-[Aa]ssets/_Recovery.meta
+**/[Aa]ssets/_Recovery/
+**/[Aa]ssets/_Recovery.meta
+
+# generated mirror of design-spec/data, rewritten by PN3D.EditorTools.DataSync on
+# editor load and before every build — design-spec/data stays the only copy anyone edits
+**/[Aa]ssets/Resources/Data/
+**/[Aa]ssets/Resources/Data.meta
+
+# written into Assets/Resources by the Performance Testing package, not authored
+**/[Aa]ssets/Resources/PerformanceTestRun*.json
+**/[Aa]ssets/Resources/PerformanceTestRun*.json.meta

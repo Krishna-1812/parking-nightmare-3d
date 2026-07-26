@@ -452,3 +452,159 @@
     color: rgba(255, 255, 255, 0.72);
     margin-top: 10px;
 }
+
+/* ------------------------------------------------------------ touch controls
+
+   Only shown on a touch platform (PN3D.Game.TouchControls toggles .hidden).
+
+   Placement follows rule 1 above: both clusters sit in the bottom corners, below the
+   horizon in every camera pose, so a thumb never covers the parking spot the player is
+   lining up on. They are deliberately large — a 300px wheel at the 1920 reference is
+   about 22mm on a 6" phone, which is the smallest a rotary drag can be before the
+   fine steering corrections the tolerance check demands become guesswork. */
+
+.touch {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.wheel {
+    position: absolute;
+    left: 60px;
+    bottom: 48px;
+    width: 300px;
+    height: 300px;
+    border-top-left-radius: 150px;
+    border-top-right-radius: 150px;
+    border-bottom-left-radius: 150px;
+    border-bottom-right-radius: 150px;
+    background-color: rgba(10, 12, 18, 0.34);
+    border-left-width: 3px;
+    border-right-width: 3px;
+    border-top-width: 3px;
+    border-bottom-width: 3px;
+    border-left-color: rgba(255, 255, 255, 0.20);
+    border-right-color: rgba(255, 255, 255, 0.20);
+    border-top-color: rgba(255, 255, 255, 0.26);
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+.wheel.down {
+    background-color: rgba(255, 194, 62, 0.20);
+    border-left-color: rgba(255, 194, 62, 0.65);
+    border-right-color: rgba(255, 194, 62, 0.65);
+    border-top-color: rgba(255, 194, 62, 0.65);
+    border-bottom-color: rgba(255, 194, 62, 0.65);
+}
+
+.wheel-gfx {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+}
+
+/* the single spoke is the whole readout: its tilt IS the steer value */
+.wheel-spoke {
+    position: absolute;
+    top: 16px;
+    width: 12px;
+    height: 132px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.78);
+}
+
+.wheel-hub {
+    width: 66px;
+    height: 66px;
+    border-top-left-radius: 33px;
+    border-top-right-radius: 33px;
+    border-bottom-left-radius: 33px;
+    border-bottom-right-radius: 33px;
+    background-color: rgba(255, 255, 255, 0.20);
+}
+
+.pedals {
+    position: absolute;
+    right: 56px;
+    bottom: 48px;
+    flex-direction: row;
+    align-items: flex-end;
+}
+
+.pad {
+    width: 128px;
+    height: 128px;
+    margin-left: 16px;
+    align-items: center;
+    justify-content: center;
+    border-top-left-radius: 64px;
+    border-top-right-radius: 64px;
+    border-bottom-left-radius: 64px;
+    border-bottom-right-radius: 64px;
+    background-color: rgba(10, 12, 18, 0.42);
+    border-left-width: 3px;
+    border-right-width: 3px;
+    border-top-width: 3px;
+    border-bottom-width: 3px;
+    border-left-color: rgba(255, 255, 255, 0.18);
+    border-right-color: rgba(255, 255, 255, 0.18);
+    border-top-color: rgba(255, 255, 255, 0.24);
+    border-bottom-color: rgba(255, 255, 255, 0.10);
+}
+
+/* gas is the one held almost continuously, so it is the biggest and furthest out —
+   the thumb rests there and reaches inward for the other two */
+.pad-gas {
+    width: 168px;
+    height: 168px;
+    border-top-left-radius: 84px;
+    border-top-right-radius: 84px;
+    border-bottom-left-radius: 84px;
+    border-bottom-right-radius: 84px;
+}
+
+.pad-hb {
+    width: 104px;
+    height: 104px;
+    border-top-left-radius: 52px;
+    border-top-right-radius: 52px;
+    border-bottom-left-radius: 52px;
+    border-bottom-right-radius: 52px;
+}
+
+.pad-label {
+    font-size: 20px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    color: rgba(255, 255, 255, 0.80);
+}
+
+.pad-gas .pad-label {
+    font-size: 26px;
+}
+
+.pad.down {
+    background-color: rgba(255, 194, 62, 0.30);
+    border-left-color: rgba(255, 194, 62, 0.75);
+    border-right-color: rgba(255, 194, 62, 0.75);
+    border-top-color: rgba(255, 194, 62, 0.75);
+    border-bottom-color: rgba(255, 194, 62, 0.75);
+}
+
+.pad-brake.down {
+    background-color: rgba(255, 118, 110, 0.30);
+    border-left-color: rgba(255, 118, 110, 0.80);
+    border-right-color: rgba(255, 118, 110, 0.80);
+    border-top-color: rgba(255, 118, 110, 0.80);
+    border-bottom-color: rgba(255, 118, 110, 0.80);
+}

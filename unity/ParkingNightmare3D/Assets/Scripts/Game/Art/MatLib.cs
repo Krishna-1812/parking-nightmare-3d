@@ -17,11 +17,36 @@ namespace PN3D.Game.Art
 
         static Shader _lit, _unlit;
 
-        public static Shader Lit => _lit != null ? _lit
-            : _lit = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+        public static Shader Lit => _lit != null ? _lit : _lit = Resolve("Universal Render Pipeline/Lit");
 
-        public static Shader Unlit => _unlit != null ? _unlit
-            : _unlit = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
+        public static Shader Unlit => _unlit != null ? _unlit : _unlit = Resolve("Universal Render Pipeline/Unlit");
+
+        /// <summary>
+        /// Find a shader, or fail with the reason rather than with a null.
+        ///
+        /// This exists because of how it failed the first time. A player build ships only
+        /// the shaders something references, and "something" means a material ASSET —
+        /// every material here is created at runtime, so from the build pipeline's point
+        /// of view URP/Lit is unused and gets dropped. Shader.Find then returned null,
+        /// `new Material(null)` threw from inside BuildGround, and the app ran happily at
+        /// 60fps rendering nothing but the default skybox.
+        ///
+        /// The old code masked it further by falling back to Shader.Find("Standard"),
+        /// which cannot exist in a URP project either, so the null propagated instead of
+        /// the lookup failing where it went wrong. The fix is the Always Included Shaders
+        /// list in ProjectSettings/GraphicsSettings.asset; this is the tripwire that says
+        /// so out loud if anyone removes them.
+        /// </summary>
+        static Shader Resolve(string name)
+        {
+            var s = Shader.Find(name);
+            if (s == null)
+                throw new System.InvalidOperationException(
+                    $"Shader '{name}' is not in this build. Every material in PN3D is created " +
+                    "at runtime, so no material asset references it and the build stripped it. " +
+                    "Add it to Always Included Shaders in ProjectSettings/GraphicsSettings.asset.");
+            return s;
+        }
 
         public static Material Get(string key, System.Func<Material> make)
         {

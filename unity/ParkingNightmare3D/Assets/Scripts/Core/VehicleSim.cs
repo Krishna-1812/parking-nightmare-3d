@@ -10,10 +10,15 @@ namespace PN3D.Core
         public bool Handbrake;
 
         /// <summary>
-        /// True for tilt and on-screen-wheel input, which are already absolute wheel
-        /// positions. Routes the sweep through lambda = 20 instead of the keyboard
-        /// attack of 3.9 — running tilt through the keyboard sweep was the single
-        /// largest cause of reported tilt latency (§4).
+        /// True for TILT input only, which is already an absolute wheel position. Routes
+        /// the sweep through lambda = 20 instead of the keyboard attack of 3.9 — running
+        /// tilt through the keyboard sweep was the single largest cause of reported tilt
+        /// latency (§4).
+        ///
+        /// Not the on-screen wheel, despite it also being an absolute position:
+        /// src/n3_b.js:694 returns false whenever steerTouch is non-zero, deliberately, so
+        /// that the wheel keeps the same feel as the keyboard. Matched here rather than
+        /// "corrected", because the par times were tuned against that behaviour.
         /// </summary>
         public bool SteerAnalog;
 
