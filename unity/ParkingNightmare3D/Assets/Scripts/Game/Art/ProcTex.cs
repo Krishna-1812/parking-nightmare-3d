@@ -876,6 +876,213 @@ namespace PN3D.Game.Art
             return c.ToTexture("canopy", wrap: TextureWrapMode.Clamp);
         });
 
+        // ------------------------------------------------------------ people
+
+        /// <summary>
+        /// Skin, away from the face: mottling, veining and a faint flush at the joints.
+        /// White-based, so one texture serves every tone in the palette.
+        ///
+        /// The point is that skin is never one value. A flat-coloured limb reads as plastic
+        /// however good the lighting model on top of it is, because real skin varies by
+        /// several percent over a centimetre and by more than that between the inside and
+        /// the outside of a forearm.
+        /// </summary>
+        public static Texture2D SkinDetail() => Get("skinDetail", () =>
+        {
+            var c = new Raster(256, 256);
+            var r = Seed("skinDetail");
+            int W = c.W, H = c.H;
+            c.Clear(RG.Rgb(255, 255, 255));
+
+            for (int i = 0; i < 260; i++)
+            {
+                float x = (float)r.Rand(0, W), y = (float)r.Rand(0, H), rad = (float)r.Rand(8, 40);
+                var g = new Raster.RadialGrad(x, y, 1, rad)
+                    .Stop(0, r.Chance(0.55) ? RG.Rgba(214, 138, 122, .10f)
+                                            : RG.Rgba(255, 246, 232, .09f))
+                    .Stop(1, RG.Rgba(255, 255, 255, 0));
+                c.FillRect(x - rad, y - rad, rad * 2, rad * 2, g);
+            }
+            // freckles and moles, sparse
+            for (int i = 0; i < 90; i++)
+                c.FillCircle((float)r.Rand(0, W), (float)r.Rand(0, H), (float)r.Rand(0.6, 2.0),
+                             new Raster.Solid(RG.Rgba(126, 84, 62, (float)r.Rand(0.05, 0.22))));
+            return c.ToTexture("skinDetail");
+        });
+
+        /// <summary>Pores and the fine creasing that catches a grazing sun.</summary>
+        public static Texture2D SkinNormal() => Get("skinNrm", () =>
+        {
+            var c = new Raster(256, 256);
+            var r = Seed("skinNrm");
+            int W = c.W, H = c.H;
+            c.Clear(RG.Rgb(128, 128, 128));
+            for (int i = 0; i < 7000; i++)
+            {
+                float v = (float)r.Rand(104, 152);
+                c.FillCircle((float)r.Rand(0, W), (float)r.Rand(0, H), (float)r.Rand(0.5, 1.6),
+                             new Raster.Solid(RG.Rgba(v, v, v, (float)r.Rand(0.25, 0.6))));
+            }
+            for (int i = 0; i < 40; i++)
+                Squiggle(c, r, 5, RG.Rgba(112, 112, 112, .30f), (float)r.Rand(0.7, 1.4), 9, 6, 16);
+            return c.ToNormalMap("skinNormal", 0.7f);
+        });
+
+        /// <summary>
+        /// The face, painted.
+        ///
+        /// Eyebrows, lips, nostrils, the shadow in an eye socket and the shading under a
+        /// cheekbone are all a few millimetres of tone. Modelled, each one is a box the
+        /// size of a fingernail that catches the light wrong and reads as a growth. Painted
+        /// on a properly mapped head they cost nothing and land exactly where they belong.
+        ///
+        /// The mapping is fixed by the loft: u = 0.5 is dead centre front and the seam runs
+        /// down the back of the skull, v = 0 is under the chin and v = 1 is the crown. So
+        /// features go at known coordinates and stay there whatever size the head is.
+        /// </summary>
+        public static Texture2D Face(int skinIdx, Color hair, Color eye, bool stubble)
+            => Get($"face{skinIdx}{ColorUtility.ToHtmlStringRGB(hair)}"
+                   + $"{ColorUtility.ToHtmlStringRGB(eye)}{stubble}", () =>
+        {
+            const int W = 512, H = 512;
+            var c = new Raster(W, H);
+            var r = Seed($"face{skinIdx}{stubble}");
+            c.Clear(RG.Rgb(255, 255, 255));
+
+            // v runs bottom (chin) to top (crown) but the raster's y runs downward, so
+            // everything is placed through these and the numbers below read the right way
+            // up. The v values are NOT fractions of head height: the loft's UV runs one
+            // step per ring, and the rings are not evenly spaced, so a feature's v is where
+            // its ring is in the list. Eye line lands on 0.48, not on 0.5.
+            float X(float u) => u * W;
+            float Y(float v) => (1f - v) * H;
+
+            var hairRG = RG.FromColor(hair);
+            const float EyeU = 0.058f;      // half the interpupillary distance, in u
+
+            // Cheeks and ears carry more blood than the rest.
+            foreach (var (u, v, rad, col, a) in new[]
+                     {
+                         (0.500f, 0.28f, 70f, RG.Rgb(222, 132, 116), 0.16f),  // mouth region
+                         (0.410f, 0.40f, 58f, RG.Rgb(226, 140, 120), 0.15f),  // cheek
+                         (0.590f, 0.40f, 58f, RG.Rgb(226, 140, 120), 0.15f),
+                         (0.500f, 0.42f, 40f, RG.Rgb(228, 150, 128), 0.10f),  // nose
+                         (0.500f, 0.64f, 88f, RG.Rgb(236, 214, 196), 0.12f),  // forehead
+                     })
+            {
+                var g = new Raster.RadialGrad(X(u), Y(v), 2, rad)
+                    .Stop(0, col.WithA(a)).Stop(1, RG.Rgba(255, 255, 255, 0));
+                c.FillRect(X(u) - rad, Y(v) - rad, rad * 2, rad * 2, g);
+            }
+
+            // ---- eyes ----
+            // Painted, deliberately. Modelled at the correct anatomical size and placed a
+            // couple of millimetres proud, they read as ping-pong balls stuck to a face:
+            // an eye only works when it sits in a socket that shades it, and a socket is
+            // three pixels of gradient. Painting it also means it cannot be geometrically
+            // wrong, which the modelled attempt very much was.
+            var eyeRG = RG.FromColor(eye);
+            foreach (float side in new[] { -1f, 1f })
+            {
+                float ex = X(0.5f + side * EyeU), ey = Y(0.48f);
+
+                var socket = new Raster.RadialGrad(ex, ey + 2f, 2, 34f)
+                    .Stop(0, RG.Rgba(96, 62, 52, .32f)).Stop(1, RG.Rgba(255, 255, 255, 0));
+                c.FillRect(ex - 34, ey - 32, 68, 68, socket);
+
+                c.FillEllipse(ex, ey, 15.5f, 8.5f, new Raster.Solid(RG.Rgb(232, 230, 226)));
+                // corners are pinker and darker than the middle of the white
+                c.FillEllipse(ex - 12f, ey, 5f, 5f, new Raster.Solid(RG.Rgba(196, 158, 150, .55f)));
+                c.FillEllipse(ex + 12f, ey, 5f, 5f, new Raster.Solid(RG.Rgba(196, 158, 150, .55f)));
+
+                c.FillCircle(ex, ey, 7.6f, new Raster.Solid(eyeRG));
+                c.FillCircle(ex, ey, 7.6f, new Raster.Solid(RG.Rgba(0, 0, 0, .0f)));
+                // limbal ring: the dark edge round an iris, and the single detail that
+                // most separates a drawn eye from a coloured dot
+                for (float k = 7.6f; k > 6.2f; k -= 0.5f)
+                    c.FillCircle(ex, ey, k, new Raster.Solid(RG.Rgba(18, 12, 10, .30f)));
+                c.FillCircle(ex, ey, 3.4f, new Raster.Solid(RG.Rgb(12, 10, 10)));
+                // the wet highlight
+                c.FillCircle(ex - 2.6f, ey - 2.6f, 2.2f, new Raster.Solid(RG.Rgba(255, 255, 255, .92f)));
+
+                // upper lid shadow and lash line
+                c.FillEllipse(ex, ey - 7.5f, 16f, 4.5f, new Raster.Solid(RG.Rgba(58, 38, 32, .50f)));
+                c.FillEllipse(ex, ey + 8.5f, 14f, 2.4f, new Raster.Solid(RG.Rgba(120, 82, 70, .30f)));
+            }
+
+            // Eyebrows. Hair-coloured, thin, angled, drawn as strokes — a solid bar over
+            // each eye reads as one black band across a face.
+            foreach (float side in new[] { -1f, 1f })
+            {
+                float bx0 = X(0.5f + side * EyeU);
+                for (int i = 0; i < 26; i++)
+                {
+                    float t = i / 25f;
+                    float bx = bx0 + side * (t - 0.5f) * 46f;
+                    float by = Y(0.552f) - Mathf.Sin(t * Mathf.PI) * 6f;
+                    c.StrokeSegment(bx, by + (float)r.Rand(-1.2, 1.2),
+                                    bx + side * 3f, by - 4.5f + (float)r.Rand(-1.2, 1.2),
+                                    (float)r.Rand(1.5, 2.8),
+                                    hairRG.WithA((float)r.Rand(0.45, 0.8)));
+                }
+            }
+
+            // Nostrils and the shadow under the tip.
+            foreach (float nu in new[] { 0.482f, 0.518f })
+                c.FillEllipse(X(nu), Y(0.372f), 5.0f, 3.2f,
+                              new Raster.Solid(RG.Rgba(64, 40, 34, .55f)));
+            c.FillEllipse(X(0.5f), Y(0.364f), 17f, 4.5f,
+                          new Raster.Solid(RG.Rgba(120, 74, 62, .18f)));
+
+            // Lips. Upper darker than lower, because the lower one faces the sky.
+            c.FillEllipse(X(0.5f), Y(0.298f), 26f, 8f,
+                          new Raster.Solid(RG.Rgba(178, 96, 88, .55f)));
+            c.FillEllipse(X(0.5f), Y(0.286f), 23f, 7f,
+                          new Raster.Solid(RG.Rgba(206, 122, 110, .50f)));
+            c.FillRect(X(0.5f) - 25f, Y(0.294f), 50f, 2.0f, RG.Rgba(86, 48, 44, .55f));
+
+            // A little shadow under the jaw, so the head has form before the light gets
+            // to it.
+            var jaw = new Raster.LinearGrad(0, Y(0.20f), 0, Y(0.02f))
+                .Stop(0, RG.Rgba(255, 255, 255, 0)).Stop(1, RG.Rgba(92, 62, 54, .34f));
+            c.FillRect(0, Y(0.20f), W, Y(0.02f) - Y(0.20f), jaw);
+
+            if (stubble)
+                for (int i = 0; i < 5200; i++)
+                {
+                    // only on the jaw and chin, and only on the front half of the head
+                    float u = (float)r.Rand(0.30, 0.70), v = (float)r.Rand(0.12, 0.36);
+                    float fade = Mathf.Min(1f, (0.36f - v) * 4f);
+                    if (r.Next() > fade) continue;
+                    c.FillCircle(X(u), Y(v), (float)r.Rand(0.6, 1.5),
+                                 new Raster.Solid(hairRG.WithA((float)r.Rand(0.10, 0.28))));
+                }
+
+            // pores, over everything
+            for (int i = 0; i < 4200; i++)
+                c.FillCircle((float)r.Rand(0, W), (float)r.Rand(0, H), (float)r.Rand(0.5, 1.4),
+                             new Raster.Solid(RG.Rgba(150, 108, 92, (float)r.Rand(0.03, 0.10))));
+
+            return c.ToTexture("face", wrap: TextureWrapMode.Clamp);
+        });
+
+        /// <summary>Woven cloth. Subtle: at two metres a shirt is a value, not a weave.</summary>
+        public static Texture2D ClothNormal() => Get("clothNrm", () =>
+        {
+            var c = new Raster(128, 128);
+            var r = Seed("clothNrm");
+            int W = c.W, H = c.H;
+            c.Clear(RG.Rgb(128, 128, 128));
+            for (int y = 0; y < H; y += 3)
+                c.FillRect(0, y, W, 1.4f, RG.Rgba(148, 148, 148, .55f));
+            for (int x = 0; x < W; x += 3)
+                c.FillRect(x, 0, 1.4f, H, RG.Rgba(108, 108, 108, .55f));
+            // folds, which are the part you actually see
+            for (int i = 0; i < 16; i++)
+                Squiggle(c, r, 6, RG.Rgba(102, 102, 102, .35f), (float)r.Rand(2, 5), 10, 12, 26);
+            return c.ToNormalMap("clothNormal", 0.9f);
+        });
+
         // ------------------------------------------------------------ normal maps
 
         /// <summary>

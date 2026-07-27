@@ -144,12 +144,19 @@ namespace PN3D.Game.Art
         /// Skin. Not <see cref="Solid"/> with a flesh colour — see the header of
         /// <c>PN3D_Skin.shader</c> for why that renders a person as painted plastic.
         /// </summary>
-        public static Material Skin(Color tone)
-            => Get("skin" + ColorUtility.ToHtmlStringRGB(tone), () =>
+        public static Material Skin(Color tone, Texture2D map = null, Texture2D normal = null,
+                                    string key = null)
+            => Get("skin" + (key ?? ColorUtility.ToHtmlStringRGB(tone)), () =>
             {
                 _skin = _skin != null ? _skin : Resolve("PN3D/Skin");
                 var m = new Material(_skin);
                 SetBase(m, tone);
+                if (map != null) m.SetTexture("_BaseMap", map);
+                if (normal != null)
+                {
+                    m.SetTexture("_BumpMap", normal);
+                    m.SetFloat("_BumpScale", 1f);
+                }
                 // The subsurface tint is the tone's own hue driven to blood red, so a
                 // darker tone scatters a deeper red rather than turning pink.
                 Color.RGBToHSV(tone, out float h, out float s, out float v);
@@ -161,6 +168,27 @@ namespace PN3D.Game.Art
                 m.SetFloat("_TransScale", 0.32f);
                 m.SetFloat("_SpecPower", 26f);
                 m.SetFloat("_SpecScale", 0.10f);
+                return m;
+            });
+
+        /// <summary>
+        /// Clothing. URP/Lit with a weave normal and almost no gloss — cotton scatters, it
+        /// does not reflect, and a shirt with a specular highlight on it reads as vinyl.
+        /// </summary>
+        public static Material Cloth(Color tint)
+            => Get("cloth" + ColorUtility.ToHtmlStringRGB(tint), () =>
+            {
+                var m = new Material(Lit);
+                SetBase(m, tint);
+                // No base map: the weave lives entirely in the relief. Handing the normal
+                // map in as an albedo — which is what the first version of this did — makes
+                // every shirt in the game the flat violet of an unpacked tangent normal.
+                m.SetFloat("_Smoothness", 0.06f);
+                m.SetFloat("_Metallic", 0f);
+                m.SetTexture("_BumpMap", ProcTex.ClothNormal());
+                m.SetTextureScale("_BumpMap", new Vector2(7f, 7f));
+                m.SetFloat("_BumpScale", 0.55f);
+                m.EnableKeyword("_NORMALMAP");
                 return m;
             });
 

@@ -24,7 +24,10 @@ Shader "PN3D/Skin"
 {
     Properties
     {
+        [MainTexture] _BaseMap ("Skin map", 2D) = "white" {}
         [MainColor] _BaseColor ("Skin", Color) = (0.88, 0.70, 0.56, 1)
+        _BumpMap   ("Pores", 2D) = "bump" {}
+        _BumpScale ("Pore depth", Range(0, 2)) = 1.0
 
         _Wrap      ("Diffuse wrap", Range(0, 1)) = 0.42
         _SSSColor  ("Subsurface", Color) = (0.72, 0.22, 0.16, 1)
@@ -42,8 +45,9 @@ Shader "PN3D/Skin"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
         CBUFFER_START(UnityPerMaterial)
-            half4 _BaseColor, _SSSColor;
-            half  _Wrap, _SSSScale, _TransScale, _SpecPower, _SpecScale;
+            float4 _BaseMap_ST, _BumpMap_ST;
+            half4  _BaseColor, _SSSColor;
+            half   _Wrap, _SSSScale, _TransScale, _SpecPower, _SpecScale, _BumpScale;
         CBUFFER_END
         ENDHLSL
 
@@ -65,10 +69,15 @@ Shader "PN3D/Skin"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/AmbientOcclusion.hlsl"
 
+            TEXTURE2D(_BaseMap);  SAMPLER(sampler_BaseMap);
+            TEXTURE2D(_BumpMap);  SAMPLER(sampler_BumpMap);
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
+                float4 tangentOS  : TANGENT;
+                float2 uv         : TEXCOORD0;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
             struct Varyings
@@ -76,7 +85,9 @@ Shader "PN3D/Skin"
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS   : TEXCOORD1;
-                float  fogFactor  : TEXCOORD2;
+                float4 tangentWS  : TEXCOORD2;
+                float2 uv         : TEXCOORD3;
+                float  fogFactor  : TEXCOORD4;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
                 UNITY_VERTEX_OUTPUT_STEREO
             };
@@ -89,9 +100,12 @@ Shader "PN3D/Skin"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
 
                 VertexPositionInputs p = GetVertexPositionInputs(IN.positionOS.xyz);
+                VertexNormalInputs nrm = GetVertexNormalInputs(IN.normalOS, IN.tangentOS);
                 o.positionCS = p.positionCS;
                 o.positionWS = p.positionWS;
-                o.normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                o.normalWS = nrm.normalWS;
+                o.tangentWS = float4(nrm.tangentWS, IN.tangentOS.w * GetOddNegativeScale());
+                o.uv = TRANSFORM_TEX(IN.uv, _BaseMap);
                 o.fogFactor = ComputeFogFactor(p.positionCS.z);
                 return o;
             }
@@ -100,9 +114,15 @@ Shader "PN3D/Skin"
             {
                 UNITY_SETUP_INSTANCE_ID(IN);
 
-                float3 n = normalize(IN.normalWS);
+                half4 map = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv);
+                half3 albedo = _BaseColor.rgb * map.rgb;
+
+                half3 nTS = UnpackNormalScale(
+                    SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, IN.uv), _BumpScale);
+                float sgn = IN.tangentWS.w;
+                float3 bitangent = sgn * cross(IN.normalWS, IN.tangentWS.xyz);
+                float3 n = normalize(mul(nTS, half3x3(IN.tangentWS.xyz, bitangent, IN.normalWS)));
                 float3 v = GetWorldSpaceNormalizeViewDir(IN.positionWS);
-                half3 albedo = _BaseColor.rgb;
 
                 float4 shadowCoord = TransformWorldToShadowCoord(IN.positionWS);
                 // this overload is the one that applies the light cookie, so the cloud

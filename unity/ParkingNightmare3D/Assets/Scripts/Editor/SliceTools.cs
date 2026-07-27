@@ -90,6 +90,50 @@ namespace PN3D.EditorTools
         }
 
         /// <summary>
+        /// Writes the generated textures out as PNGs.
+        ///
+        /// Every surface in this game is painted by code, which means a texture that comes
+        /// out wrong is invisible until it is already on a model and mixed up with the
+        /// lighting, the UVs and the material. Looking at the bitmap on its own separates
+        /// "the painter is wrong" from "the mapping is wrong", and those have completely
+        /// different fixes.
+        /// </summary>
+        [MenuItem("PN3D/Dump Textures")]
+        public static void DumpTextures()
+        {
+            string outDir = ArgValue("-pn3dOut", Path.Combine(Path.GetTempPath(), "pn3d-tex"));
+            Directory.CreateDirectory(outDir);
+
+            // Raster.ToTexture uploads with makeNoLongerReadable, so EncodeToPNG cannot
+            // touch the pixels — they only exist on the GPU. Blitting to a render texture
+            // and reading back is the way to get them, and it needs a graphics device, so
+            // this entry point must NOT be run with -nographics.
+            void Write(string name, Texture2D t)
+            {
+                var rt = RenderTexture.GetTemporary(t.width, t.height, 0,
+                                                    RenderTextureFormat.ARGB32,
+                                                    RenderTextureReadWrite.Linear);
+                var prev = RenderTexture.active;
+                Graphics.Blit(t, rt);
+                RenderTexture.active = rt;
+                var copy = new Texture2D(t.width, t.height, TextureFormat.RGBA32, false);
+                copy.ReadPixels(new UnityEngine.Rect(0, 0, t.width, t.height), 0, 0);
+                copy.Apply();
+                RenderTexture.active = prev;
+                RenderTexture.ReleaseTemporary(rt);
+
+                File.WriteAllBytes(Path.Combine(outDir, name + ".png"), copy.EncodeToPNG());
+                UnityEngine.Object.DestroyImmediate(copy);
+                Log($"  wrote {name}.png  {t.width}x{t.height}");
+            }
+
+            Write("face", PN3D.Game.Art.ProcTex.Face(1, new Color(0.18f, 0.12f, 0.09f),
+                                                     new Color(0.27f, 0.17f, 0.08f), true));
+            Write("skinDetail", PN3D.Game.Art.ProcTex.SkinDetail());
+            Log("DUMP OK -> " + outDir);
+        }
+
+        /// <summary>
         /// Renders the greybox world to a PNG. Needs a graphics device, so run batchmode
         /// WITHOUT -nographics.
         /// </summary>
@@ -167,6 +211,29 @@ namespace PN3D.EditorTools
                             (who.position + Vector3.up * 1.12f) - cam.transform.position,
                             Vector3.up);
                         Shot(cam, outDir, "02c_ped", width, height);
+
+                        // And a head-and-shoulders. A face is a few centimetres of a
+                        // 1.7 m figure; at any framing that shows the whole person it is
+                        // thirty pixels, and thirty pixels cannot tell you whether the
+                        // mapping is right or whether you are looking at the back of a
+                        // skull.
+                        var eye = who.position + Vector3.up * 1.56f;
+                        // 0.58 m, not 0.34: at a third of a metre the near clip plane is
+                        // already inside the skull and the shot renders the inside of the
+                        // back of the head.
+                        cam.transform.position = eye + who.forward * 0.58f
+                                               + who.right * 0.19f + Vector3.up * 0.03f;
+                        cam.transform.rotation = Quaternion.LookRotation(
+                            eye - cam.transform.position, Vector3.up);
+                        Shot(cam, outDir, "02d_face", width, height);
+
+                        // And the same head from directly behind. Two views settle in one
+                        // render what guessing at one view cannot: whether a blank face is
+                        // a mapping bug or just the back of a head.
+                        cam.transform.position = eye - who.forward * 0.34f;
+                        cam.transform.rotation = Quaternion.LookRotation(
+                            eye - cam.transform.position, Vector3.up);
+                        Shot(cam, outDir, "02e_back", width, height);
                         break;
                     }
 
