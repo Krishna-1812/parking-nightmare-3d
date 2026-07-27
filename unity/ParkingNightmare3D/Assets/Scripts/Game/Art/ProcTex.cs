@@ -1010,6 +1010,62 @@ namespace PN3D.Game.Art
             return t;
         });
 
+        /// <summary>
+        /// The same weather, as a light cookie.
+        ///
+        /// A cloud deck the ground knows nothing about is a painted ceiling. Putting the
+        /// field on the sun instead — as a repeating directional cookie that drifts —
+        /// drags shadow across the street, the fields and the hills, and it is the one
+        /// thing that makes the sky and the world look like they are in the same place.
+        /// It costs one texture lookup inside the light loop.
+        ///
+        /// Drawn from the same seeds as <see cref="CloudDeck"/>, so the shadows have the
+        /// same size and spacing as the clouds overhead. They cannot line up exactly —
+        /// the deck is projected onto a ceiling from the camera and this is projected onto
+        /// the ground from the sun — and it does not matter: nobody can check, and what
+        /// the eye is reading is that both are the same weather.
+        ///
+        /// The edges are much softer than the deck's, and the darkest patch only reaches
+        /// 0.55. A cloud shadow on a clear day is a dimming, not a silhouette; the sky is
+        /// still lighting the ground underneath it.
+        /// </summary>
+        public static Texture2D CloudShadow() => Get("cloudshadow", () =>
+        {
+            const int N = 256;
+            var px = new Color32[N * N];
+            for (int y = 0; y < N; y++)
+            {
+                float v = y / (float)N;
+                for (int x = 0; x < N; x++)
+                {
+                    float u = x / (float)N;
+                    float front = PFbmA(u, v, 2, 2, 1201u);
+                    float cover = Mathf.Lerp(0.66f, 0.34f,
+                        Smooth01(Mathf.InverseLerp(0.35f, 0.72f, front)));
+                    float d = PFbmA(u, v, 4, 5, 77u);
+                    // Biased clear of cloud and floored at 0.70. The first version matched
+                    // the deck's coverage and bottomed out at 0.55, which put roughly half
+                    // the world under a 45% dimming at any moment — that is not weather,
+                    // that is turning the sun down. What is wanted is a few slow patches
+                    // crossing an otherwise sunlit street.
+                    float a = Smooth01(Mathf.InverseLerp(cover + 0.06f, cover + 0.34f, d));
+                    byte b = (byte)(Mathf.Lerp(1f, 0.70f, a) * 255f);
+                    px[y * N + x] = new Color32(b, b, b, 255);
+                }
+            }
+
+            // linear, not sRGB: this is a multiplier on light, not a colour to look at
+            var t = new Texture2D(N, N, TextureFormat.RGBA32, true, true)
+            {
+                name = "cloudShadow",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+            };
+            t.SetPixels32(px);
+            t.Apply(true, false);
+            return t;
+        });
+
         static float Smooth01(float t) => t * t * (3f - 2f * t);
 
         /// <summary>Isotropic tiling fbm.</summary>

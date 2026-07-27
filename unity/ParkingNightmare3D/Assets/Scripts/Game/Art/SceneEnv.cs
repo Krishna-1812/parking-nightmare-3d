@@ -141,7 +141,10 @@ namespace PN3D.Game.Art
             // Three.js DirectionalLight intensity is not URP lux; district 0 authors 2.4,
             // which reads as blown out here. Scaled to keep the same relative ordering
             // between districts without clipping the highlights.
-            l.intensity = d.SunIntensity * 0.72f;
+            // The 0.06 on top pays for the cloud cookie below: it dims a bit under a fifth
+            // of the world on average, and without compensating, adding weather quietly
+            // took the exposure down everywhere.
+            l.intensity = d.SunIntensity * (d.Night ? 0.72f : 0.78f);
             l.shadows = LightShadows.Soft;
             l.shadowStrength = 0.78f;
             // Bias is NOT set here. URP reads it from the render pipeline asset unless the
@@ -155,6 +158,16 @@ namespace PN3D.Game.Art
             // flip the rest of the world uses (WorldBuilder.ToWorld).
             var pos = new Vector3(d.SunDir.x, d.SunDir.y, -d.SunDir.z);
             go.transform.rotation = Quaternion.LookRotation(-pos.normalized, Vector3.up);
+
+            // Cloud shadows. The cookie tiles, so the size is the width of one repeat on
+            // the ground: at 420 m and roughly four masses to a tile, the patches come out
+            // around a hundred metres across, which is what a cumulus casts.
+            if (!d.Night)
+            {
+                l.cookie = ProcTex.CloudShadow();
+                l.cookieSize = 420f;
+                go.AddComponent<CloudDrift>();
+            }
 
             RenderSettings.sun = l;
             return l;

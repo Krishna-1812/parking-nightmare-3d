@@ -138,6 +138,41 @@ namespace PN3D.Game.Art
                 return m;
             });
 
+        static Shader _foliage;
+
+        /// <summary>
+        /// Leaves. Sways in the wind and passes light, neither of which URP/Lit can do —
+        /// see the header of <c>PN3D_Foliage.shader</c>.
+        /// </summary>
+        /// <param name="sway">
+        /// How far the top of this thing moves, in metres. A crown four metres up wants
+        /// about 0.16; a shrub wants a fraction of that, and a tuft of grass by the kerb
+        /// wants almost none, because a blade of grass that swings 16 cm is a flag.
+        /// </param>
+        /// <param name="fromY">
+        /// Where the bending starts, as 1/metres. Sway is weighted by the square of
+        /// (height x this), clamped to one, so a tall crown is fully mobile at its top and
+        /// planted at the trunk. It has to be per-material because a tuft's "top" is 0.3 m
+        /// and a tree's is 5 m.
+        /// </param>
+        public static Material Foliage(Color leaf, float sway = 0.16f, float fromY = 0.34f)
+            => Get($"leaf{ColorUtility.ToHtmlStringRGB(leaf)}_{sway:0.00}_{fromY:0.00}", () =>
+            {
+                _foliage = _foliage != null ? _foliage : Resolve("PN3D/Foliage");
+                var m = new Material(_foliage);
+                SetBase(m, leaf);
+                m.SetFloat("_Smoothness", 0.06f);
+                m.SetFloat("_WindAmp", sway);
+                m.SetFloat("_SwayFromY", fromY);
+                // Transmission is the leaf colour opened right up. Sap green passes light
+                // yellow-green, never the dark green it looks in shade.
+                Color.RGBToHSV(leaf, out float h, out float s, out float v);
+                m.SetColor("_TransColor", Color.HSVToRGB(Mathf.Repeat(h - 0.035f, 1f),
+                                                         Mathf.Clamp01(s * 0.88f),
+                                                         Mathf.Clamp01(v * 2.6f + 0.18f)));
+                return m;
+            });
+
         /// <summary>Polished metal for bumper blades, exhaust tips and rim lips.</summary>
         public static Material Chrome(float smoothness = 0.93f)
             => Get($"chrome{smoothness:0.00}", () =>

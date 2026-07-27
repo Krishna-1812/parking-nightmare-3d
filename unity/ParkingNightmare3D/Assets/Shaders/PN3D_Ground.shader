@@ -25,8 +25,8 @@ Shader "PN3D/Ground"
 {
     Properties
     {
-        _BaseMap    ("Grass", 2D) = "white" {}
-        _BaseColor  ("Tint", Color) = (1, 1, 1, 1)
+        [MainTexture] _BaseMap   ("Grass", 2D) = "white" {}
+        [MainColor]   _BaseColor ("Tint", Color) = (1, 1, 1, 1)
         _MacroScale ("Macro tiling (x base)", Range(0.05, 0.6)) = 0.21
         _MacroDepth ("Macro strength", Range(0, 1)) = 0.62
         // Dry and lush multiply the grass map rather than replacing it, so they are
@@ -64,6 +64,9 @@ Shader "PN3D/Ground"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
+            // Without this the cloud shadows land on every surface in the world except
+            // the six hundred metres of field they are most visible on.
+            #pragma multi_compile_fragment _ _LIGHT_COOKIES
             #pragma multi_compile_fog
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"

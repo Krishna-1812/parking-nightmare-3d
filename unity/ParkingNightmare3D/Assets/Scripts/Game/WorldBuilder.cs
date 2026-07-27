@@ -97,6 +97,7 @@ namespace PN3D.Game
             RoadBuilder.Build(route, run.Mission.Lanes, district, root.transform);
             Scenery.Build(route, run.Mission.Lanes, district, LayoutSeed(run.Mission),
                           root.transform, ground);
+            Art.Birds.Build(district, centre, LayoutSeed(run.Mission), root.transform);
 
             var spotGo = RoadBuilder.BuildSpot(run.Spot, root.transform);
 

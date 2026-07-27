@@ -86,8 +86,14 @@ namespace PN3D.Game.Art
         {
             const int Tones = 3;
             var verts = new List<Vector3>[Tones];
+            var norms = new List<Vector3>[Tones];
             var tris = new List<int>[Tones];
-            for (int i = 0; i < Tones; i++) { verts[i] = new List<Vector3>(); tris[i] = new List<int>(); }
+            for (int i = 0; i < Tones; i++)
+            {
+                verts[i] = new List<Vector3>();
+                norms[i] = new List<Vector3>();
+                tris[i] = new List<int>();
+            }
 
             var (from, to) = Span(route, 4);
             for (double s = from; s < to; s += 1.15)
@@ -103,8 +109,16 @@ namespace PN3D.Game.Art
                                                   out double wx, out double wy, out _);
                         var p = WorldBuilder.ToWorld(wx, wy, RoadBuilder.CurbY);
                         p.y += ground.HeightAt(p.x, p.z) - 0.04f;
-                        Tuft(verts[(int)(rng.Next() * Tones)], tris[(int)(rng.Next() * Tones)],
-                             p, rng);
+                        // ONE draw. This used to roll the tone twice — once for the vertex
+                        // list and once for the triangle list — so a tuft's triangles
+                        // regularly landed in a different mesh from its vertices. Tuft
+                        // bases its indices on v.Count, so those triangles then pointed at
+                        // whatever vertices happened to be at those indices in the other
+                        // list: stray blades stretched hundreds of metres across the
+                        // field. They are the specks that were visible out on the left of
+                        // the elevated shot.
+                        int tone = (int)(rng.Next() * Tones);
+                        Tuft(verts[tone], norms[tone], tris[tone], p, rng);
                     }
                 }
             }
@@ -123,10 +137,14 @@ namespace PN3D.Game.Art
                     indexFormat = UnityEngine.Rendering.IndexFormat.UInt32,
                 };
                 mesh.SetVertices(verts[i]);
+                mesh.SetNormals(norms[i]);
                 mesh.SetTriangles(tris[i], 0);
-                mesh.RecalculateNormals();
                 mesh.RecalculateBounds();
-                var go = Geo.Node($"Tufts{i}", root, mesh, MatLib.Solid(cols[i], 0.04f),
+                // Tufts are baked into three big meshes at world positions, so every blade
+                // in one mesh shares an object origin and therefore a phase. What saves it
+                // is the per-vertex flutter term in the shader, which varies with where
+                // the blade actually is — so the verge ripples rather than pulsing.
+                var go = Geo.Node($"Tufts{i}", root, mesh, MatLib.Foliage(cols[i], 0.028f, 3.0f),
                                   Vector3.zero, Quaternion.identity, Vector3.one, shadows: false);
                 go.GetComponent<MeshRenderer>().receiveShadows = true;
             }
@@ -137,7 +155,23 @@ namespace PN3D.Game.Art
         /// into the shared buffers in world space — there is no transform to bake because
         /// the mesh never has one.
         /// </summary>
-        static void Tuft(List<Vector3> v, List<int> t, Vector3 at, Rng rng)
+        /// <summary>
+        /// One clump of blades.
+        ///
+        /// The normals are written here rather than left to <c>RecalculateNormals</c>, and
+        /// that is not a refinement — it is a correctness fix. Every blade emits both
+        /// windings over the SAME three vertices so it is visible from either side, which
+        /// means each vertex belongs to two triangles whose face normals are exact
+        /// opposites. Averaging them gives the zero vector, and normalising the zero vector
+        /// in the shader gives whatever the hardware feels like. Under a plain lit material
+        /// that came out merely dark and nobody noticed; the moment the foliage shader
+        /// added a transmission term the verge turned into a field of white specks.
+        ///
+        /// Pointing them up is also the right answer visually. Grass is not read as
+        /// thousands of individually shaded polygons — it is read as a soft mass lying on
+        /// the ground, which is exactly what an upward normal gives.
+        /// </summary>
+        static void Tuft(List<Vector3> v, List<Vector3> nrm, List<int> t, Vector3 at, Rng rng)
         {
             int blades = 3 + (int)(rng.Next() * 3);
             float h = (float)rng.Rand(0.16, 0.38);
@@ -152,6 +186,8 @@ namespace PN3D.Game.Art
 
                 int i0 = v.Count;
                 v.Add(at - side); v.Add(at + side); v.Add(tip);
+                var n = Vector3.Normalize(Vector3.up + dir * 0.22f);
+                nrm.Add(n); nrm.Add(n); nrm.Add(n);
                 // Both windings, so a blade is visible from either side without needing a
                 // two-sided material or an alpha-cut variant the stripper might drop.
                 t.Add(i0); t.Add(i0 + 1); t.Add(i0 + 2);
@@ -394,7 +430,7 @@ namespace PN3D.Game.Art
                 }
                 else
                 {
-                    var leaf = MatLib.Solid(new Color(0.20f, 0.40f, 0.20f), 0.05f);
+                    var leaf = MatLib.Foliage(new Color(0.20f, 0.40f, 0.20f), 0.030f, 1.10f);
                     // Broken into clumps of slightly different height, because a hedge
                     // modelled as one long box is a wall painted green.
                     int n = Mathf.Max(2, Mathf.RoundToInt(run / 1.5f));
@@ -414,6 +450,113 @@ namespace PN3D.Game.Art
                                        s + rng.Rand(-3.5, 3.5), sgn * (walk + rng.Rand(1.0, 2.6)));
             if (rng.Chance(0.35)) Shrub(root, route, ground, rng,
                                         s + rng.Rand(-5, 5), sgn * (hT + depth * 0.5f + 1.5));
+
+            // A bed against the front wall, which is where people put one. This is the
+            // only saturated colour anywhere in the front gardens, and a street of green
+            // lawns and pastel houses badly needs three or four points of it — the eye
+            // goes to the one red thing in a frame, and until now there was nothing for
+            // it to go to between the car and the roofs.
+            if (rng.Chance(0.62))
+                FlowerBed(root, route, ground, rng,
+                          s + rng.Rand(-1.8, 1.8), sgn * (hT - depth * 0.5f - 0.75f),
+                          (float)rng.Rand(2.2, 4.0));
+
+            if (rng.Chance(0.28))
+                FlowerBed(root, route, ground, rng,
+                          s + rng.Rand(-6, 6), sgn * (walk + rng.Rand(1.4, 3.0)),
+                          (float)rng.Rand(1.1, 2.0));
+        }
+
+        /// <summary>
+        /// Bedding plants, in five colours and no more.
+        ///
+        /// Same discipline as the tree canopies: a flower colour drawn off a continuum
+        /// would mint a material per plant, and there are hundreds of plants. Five shared
+        /// materials, and the bed is baked so a whole border is one renderer.
+        ///
+        /// Laid out along local X. Local +Z is ALONG the street — every piece of lot
+        /// dressing that got this wrong ended up lying across the carriageway.
+        /// </summary>
+        static readonly Color[] Bloom =
+        {
+            new Color(0.86f, 0.24f, 0.26f), new Color(0.94f, 0.71f, 0.22f),
+            new Color(0.88f, 0.45f, 0.72f), new Color(0.55f, 0.42f, 0.82f),
+            new Color(0.96f, 0.95f, 0.88f),
+        };
+
+        static void FlowerBed(Transform root, CompiledRoute route, Terrain ground, Rng rng,
+                              double s, double t, float run)
+        {
+            var go = new GameObject("Bed");
+            go.transform.SetParent(root, false);
+
+            // turned soil under the planting, so the bed reads as a bed and not as
+            // flowers floating on grass
+            Geo.Box("Soil", go.transform, new Vector3(run, 0.10f, 0.62f),
+                    new Vector3(0, 0.05f, 0), MatLib.Solid(new Color(0.22f, 0.17f, 0.13f), 0.06f),
+                    shadows: false);
+
+            int tones = Bloom.Length;
+            var verts = new List<Vector3>();
+            var norms = new List<Vector3>();
+            var subs = new List<int>[tones + 1];
+            for (int i = 0; i <= tones; i++) subs[i] = new List<int>();
+
+            // Pebble, not Blob. See the note on Geo.Pebble: a subdivided icosahedron per
+            // flower head puts six hundred thousand vertices into the front gardens.
+            var src = Geo.Pebble;
+            var sv = src.vertices;
+            var sn = src.normals;
+            var st = src.triangles;
+
+            // one or two colours per bed, because a bed planted in five is a paint chart
+            int cA = (int)(rng.Next() * tones);
+            int cB = rng.Chance(0.45) ? (int)(rng.Next() * tones) : cA;
+
+            int plants = Mathf.RoundToInt(run * (float)rng.Rand(4.0, 6.5));
+            for (int i = 0; i < plants; i++)
+            {
+                float x = (float)rng.Rand(-run * 0.48, run * 0.48);
+                float z = (float)rng.Rand(-0.24, 0.24);
+                float h = (float)rng.Rand(0.16, 0.34);
+
+                // foliage first, then the flower head sitting on top of it
+                Bake(subs[tones], new Vector3(x, h * 0.42f, z),
+                     new Vector3(h * 0.62f, h * 0.42f, h * 0.62f));
+                Bake(subs[rng.Chance(0.5) ? cA : cB], new Vector3(x, h * 0.86f, z),
+                     new Vector3(h * 0.40f, h * 0.30f, h * 0.40f));
+            }
+
+            void Bake(List<int> into, Vector3 pos, Vector3 scale)
+            {
+                var trs = Matrix4x4.TRS(pos, Quaternion.Euler(0, (float)rng.Rand(0, 360), 0), scale);
+                int b0 = verts.Count;
+                for (int v = 0; v < sv.Length; v++)
+                {
+                    verts.Add(trs.MultiplyPoint3x4(sv[v]));
+                    norms.Add(trs.MultiplyVector(sn[v]).normalized);
+                }
+                for (int k = 0; k < st.Length; k++) into.Add(b0 + st[k]);
+            }
+
+            var mesh = new Mesh
+            {
+                name = "bed",
+                indexFormat = UnityEngine.Rendering.IndexFormat.UInt32,
+                subMeshCount = tones + 1,
+            };
+            mesh.SetVertices(verts);
+            mesh.SetNormals(norms);
+            for (int i = 0; i <= tones; i++) mesh.SetTriangles(subs[i], i);
+            mesh.RecalculateBounds();
+
+            var mats = new Material[tones + 1];
+            for (int i = 0; i < tones; i++) mats[i] = MatLib.Foliage(Bloom[i], 0.022f, 3.4f);
+            mats[tones] = MatLib.Foliage(new Color(0.19f, 0.36f, 0.17f), 0.022f, 3.4f);
+            var node = Geo.Node("Plants", go.transform, mesh, mats[0]);
+            node.GetComponent<MeshRenderer>().sharedMaterials = mats;
+
+            Place(go, route, ground, s, t, 0f);
         }
 
         static Plan PickPlan(Rng rng)
@@ -760,7 +903,8 @@ namespace PN3D.Game.Art
             mesh.RecalculateBounds();
 
             var mats = new Material[tones];
-            for (int i = 0; i < tones; i++) mats[i] = MatLib.Solid(LeafTones[i], 0.05f);
+            // A fir barely moves — its branches are short and its trunk is a mast.
+            for (int i = 0; i < tones; i++) mats[i] = MatLib.Foliage(LeafTones[i], 0.07f, 0.20f);
             var node = Geo.Node("Fir", g, mesh, mats[0]);
             node.GetComponent<MeshRenderer>().sharedMaterials = mats;
         }
@@ -856,7 +1000,8 @@ namespace PN3D.Game.Art
             mesh.RecalculateBounds();
 
             var mats = new Material[tones];
-            for (int i = 0; i < tones; i++) mats[i] = MatLib.Solid(LeafTones[i], 0.05f);
+            // A crown five metres up moves the most of anything in the world.
+            for (int i = 0; i < tones; i++) mats[i] = MatLib.Foliage(LeafTones[i], 0.19f, 0.21f);
             var node = Geo.Node("Canopy", g, mesh, mats[0]);
             node.GetComponent<MeshRenderer>().sharedMaterials = mats;
         }
@@ -901,7 +1046,7 @@ namespace PN3D.Game.Art
                 float r = (float)rng.Rand(0.32, 0.62);
                 var col = LeafTones[1 + (int)(rng.Next() * 2)];
                 var b = Geo.Node($"B{i}", go.transform, Geo.Blob(2 + i % 4),
-                                 MatLib.Solid(col, 0.05f),
+                                 MatLib.Foliage(col, 0.035f, 1.30f),
                                  new Vector3((float)rng.Rand(-0.4, 0.4), r * 0.8f,
                                              (float)rng.Rand(-0.4, 0.4)));
                 b.transform.localScale = new Vector3(r, r * 0.85f, r);

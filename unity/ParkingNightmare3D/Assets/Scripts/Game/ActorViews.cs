@@ -66,47 +66,160 @@ namespace PN3D.Game
             public Transform Root, Torso, Head, LegL, LegR, ArmL, ArmR, Phone;
         }
 
+        // Every colour a pedestrian can be, and no others.
+        //
+        // The old shirt colour was Color.HSVToRGB(rng.Next(), ...) — a hue off a continuum,
+        // which is the exact mistake that put fifteen hundred one-use materials into the
+        // tree canopies: MatLib caches on colour, so a free hue mints a material per
+        // pedestrian and each one is its own draw call. Quantised, a crowd of thirty shares
+        // about a dozen materials with the crowd in every other mission.
+        static readonly Color[] Skins =
+        {
+            new Color(0.945f, 0.804f, 0.678f), new Color(0.878f, 0.694f, 0.514f),
+            new Color(0.741f, 0.541f, 0.361f), new Color(0.545f, 0.373f, 0.239f),
+            new Color(0.361f, 0.239f, 0.161f),
+        };
+
+        static readonly Color[] Shirts =
+        {
+            new Color(0.82f, 0.30f, 0.28f), new Color(0.27f, 0.44f, 0.72f),
+            new Color(0.94f, 0.94f, 0.92f), new Color(0.32f, 0.58f, 0.40f),
+            new Color(0.93f, 0.76f, 0.30f), new Color(0.46f, 0.36f, 0.62f),
+            new Color(0.22f, 0.24f, 0.28f), new Color(0.90f, 0.56f, 0.36f),
+        };
+
+        static readonly Color[] Trousers =
+        {
+            new Color(0.18f, 0.22f, 0.31f), new Color(0.22f, 0.22f, 0.24f),
+            new Color(0.52f, 0.46f, 0.36f), new Color(0.30f, 0.36f, 0.47f),
+            new Color(0.30f, 0.31f, 0.25f),
+        };
+
+        static readonly Color[] Hairs =
+        {
+            new Color(0.09f, 0.08f, 0.08f), new Color(0.21f, 0.14f, 0.10f),
+            new Color(0.36f, 0.24f, 0.14f), new Color(0.66f, 0.53f, 0.31f),
+            new Color(0.55f, 0.55f, 0.56f), new Color(0.44f, 0.20f, 0.12f),
+        };
+
+        /// <summary>An egg. Two of them make a person: one for the head, one for the chest.</summary>
+        static Mesh Ovoid(string key, float rMax, float top, float bottom, float waist)
+            => Geo.Lathe(key, new[]
+            {
+                new Vector2(0.001f, bottom),
+                new Vector2(rMax * waist, bottom + (top - bottom) * 0.16f),
+                new Vector2(rMax, bottom + (top - bottom) * 0.45f),
+                new Vector2(rMax * 0.93f, bottom + (top - bottom) * 0.72f),
+                new Vector2(rMax * 0.52f, bottom + (top - bottom) * 0.93f),
+                new Vector2(0.001f, top),
+            }, 10);
+
         /// <summary>
-        /// Pedestrian: a jointed stick figure, not a box. The walk cycle and the raised
-        /// phone are what make the crowd read as reacting to you rather than decorating
-        /// the pavement — and reacting to you is the whole shame system (§10).
+        /// Pedestrian.
+        ///
+        /// These are not set dressing. The shame system is the game (§10) and it is
+        /// expressed entirely through this crowd: they turn, they film, they dive out of
+        /// the way, and they do it two metres from the car at the exact moment the player
+        /// is concentrating hardest. Everything else in the world can be looked at from
+        /// across the street; a pedestrian is looked at from arm's length.
+        ///
+        /// They were seven boxes and a cube for a head. Now the torso and head are surfaces
+        /// of revolution, the limbs taper, the shoulders are a separate mass, and there are
+        /// shoes — which sounds like a detail and is not: a leg that ends in a flat cut is
+        /// the single thing that reads as "untextured placeholder" from any distance.
+        ///
+        /// The joint layout is unchanged on purpose. The pivots at the hip and the shoulder
+        /// sit exactly where they did, so <see cref="PoseePed"/> drives this the same way it
+        /// drove the boxes, and the walk cycle and the phone pose did not have to be
+        /// re-tuned against new geometry.
         /// </summary>
         static PedView MakePed(Transform parent, int index)
         {
             var rng = new Rng((uint)(index * 2654435761u + 17u));
-            var skin = new Color(0.86f, 0.72f, 0.58f);
-            var shirt = Color.HSVToRGB((float)rng.Next(), 0.45f, 0.75f);
-            var trousers = new Color(0.20f, 0.24f, 0.32f);
+            var skinC = Skins[(int)(rng.Next() * Skins.Length)];
+            var shirtC = Shirts[(int)(rng.Next() * Shirts.Length)];
+            var trouserC = Trousers[(int)(rng.Next() * Trousers.Length)];
+            var hairC = Hairs[(int)(rng.Next() * Hairs.Length)];
+            bool longHair = rng.Chance(0.38);
+
+            var skin = MatLib.Solid(skinC, 0.16f);
+            var shirt = MatLib.Solid(shirtC, 0.10f);
+            var trousers = MatLib.Solid(trouserC, 0.08f);
+            var hair = MatLib.Solid(hairC, 0.22f);
+            var shoe = MatLib.Solid(new Color(0.13f, 0.12f, 0.12f), 0.28f);
 
             var root = new GameObject("Ped").transform;
             root.SetParent(parent, false);
 
             var v = new PedView { Root = root };
-            v.Torso = Geo.Box("Torso", root, new Vector3(0.36f, 0.56f, 0.24f),
-                              new Vector3(0, 1.05f, 0), MatLib.Solid(shirt)).transform;
-            v.Head = Geo.Box("Head", root, new Vector3(0.24f, 0.26f, 0.24f),
-                             new Vector3(0, 1.46f, 0), MatLib.Solid(skin)).transform;
-            Geo.Box("Hair", root, new Vector3(0.26f, 0.08f, 0.26f),
-                    new Vector3(0, 1.58f, 0), MatLib.Solid(new Color(0.18f, 0.13f, 0.10f)));
 
-            // limbs pivot at the hip and shoulder, so the box hangs below its own origin
-            Transform Limb(string name, float x, float y, float len, Color c)
+            // Torso: an ovoid squashed front-to-back, because a person is wider across the
+            // shoulders than they are deep and a cylinder reads as a bollard.
+            v.Torso = Geo.Node("Torso", root, Ovoid("torso", 0.20f, 0.30f, -0.30f, 0.72f),
+                               shirt, new Vector3(0, 1.06f, 0),
+                               Quaternion.identity, new Vector3(1f, 1f, 0.62f)).transform;
+            Geo.Node("Hips", root, Geo.Cylinder(0.155f, 0.175f, 0.20f, 10), trousers,
+                     new Vector3(0, 0.83f, 0), Quaternion.identity, new Vector3(1f, 1f, 0.72f));
+            Geo.Node("Shoulders", root, Geo.Cylinder(0.135f, 0.115f, 0.42f, 8), shirt,
+                     new Vector3(0, 1.30f, 0), Quaternion.Euler(0, 0, 90f),
+                     new Vector3(1f, 1f, 0.72f));
+            Geo.Node("Neck", root, Geo.Cylinder(0.052f, 0.058f, 0.09f, 7), skin,
+                     new Vector3(0, 1.355f, 0));
+
+            v.Head = Geo.Node("Head", root, Ovoid("head", 0.098f, 0.125f, -0.115f, 0.80f),
+                              skin, new Vector3(0, 1.50f, 0),
+                              Quaternion.identity, new Vector3(1f, 1f, 0.92f)).transform;
+            // Hair is a cap on the crown, not a second head. The first version reused the
+            // head ovoid one millimetre larger, which put hair over the ears, the jaw and
+            // most of the face — a swim cap, not a haircut.
+            Geo.Node("Hair", v.Head, Geo.Lathe("hairdome", new[]
+            {
+                new Vector2(0.101f, 0.005f), new Vector2(0.100f, 0.045f),
+                new Vector2(0.086f, 0.092f), new Vector2(0.048f, 0.122f),
+                new Vector2(0.001f, 0.134f),
+            }, 10), hair, new Vector3(0, 0f, -0.004f));
+            if (longHair)
+                Geo.Box("HairBack", v.Head, new Vector3(0.17f, 0.20f, 0.085f),
+                        new Vector3(0, -0.055f, -0.072f), hair);
+
+            // Two dots. At the range a pedestrian is actually seen — leaning over a kerb
+            // two metres from the car — a blank head reads as a mannequin, and a face is
+            // the difference between a crowd watching you and scenery.
+            var eyeMat = MatLib.Solid(new Color(0.10f, 0.09f, 0.10f), 0.45f);
+            foreach (float ex in new[] { -0.036f, 0.036f })
+                Geo.Node("Eye", v.Head, Geo.Pebble, eyeMat,
+                         new Vector3(ex, 0.018f, 0.083f), Quaternion.identity,
+                         new Vector3(0.030f, 0.020f, 0.016f));
+
+            // Limbs pivot at the hip and the shoulder, so each segment hangs below its own
+            // origin and a rotation of the pivot swings the whole limb.
+            Transform Limb(string name, float x, float y, float len, float r0, float r1,
+                           Material m, bool foot)
             {
                 var pivot = new GameObject(name).transform;
                 pivot.SetParent(root, false);
                 pivot.localPosition = new Vector3(x, y, 0);
-                Geo.Box("Seg", pivot, new Vector3(0.12f, len, 0.13f), new Vector3(0, -len / 2f, 0),
-                        MatLib.Solid(c));
+                Geo.Node("Seg", pivot, Geo.Cylinder(r0, r1, len, 7), m,
+                         new Vector3(0, -len / 2f, 0));
+                if (foot)
+                    Geo.Box("Shoe", pivot, new Vector3(0.10f, 0.06f, 0.24f),
+                            new Vector3(0, -len - 0.02f, 0.045f), shoe);
+                else
+                    Geo.Node("Hand", pivot, Geo.Pebble, skin,
+                             new Vector3(0, -len - 0.03f, 0),
+                             Quaternion.identity, Vector3.one * 0.085f);
                 return pivot;
             }
 
-            v.LegL = Limb("LegL", -0.10f, 0.78f, 0.78f, trousers);
-            v.LegR = Limb("LegR", 0.10f, 0.78f, 0.78f, trousers);
-            v.ArmL = Limb("ArmL", -0.23f, 1.28f, 0.52f, shirt);
-            v.ArmR = Limb("ArmR", 0.23f, 1.28f, 0.52f, shirt);
+            // r0 is the top of the segment and r1 the bottom: a thigh is thicker than an
+            // ankle and an upper arm is thicker than a wrist.
+            v.LegL = Limb("LegL", -0.085f, 0.78f, 0.76f, 0.075f, 0.048f, trousers, true);
+            v.LegR = Limb("LegR", 0.085f, 0.78f, 0.76f, 0.075f, 0.048f, trousers, true);
+            v.ArmL = Limb("ArmL", -0.215f, 1.30f, 0.54f, 0.052f, 0.038f, shirt, false);
+            v.ArmR = Limb("ArmR", 0.215f, 1.30f, 0.54f, 0.052f, 0.038f, shirt, false);
 
             v.Phone = Geo.Box("Phone", v.ArmR, new Vector3(0.07f, 0.13f, 0.02f),
-                              new Vector3(0, -0.56f, 0.04f),
+                              new Vector3(0, -0.58f, 0.05f),
                               MatLib.Emissive(new Color(0.08f, 0.08f, 0.1f),
                                               new Color(0.6f, 0.8f, 1f), 0.8f)).transform;
             v.Phone.gameObject.SetActive(false);

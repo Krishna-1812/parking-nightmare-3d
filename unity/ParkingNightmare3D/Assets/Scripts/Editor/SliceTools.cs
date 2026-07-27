@@ -149,6 +149,24 @@ namespace PN3D.EditorTools
                     (t2.position + t2.forward * 16f) - cam.transform.position, Vector3.up);
                 Shot(cam, outDir, "02b_actors", width, height);
 
+                // 2c) a pedestrian at conversational distance. Every other shot here is
+                // from the chase camera or further, and at that range a person made of
+                // boxes and a person made of anything else look identical — which is how
+                // the crowd stayed boxes through three art passes.
+                var actors = holder.transform.Find("PN3D_Actors_Static");
+                if (actors != null)
+                    foreach (Transform who in actors)
+                    {
+                        if (who.name != "Ped") continue;
+                        cam.transform.position = who.position + who.forward * 2.3f
+                                               + who.right * 1.4f + Vector3.up * 1.5f;
+                        cam.transform.rotation = Quaternion.LookRotation(
+                            (who.position + Vector3.up * 1.05f) - cam.transform.position,
+                            Vector3.up);
+                        Shot(cam, outDir, "02c_ped", width, height);
+                        break;
+                    }
+
                 // 3) approaching the parking spot
                 run.Route.PosAt(run.Spot.S - 26.0, run.Spot.T, out double ax, out double ay, out double ah);
                 PlaceCar(built, ax, ay, ah);

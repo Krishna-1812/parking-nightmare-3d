@@ -198,6 +198,42 @@ namespace PN3D.Game.Art
             });
 
         /// <summary>
+        /// Eight triangles and nothing more: an octahedron, flat-shaded.
+        ///
+        /// This exists because <see cref="Blob"/> is far too much mesh for something small.
+        /// A blob is a subdivided icosahedron — eighty triangles, and flat-shaded that is
+        /// two hundred and forty vertices. At twenty centimetres across, a flower head, one
+        /// of sixty in a bed and one of forty beds in the street, that is six hundred
+        /// thousand vertices to draw something the size of a thumbnail. Eight triangles
+        /// read exactly the same at that size.
+        /// </summary>
+        public static Mesh Pebble => Get("pebble", () =>
+        {
+            var p = new[]
+            {
+                new Vector3(0, 0.62f, 0), new Vector3(0, -0.62f, 0),
+                new Vector3(0.5f, 0, 0), new Vector3(0, 0, 0.5f),
+                new Vector3(-0.5f, 0, 0), new Vector3(0, 0, -0.5f),
+            };
+            var tri = new[]
+            {
+                0, 3, 2,  0, 4, 3,  0, 5, 4,  0, 2, 5,
+                1, 2, 3,  1, 3, 4,  1, 4, 5,  1, 5, 2,
+            };
+
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            for (int i = 0; i < tri.Length; i++) { v.Add(p[tri[i]]); t.Add(i); }
+
+            var mesh = new Mesh { name = "pebble" };
+            mesh.SetVertices(v);
+            mesh.SetTriangles(t, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        });
+
+        /// <summary>
         /// Faceted blob: a once-subdivided icosahedron with a deterministic radial wobble,
         /// flat-shaded. This is the foliage. Low-poly and hard-edged is the house style —
         /// a smooth sphere reads as a beach ball, not a tree.
