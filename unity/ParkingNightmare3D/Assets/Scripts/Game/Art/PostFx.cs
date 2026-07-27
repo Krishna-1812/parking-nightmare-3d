@@ -64,13 +64,32 @@ namespace PN3D.Game.Art
             var grade = profile.Add<ColorAdjustments>();
             grade.postExposure.Override(d.Night ? 0.25f : 0.05f);
             grade.contrast.Override(d.Night ? 8f : 6f);
-            grade.saturation.Override(8f);
+            // Held at 4 rather than 8. The split tone below already separates a warm sun
+            // from a blue fill, and saturation on top of that pushed the sunlit grass —
+            // which is most of the frame from any elevated angle — into acid green.
+            grade.saturation.Override(4f);
             // pull the whole frame very slightly toward the district's own sky, which is
             // what makes the fog, the horizon ring and the lit surfaces agree
             grade.colorFilter.Override(Color.Lerp(Color.white, d.SkyMid, 0.06f));
 
             var wb = profile.Add<WhiteBalance>();
             wb.temperature.Override(d.Night ? -8f : 4f);
+
+            // ---- split tone ----
+            // Warm light, cool shade. This is the one grading move that reads as
+            // photographic rather than as a filter, and it costs nothing: it is already
+            // inside the uber pass. It works here because it is *true* of this scene —
+            // the key is a warm sun and the fill is a blue sky, so shadow and highlight
+            // genuinely are different colours, and the flat look of the untouched frame
+            // was partly the tonemapper averaging that difference away.
+            //
+            // Deliberately small. The player is judging a kerb gap in centimetres from a
+            // chase camera (§6); anything that tints the white edge lines or crushes the
+            // shadow the car sits in is working against the game.
+            var split = profile.Add<SplitToning>();
+            split.shadows.Override(new Color(0.46f, 0.50f, 0.58f));
+            split.highlights.Override(new Color(0.57f, 0.53f, 0.46f));
+            split.balance.Override(0f);
 
             // ---- bloom ----
             // High threshold on purpose: only the emissive light bars, the spot markers

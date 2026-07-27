@@ -249,10 +249,16 @@ namespace PN3D.Game.Art
             m.SetFloat("_MacroDepth", 0.62f);
             // Gains, not colours — they multiply the grass map, and their midpoint sits at
             // white so the field keeps the district's own green. Dry runs warm and a shade
-            // brighter, lush runs darker and greener; both pull blue down, which is what
-            // takes the milkiness out of a fogged field.
-            m.SetColor("_DryColor", new Color(1.22f, 1.12f, 0.80f));
-            m.SetColor("_LushColor", new Color(0.78f, 0.94f, 0.66f));
+            // brighter, lush runs darker and greener.
+            //
+            // Blue is pulled down, but only a little, and the amount was measured rather
+            // than chosen. The first pass took it to 0.80 and 0.66, which put the sunlit
+            // field at RGB 148,170,81 — a blue-to-green ratio of 0.48, where sunlit grass
+            // photographs between 0.55 and 0.65. That is the difference between a meadow
+            // and a highlighter pen, and it is invisible when you are looking at a swatch
+            // and obvious across six hundred metres of it.
+            m.SetColor("_DryColor", new Color(1.14f, 1.08f, 0.98f));
+            m.SetColor("_LushColor", new Color(0.84f, 0.95f, 0.86f));
             m.SetColor("_WornColor", new Color(0.40f, 0.34f, 0.25f));
             m.SetFloat("_Smoothness", 0.04f);
             return m;
