@@ -399,5 +399,54 @@ namespace PN3D.Game.Art
                 mesh.RecalculateBounds();
                 return mesh;
             });
+
+        /// <summary>
+        /// Hipped roof: four slopes meeting a ridge shorter than the building, so there is
+        /// no vertical gable end. Submesh 0 is every slope; there is no submesh 1, which is
+        /// the point — the caller can hand it the same two materials a gable takes and the
+        /// second simply goes unused.
+        ///
+        /// Worth having purely for the silhouette. A street where every roof is the same
+        /// gable at the same pitch reads as one house stamped out repeatedly however much
+        /// the walls and colours are varied, and the roofline is the part of a house you
+        /// actually see from a car.
+        /// </summary>
+        public static Mesh HipRoof(float wide, float depth, float rise, float ridgeFrac = 0.45f)
+            => Get($"hip{wide}_{depth}_{rise}_{ridgeFrac}", () =>
+            {
+                float w = wide * 0.5f, d = depth * 0.5f, r = w * Mathf.Clamp01(ridgeFrac);
+                var v = new[]
+                {
+                    // eaves, clockwise from the front-left
+                    new Vector3(-w, 0,  d), new Vector3( w, 0,  d),
+                    new Vector3( w, 0, -d), new Vector3(-w, 0, -d),
+                    // ridge, running along X
+                    new Vector3(-r, rise, 0), new Vector3( r, rise, 0),
+                };
+                float ru = wide / 1.7f, rv = Mathf.Sqrt(rise * rise + d * d) / 1.5f;
+                var uv = new[]
+                {
+                    new Vector2(0, 0), new Vector2(ru, 0),
+                    new Vector2(ru, 0), new Vector2(0, 0),
+                    new Vector2(ru * 0.28f, rv), new Vector2(ru * 0.72f, rv),
+                };
+
+                var mesh = new Mesh();
+                mesh.SetVertices(v);
+                mesh.SetUVs(0, uv);
+                mesh.subMeshCount = 2;
+                mesh.SetTriangles(new[]
+                {
+                    0, 1, 5, 0, 5, 4,   // front slope
+                    2, 3, 4, 2, 4, 5,   // back slope
+                    1, 2, 5,            // right hip
+                    3, 0, 4,            // left hip
+                }, 0);
+                mesh.SetTriangles(System.Array.Empty<int>(), 1);
+                mesh.RecalculateNormals();
+                mesh.RecalculateTangents();
+                mesh.RecalculateBounds();
+                return mesh;
+            });
     }
 }

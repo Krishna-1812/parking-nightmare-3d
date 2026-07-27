@@ -317,33 +317,67 @@ namespace PN3D.Game.Art
             var baseC = RG.Hex(baseHex);
             c.Clear(baseC);
 
-            var straw = baseC.Lerp(RG.Hex("#c9b96a"), 0.5f);
-            var lush = baseC.Scale(0.78f);
-            var dirt = baseC.Lerp(RG.Hex("#8a6f4d"), 0.55f);
+            // TONAL RANGE. Lawn is not one colour, and the old draw kept every overlay under
+            // 0.4 alpha, which averaged out to a single flat green — fine at a metre, and
+            // at the distance this is actually seen it is a painted sheet covering half the
+            // frame. Real grass has drought patches, shade, moss and worn earth in it, and
+            // the spread between them is most of what stops a field reading as a colour.
+            var straw = baseC.Lerp(RG.Hex("#cbbe72"), 0.62f);
+            var lush = baseC.Scale(0.66f);
+            var moss = baseC.Lerp(RG.Hex("#4f7a3a"), 0.5f);
+            var dirt = baseC.Lerp(RG.Hex("#8a6f4d"), 0.72f);
 
-            for (int i = 0; i < 34; i++)
+            // WRAPPED. Every patch is drawn nine times, once per neighbouring tile offset,
+            // so anything crossing an edge comes back in on the far side.
+            //
+            // This texture never tiled seamlessly, and it did not show while every overlay
+            // sat under 0.4 alpha and 190 px across — the seams were there, just too faint
+            // to find. Raising the contrast to give the lawn some tonal range turned them
+            // into a hard 26 m grid across the entire field: the ground is the largest
+            // surface in the frame, so a repeat in it is the most visible repeat there is.
+            // Contrast and tiling are the same problem, and only one of them is fixable in
+            // the draw calls.
+            void Patch(float x, float y, float rad, Raster.RGBA col, float a0, float a1)
             {
-                float x = (float)r.Rand(0, W), y = (float)r.Rand(0, H), rad = (float)r.Rand(50, 190);
+                for (int ox = -1; ox <= 1; ox++)
+                    for (int oy = -1; oy <= 1; oy++)
+                    {
+                        float px = x + ox * W, py = y + oy * H;
+                        if (px + rad < 0 || px - rad > W || py + rad < 0 || py - rad > H) continue;
+                        var g = new Raster.RadialGrad(px, py, rad * 0.12f, rad)
+                            .Stop(0, col.WithA(a0)).Stop(0.6f, col.WithA(a1)).Stop(1, col.WithA(0));
+                        c.FillCircle(px, py, rad, g);
+                    }
+            }
+
+            // Big soft patches first: these carry the macro variation.
+            for (int i = 0; i < 26; i++)
+            {
                 double which = r.Next();
-                var col = which < 0.4 ? straw : (which < 0.8 ? lush : dirt);
-                var g = new Raster.RadialGrad(x, y, rad * 0.15f, rad)
-                    .Stop(0, col.WithA(which < 0.8 ? 0.32f : 0.4f))
-                    .Stop(1, col.WithA(0));
-                c.FillCircle(x, y, rad, g);
+                Patch((float)r.Rand(0, W), (float)r.Rand(0, H), (float)r.Rand(150, 420),
+                      which < 0.42 ? straw : (which < 0.78 ? lush : moss), 0.55f, 0.26f);
+            }
+
+            // Then smaller, harder ones on top, including bare earth showing through.
+            for (int i = 0; i < 46; i++)
+            {
+                double which = r.Next();
+                var col = which < 0.34 ? straw : (which < 0.68 ? lush : (which < 0.86 ? moss : dirt));
+                Patch((float)r.Rand(0, W), (float)r.Rand(0, H), (float)r.Rand(40, 165),
+                      col, which < 0.86 ? 0.44f : 0.62f, 0.18f);
             }
 
             for (int i = 0; i < 90; i++)
             {
-                float x = (float)r.Rand(0, W), y = (float)r.Rand(0, H), rad = (float)r.Rand(14, 48);
-                var g = new Raster.RadialGrad(x, y, 2, rad)
-                    .Stop(0, r.Chance(0.5) ? RG.Rgba(0, 0, 0, .09f) : RG.Rgba(255, 255, 235, .07f))
-                    .Stop(1, RG.Rgba(0, 0, 0, 0));
-                c.FillRect(x - rad, y - rad, rad * 2, rad * 2, g);
+                bool dark = r.Chance(0.5);
+                Patch((float)r.Rand(0, W), (float)r.Rand(0, H), (float)r.Rand(14, 48),
+                      dark ? RG.Rgba(0, 0, 0, 1) : RG.Rgba(255, 255, 235, 1),
+                      dark ? 0.09f : 0.07f, dark ? 0.04f : 0.03f);
             }
 
-            // faint diagonal mow bands
-            for (float x = -W; x < W * 2; x += 256)
-                c.FillRotatedRect(x + 64, H / 2f, 128, H * 3, 0.18f, RG.Rgba(255, 255, 255, .025f));
+            // The faint diagonal mow bands are gone. A diagonal stripe cannot tile on a
+            // square, so they were laying a seam across every tile boundary for a effect
+            // worth two and a half per cent alpha.
 
             var spotC = RG.Hex(spotHex);
             for (int i = 0; i < 9000; i++)

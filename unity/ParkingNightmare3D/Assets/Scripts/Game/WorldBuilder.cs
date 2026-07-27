@@ -53,6 +53,7 @@ namespace PN3D.Game
             public CarView.Rig CarRig;
             public District District;
             public Light Sun;
+            public Art.Terrain Ground;
         }
 
         /// <summary>
@@ -86,7 +87,7 @@ namespace PN3D.Game
             float span = Mathf.Max((float)(maxX - minX), (float)(maxY - minY))
                        + Art.SceneEnv.HorizonRadius * 2f;
 
-            BuildGround(root.transform, district, centre, span);
+            var ground = Art.Terrain.Build(route, district, centre, span, root.transform);
 
             // ---- environment: sky, sun, fog, horizon, grade ----
             var sun = Art.SceneEnv.Build(district, centre, root.transform);
@@ -94,7 +95,8 @@ namespace PN3D.Game
 
             // ---- road corridor and dressing ----
             RoadBuilder.Build(route, run.Mission.Lanes, district, root.transform);
-            Scenery.Build(route, run.Mission.Lanes, district, LayoutSeed(run.Mission), root.transform);
+            Scenery.Build(route, run.Mission.Lanes, district, LayoutSeed(run.Mission),
+                          root.transform, ground);
 
             var spotGo = RoadBuilder.BuildSpot(run.Spot, root.transform);
 
@@ -118,40 +120,8 @@ namespace PN3D.Game
                 CarRig = rig,
                 District = district,
                 Sun = sun,
+                Ground = ground,
             };
-        }
-
-        static GameObject BuildGround(Transform parent, District d, Vector3 centre, float span)
-        {
-            var go = new GameObject("Ground");
-            go.transform.SetParent(parent, false);
-            go.transform.position = centre;
-
-            float h = span * 0.5f;
-            var mesh = new Mesh { name = "ground" };
-            mesh.SetVertices(new[]
-            {
-                new Vector3(-h, 0, -h), new Vector3(h, 0, -h),
-                new Vector3(-h, 0,  h), new Vector3(h, 0,  h),
-            });
-            float reps = span / 26f;   // one grass tile per 26 m
-            mesh.SetUVs(0, new[]
-            {
-                new Vector2(0, 0), new Vector2(reps, 0),
-                new Vector2(0, reps), new Vector2(reps, reps),
-            });
-            mesh.SetTriangles(new[] { 0, 2, 1, 1, 2, 3 }, 0);
-            mesh.RecalculateNormals();
-            mesh.RecalculateTangents();
-            mesh.RecalculateBounds();
-
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = MatLib.Textured("mat_ground",
-                ProcTex.Grass(d.GroundAHex, d.GroundBHex), Color.white, Vector2.one, smoothness: 0.04f);
-            mr.shadowCastingMode = ShadowCastingMode.Off;
-            mr.receiveShadows = true;
-            return go;
         }
 
         /// <summary>
