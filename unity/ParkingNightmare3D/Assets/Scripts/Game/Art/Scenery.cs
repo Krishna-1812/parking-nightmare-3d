@@ -48,6 +48,171 @@ namespace PN3D.Game.Art
             Furniture(route, sec, d, rng, root, ground);
             if (d.Houses) PowerLine(route, sec, rng, root, ground);
             Backdrop(route, sec, rng, root, ground);
+            Tufts(route, sec, d, rng, root, ground);
+            RoadWear(route, sec, d, rng, root);
+        }
+
+        // ------------------------------------------------------------------ grass tufts
+
+        /// <summary>
+        /// Clumps of grass along the verge and through the gardens, built as ONE mesh.
+        ///
+        /// The lawn texture is right at a metre and irrelevant at twenty: the verge is a
+        /// three metre strip and the tile is twenty-six, so from the chase camera the grass
+        /// beside the road is a flat green band however good the painting is. What breaks
+        /// it is geometry that catches the sun on one side and shadows the other — the same
+        /// reason the terrain relief was worth having.
+        ///
+        /// Baked into a single mesh per tone rather than scattered as objects. Two thousand
+        /// clumps as two thousand renderers would cost more in draw calls than the whole
+        /// rest of the street; as three meshes it costs three.
+        /// </summary>
+        static void Tufts(CompiledRoute route, RoadBuilder.Section sec, District d,
+                          Rng rng, Transform root, Terrain ground)
+        {
+            const int Tones = 3;
+            var verts = new List<Vector3>[Tones];
+            var tris = new List<int>[Tones];
+            for (int i = 0; i < Tones; i++) { verts[i] = new List<Vector3>(); tris[i] = new List<int>(); }
+
+            var (from, to) = Span(route, 4);
+            for (double s = from; s < to; s += 1.15)
+            {
+                foreach (int sgn in new[] { 1, -1 })
+                {
+                    int n = 1 + (int)(rng.Next() * 3);
+                    for (int i = 0; i < n; i++)
+                    {
+                        // Verge first, then thinning out across the gardens behind it.
+                        double t = sgn * (sec.WalkOuter + rng.Rand(0.15, rng.Chance(0.65) ? 2.6 : 14.0));
+                        RoadBuilder.PosAtExtended(route, s + rng.Rand(-0.5, 0.5), t,
+                                                  out double wx, out double wy, out _);
+                        var p = WorldBuilder.ToWorld(wx, wy, RoadBuilder.CurbY);
+                        p.y += ground.HeightAt(p.x, p.z) - 0.04f;
+                        Tuft(verts[(int)(rng.Next() * Tones)], tris[(int)(rng.Next() * Tones)],
+                             p, rng);
+                    }
+                }
+            }
+
+            var cols = new[]
+            {
+                new Color(0.30f, 0.49f, 0.22f), new Color(0.41f, 0.57f, 0.25f),
+                new Color(0.52f, 0.56f, 0.28f),
+            };
+            for (int i = 0; i < Tones; i++)
+            {
+                if (tris[i].Count == 0) continue;
+                var mesh = new Mesh
+                {
+                    name = "tufts" + i,
+                    indexFormat = UnityEngine.Rendering.IndexFormat.UInt32,
+                };
+                mesh.SetVertices(verts[i]);
+                mesh.SetTriangles(tris[i], 0);
+                mesh.RecalculateNormals();
+                mesh.RecalculateBounds();
+                var go = Geo.Node($"Tufts{i}", root, mesh, MatLib.Solid(cols[i], 0.04f),
+                                  Vector3.zero, Quaternion.identity, Vector3.one, shadows: false);
+                go.GetComponent<MeshRenderer>().receiveShadows = true;
+            }
+        }
+
+        /// <summary>
+        /// One clump: a handful of tapered blades splayed out of a point. Written straight
+        /// into the shared buffers in world space — there is no transform to bake because
+        /// the mesh never has one.
+        /// </summary>
+        static void Tuft(List<Vector3> v, List<int> t, Vector3 at, Rng rng)
+        {
+            int blades = 3 + (int)(rng.Next() * 3);
+            float h = (float)rng.Rand(0.16, 0.38);
+            for (int b = 0; b < blades; b++)
+            {
+                float a = (float)rng.Rand(0, Mathf.PI * 2);
+                float lean = (float)rng.Rand(0.10, 0.34);
+                float wdt = (float)rng.Rand(0.020, 0.038);
+                var dir = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
+                var side = new Vector3(-dir.z, 0, dir.x) * wdt;
+                var tip = at + dir * (h * lean) + Vector3.up * (h * (float)rng.Rand(0.75, 1.25));
+
+                int i0 = v.Count;
+                v.Add(at - side); v.Add(at + side); v.Add(tip);
+                // Both windings, so a blade is visible from either side without needing a
+                // two-sided material or an alpha-cut variant the stripper might drop.
+                t.Add(i0); t.Add(i0 + 1); t.Add(i0 + 2);
+                t.Add(i0); t.Add(i0 + 2); t.Add(i0 + 1);
+            }
+        }
+
+        // ------------------------------------------------------------------ road wear
+
+        /// <summary>
+        /// Drains at the kerb line and manhole covers in the carriageway. A road with no
+        /// drainage in it is a painted surface, and these are the only things on it at a
+        /// scale between the lane markings and the houses.
+        /// </summary>
+        static void RoadWear(CompiledRoute route, RoadBuilder.Section sec, District d,
+                             Rng rng, Transform root)
+        {
+            var iron = MatLib.Solid(new Color(0.145f, 0.150f, 0.158f), 0.30f, 0.35f);
+            var patch = MatLib.Solid(new Color(0.105f, 0.107f, 0.115f), 0.14f);
+
+            var (from, to) = Span(route, 12);
+            for (double s = from; s < to; s += 26)
+            {
+                if (NearIntersection(route, s, 8)) continue;
+                foreach (int sgn in new[] { 1, -1 })
+                {
+                    if (rng.Chance(0.35)) continue;
+                    // Gully in the channel, right against the kerb face where water runs.
+                    var g = new GameObject("Gully");
+                    g.transform.SetParent(root, false);
+                    Geo.Box("Grate", g.transform, new Vector3(0.42f, 0.03f, 0.70f),
+                            Vector3.zero, iron, shadows: false);
+                    for (int i = 0; i < 5; i++)
+                        Geo.Box("Slot", g.transform, new Vector3(0.30f, 0.02f, 0.055f),
+                                new Vector3(0, 0.014f, -0.24f + i * 0.12f),
+                                MatLib.Solid(new Color(0.03f, 0.03f, 0.035f), 0.1f), shadows: false);
+                    PlaceFlat(g, route, s, sgn * (sec.RoadHalf - 0.26));
+                }
+
+                if (rng.Chance(0.5))
+                {
+                    var m = new GameObject("Manhole");
+                    m.transform.SetParent(root, false);
+                    Geo.Node("Cover", m.transform, Geo.Cylinder(0.34f, 0.34f, 0.03f, 14), iron,
+                             Vector3.zero);
+                    Geo.Node("Rim", m.transform, Geo.Cylinder(0.39f, 0.39f, 0.02f, 14),
+                             MatLib.Solid(new Color(0.09f, 0.09f, 0.10f), 0.2f), Vector3.zero);
+                    PlaceFlat(m, route, s + rng.Rand(-8, 8),
+                              rng.Rand(-sec.RoadHalf * 0.55, sec.RoadHalf * 0.55));
+                }
+
+                // Trench repair: a darker rectangle of newer tarmac across a lane.
+                if (rng.Chance(0.30))
+                {
+                    var p = new GameObject("Patch");
+                    p.transform.SetParent(root, false);
+                    Geo.Box("Fill", p.transform,
+                            new Vector3((float)rng.Rand(1.6, 3.4), 0.012f, (float)rng.Rand(1.2, 2.6)),
+                            Vector3.zero, patch, shadows: false);
+                    PlaceFlat(p, route, s + rng.Rand(-10, 10),
+                              rng.Rand(-sec.RoadHalf * 0.7, sec.RoadHalf * 0.7));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Place on the carriageway, which is flat by construction — the terrain is held at
+        /// zero across the whole corridor, so road furniture must NOT ask it for a height or
+        /// it would pick up the easing at the corridor edge and sink one end of a manhole.
+        /// </summary>
+        static void PlaceFlat(GameObject go, CompiledRoute route, double s, double t)
+        {
+            RoadBuilder.PosAtExtended(route, s, t, out double x, out double y, out double h);
+            go.transform.position = WorldBuilder.ToWorld(x, y, 0.012);
+            go.transform.rotation = WorldBuilder.ToRotation(h);
         }
 
         static bool NearIntersection(CompiledRoute route, double s, double pad)

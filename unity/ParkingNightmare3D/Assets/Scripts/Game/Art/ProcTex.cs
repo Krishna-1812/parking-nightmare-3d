@@ -275,26 +275,54 @@ namespace PN3D.Game.Art
             int W = c.W, H = c.H;
             c.Clear(RG.Hex(night ? "#5c5f6b" : "#aaa69d"));
 
+            // The footway is four metres of the frame in every ground-level shot and it was
+            // reading as blank paper. Paving is cast in batches, laid by different gangs and
+            // weathered separately, so no two slabs are the same tone — at 0.02 to 0.07
+            // alpha they all were. Each slab now gets a real tonal offset and, on some, a
+            // warm or cool cast, which is what stops a pavement looking printed.
             const int slab = 128;
             for (int sy = 0; sy < H; sy += slab)
                 for (int sx = 0; sx < W; sx += slab)
                 {
                     float v = r.Chance(0.5) ? 255 : 0;
-                    c.FillRect(sx, sy, slab, slab, RG.Rgba(v, v, v, (float)r.Rand(0.02, 0.07)));
+                    c.FillRect(sx, sy, slab, slab, RG.Rgba(v, v, v, (float)r.Rand(0.03, 0.16)));
+                    if (r.Chance(0.45))
+                        c.FillRect(sx, sy, slab, slab, r.Chance(0.5)
+                            ? RG.Rgba(158, 130, 88, (float)r.Rand(0.03, 0.07))
+                            : RG.Rgba(92, 112, 134, (float)r.Rand(0.03, 0.06)));
+
+                    // Chipping and dirt gathering along the joints, worst at the corners.
+                    for (int e = 0; e < 4; e++)
+                    {
+                        float ex = sx + (e == 1 ? slab - 5 : 0), ey = sy + (e == 3 ? slab - 5 : 0);
+                        float ew = e % 2 == 0 ? slab : 5, eh = e % 2 == 0 ? 5 : slab;
+                        c.FillRect(ex, ey, ew, eh, RG.Rgba(0, 0, 0, (float)r.Rand(0.03, 0.09)));
+                    }
                 }
 
-            for (int i = 0; i < 1100; i++)
+            for (int i = 0; i < 1600; i++)
                 c.FillRect((float)r.Rand(0, W), (float)r.Rand(0, H),
                            (float)r.Rand(1, 3), (float)r.Rand(1, 3),
-                           RG.Rgba(0, 0, 0, (float)r.Rand(0.02, 0.06)));
+                           RG.Rgba(0, 0, 0, (float)r.Rand(0.02, 0.08)));
 
-            for (int i = 0; i < 8; i++)
+            // Stains: rain shadow, spilt drinks, whatever a pavement collects.
+            for (int i = 0; i < 16; i++)
             {
-                float x = (float)r.Rand(0, W), y = (float)r.Rand(0, H), rad = (float)r.Rand(14, 44);
+                float x = (float)r.Rand(0, W), y = (float)r.Rand(0, H), rad = (float)r.Rand(14, 62);
                 var g = new Raster.RadialGrad(x, y, 2, rad)
-                    .Stop(0, RG.Rgba(60, 55, 45, .1f))
+                    .Stop(0, RG.Rgba(60, 55, 45, (float)r.Rand(0.08, 0.18)))
                     .Stop(1, RG.Rgba(0, 0, 0, 0));
                 c.FillRect(x - rad, y - rad, rad * 2, rad * 2, g);
+            }
+
+            // Moss in the joints, which is where it grows.
+            for (int i = 0; i < 220; i++)
+            {
+                float jx = Mathf.Round((float)r.Rand(0, W) / slab) * slab;
+                float jy = (float)r.Rand(0, H);
+                if (r.Chance(0.5)) { float t = jx; jx = jy; jy = Mathf.Round(t / slab) * slab; }
+                c.FillCircle(jx + (float)r.Rand(-2.5, 2.5), jy, (float)r.Rand(1.2, 3.4),
+                    new Raster.Solid(RG.Rgba(74, 96, 52, (float)r.Rand(0.10, 0.30))));
             }
 
             for (int y = 0; y <= H; y += slab) c.StrokeSegment(0, y, W, y, 3, RG.Rgba(0, 0, 0, .3f));
