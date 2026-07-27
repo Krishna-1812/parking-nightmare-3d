@@ -158,10 +158,13 @@ namespace PN3D.EditorTools
                     foreach (Transform who in actors)
                     {
                         if (who.name != "Ped") continue;
-                        cam.transform.position = who.position + who.forward * 2.3f
-                                               + who.right * 1.4f + Vector3.up * 1.5f;
+                        // In FRONT of them and slightly to one side. The first version of
+                        // this shot framed the back of a head, which is the one angle that
+                        // cannot tell me whether the face works.
+                        cam.transform.position = who.position + who.forward * 1.9f
+                                               + who.right * 0.9f + Vector3.up * 1.45f;
                         cam.transform.rotation = Quaternion.LookRotation(
-                            (who.position + Vector3.up * 1.05f) - cam.transform.position,
+                            (who.position + Vector3.up * 1.12f) - cam.transform.position,
                             Vector3.up);
                         Shot(cam, outDir, "02c_ped", width, height);
                         break;

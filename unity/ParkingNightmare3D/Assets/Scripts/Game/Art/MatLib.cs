@@ -138,6 +138,32 @@ namespace PN3D.Game.Art
                 return m;
             });
 
+        static Shader _skin;
+
+        /// <summary>
+        /// Skin. Not <see cref="Solid"/> with a flesh colour — see the header of
+        /// <c>PN3D_Skin.shader</c> for why that renders a person as painted plastic.
+        /// </summary>
+        public static Material Skin(Color tone)
+            => Get("skin" + ColorUtility.ToHtmlStringRGB(tone), () =>
+            {
+                _skin = _skin != null ? _skin : Resolve("PN3D/Skin");
+                var m = new Material(_skin);
+                SetBase(m, tone);
+                // The subsurface tint is the tone's own hue driven to blood red, so a
+                // darker tone scatters a deeper red rather than turning pink.
+                Color.RGBToHSV(tone, out float h, out float s, out float v);
+                m.SetColor("_SSSColor", Color.HSVToRGB(Mathf.Repeat(h - 0.015f, 1f),
+                                                       Mathf.Clamp01(s * 1.9f + 0.30f),
+                                                       Mathf.Clamp01(v * 0.85f)));
+                m.SetFloat("_Wrap", 0.42f);
+                m.SetFloat("_SSSScale", 0.50f);
+                m.SetFloat("_TransScale", 0.32f);
+                m.SetFloat("_SpecPower", 26f);
+                m.SetFloat("_SpecScale", 0.10f);
+                return m;
+            });
+
         static Shader _foliage;
 
         /// <summary>
