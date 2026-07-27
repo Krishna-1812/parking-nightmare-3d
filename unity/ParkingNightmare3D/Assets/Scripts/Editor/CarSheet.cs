@@ -75,15 +75,34 @@ namespace PN3D.EditorTools
                     float len = (float)veh.Len;
                     float dist = len * 1.05f + 1.5f;
                     float aim = st.WheelR + st.BodyH * 0.5f;
-                    cam.transform.position = new Vector3(dist * 0.78f, aim + len * 0.16f, -dist * 0.66f);
-                    cam.transform.rotation = Quaternion.LookRotation(
-                        new Vector3(0, aim, 0) - cam.transform.position, Vector3.up);
+
+                    void Aim(Vector3 at)
+                    {
+                        cam.transform.position = at;
+                        cam.transform.rotation = Quaternion.LookRotation(
+                            new Vector3(0, aim, 0) - at, Vector3.up);
+                    }
+
+                    Aim(new Vector3(dist * 0.78f, aim + len * 0.16f, -dist * 0.66f));
 
                     // The first Camera.Render in batch mode can land before ambient and the
                     // skybox settle, which tints the whole frame. Burn one.
                     if (first) { Shot(cam, outDir, "00_warmup", w, h); first = false; }
 
                     Shot(cam, outDir, st.Key, w, h);
+
+                    // The nose is at +Z, so the shot above — the only one this sheet ever
+                    // took — is a REAR three-quarter. The front had never been looked at.
+                    Aim(new Vector3(dist * 0.72f, aim + len * 0.16f, dist * 0.70f));
+                    Shot(cam, outDir, st.Key + "_front", w, h);
+
+                    // And the chase camera's own angle: behind, high, near the centreline,
+                    // looking down the boot lid. This is what the player stares at for the
+                    // whole game, it is the least flattering view the model has, and it is
+                    // the one that revealed the greenhouse was a black hole — on a phone,
+                    // after every other angle had been signed off in here.
+                    Aim(new Vector3(len * 0.10f, aim + len * 0.42f, -len * 1.15f));
+                    Shot(cam, outDir, st.Key + "_chase", w, h);
                     Debug.Log($"[PN3D]   {st.Key,-8} {st.Label,-22} " +
                               $"{veh.Len:0.0} x {veh.Wid:0.00} m, wheel r={st.WheelR:0.00}");
 

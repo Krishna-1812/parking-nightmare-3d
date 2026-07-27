@@ -38,6 +38,62 @@ namespace PN3D.Game.Art
             public string Key;
             public float PCross, PPlan, Tumble, WNose, WTail;
             public System.Func<float, float> Top, Bot;
+
+            /// <summary>
+            /// Per-quad cutter. Returns true to emit the quad, and is handed <c>u</c> along
+            /// the length (0 tail, 1 nose), the quad's centroid in the shell's own local
+            /// space, and its centroid in CUBE space. Null keeps everything.
+            ///
+            /// The cube coordinate is there so a cut can ask how far around the section it
+            /// is — <c>atan2(|qLat|, qy)</c>, which is 0 at the crown, pi/2 at the waist and
+            /// pi at the floor. That was not the first attempt. The first used the deformed
+            /// surface normal, on the reasoning that where the roof turns over is a question
+            /// about which way the surface faces; it is, but the normal is not continuous
+            /// across the cube's face seams, and the shell is six grids of different pitch
+            /// welded together. Along the shoulder, where the roof grid (28 by 80) meets the
+            /// flank grid (80 by 24), |n.x| wanders back and forth over any fixed threshold
+            /// and the two grids interleave — which is what the torn edge round every rear
+            /// window was. The cube angle is monotone, and it is identical on both sides of
+            /// a seam, because a seam is only where one coordinate stops being 1 and another
+            /// starts. Raising mesh density against this does nothing: it was tried twice
+            /// and each time the teeth got smaller and stayed.
+            ///
+            /// The centroid is a POSITION and not the normalised height y01, which was the
+            /// first thing tried and is the same mistake the shoulder crease made: y01 is a
+            /// fraction of the local section, and the cabin's section at the tail is a third
+            /// its height at the peak. A beltline set at 0.17 of it therefore sat thirty
+            /// millimetres above the cabin floor back there, so the whole rounded tail cap
+            /// counted as backlight — measured, 0.72 m² of it against 0.41 m² of side glass
+            /// for both flanks together. A beltline is a height. It has to be given as one.
+            ///
+            /// The normal is there because a cabin's roof and its flank are not separable by
+            /// any coordinate. On a rounded section the side curves up and the roof curves
+            /// down and they meet without either reaching a distinguishing value of y01 —
+            /// cut the side glass at a height and on a round-shouldered archetype the window
+            /// carries on over the crown and comes out as a stripe across the roof. Where
+            /// the roof turns over is a question about which way the surface faces, so ask
+            /// that: it is exactly what a cant rail is, and it needs no per-style tuning.
+            ///
+            /// This is what makes a greenhouse possible. A cabin is painted structure with
+            /// windows cut into it; modelled as a single shell it can only ever be all glass
+            /// or all paint, and the "black bubble" every archetype wore was that choice
+            /// showing. There is no boolean cutter available here, but there does not need
+            /// to be one: the shell is generated triangle by triangle, so the openings are
+            /// simply the triangles we decline to emit. The same hull is then built twice —
+            /// once keeping the paint, once keeping the glass — and the two interlock
+            /// exactly, because they are the same surface sampled by the same function.
+            /// </summary>
+            public System.Func<float, Vector3, Vector3, bool> Keep;
+
+            /// <summary>Reverses winding, so the shell renders as the inside of itself.</summary>
+            public bool Invert;
+
+            /// <summary>
+            /// Mesh density: lateral, vertical, lengthwise. Zero means the default.
+            /// The cabin needs a finer vertical grid than the body because its cuts run
+            /// horizontally — a beltline and a cant rail land between the body's eight rows.
+            /// </summary>
+            public int SLat, SY, SLen;
         }
 
         static float S3(float a, float b, float t)
@@ -147,18 +203,6 @@ namespace PN3D.Game.Art
         }
 
         /// <summary>
-        /// The roof panel: the cabin's own upper surface between the two cant rails, over
-        /// the length of the roof plateau.
-        ///
-        /// It is generated from the shell rather than approximated by a box because a box
-        /// cannot cover a dome. The previous cap was a rounded cuboid laid across the crown,
-        /// and its own corner rounding pulled its edges DOWN below the canopy's — so on the
-        /// tall-cabin archetypes the glass surfaced on both shoulders and the whole cabin
-        /// read as one black blob with a painted stripe along the very top. Sampling the
-        /// canopy at qy = +1 across the full lateral sweep traces exactly the arc the glass
-        /// makes there, so a panel built on it covers by construction at any cabin height.
-        /// </summary>
-        /// <summary>
         /// The flank surface at a station along the length and a given HEIGHT, rather than a
         /// given cube coordinate.
         ///
@@ -199,48 +243,6 @@ namespace PN3D.Game.Art
             return best;
         }
 
-        public static Mesh RoofPanel(string key, HullOpts o, float len, float hgt, float wid,
-                                     float u0, float u1)
-            => Geo.Get(key, () =>
-            {
-                const int NU = 16, NL = 14;
-                var verts = new Vector3[(NU + 1) * (NL + 1)];
-                var uvs = new Vector2[verts.Length];
-                var tris = new List<int>();
-
-                for (int i = 0; i <= NU; i++)
-                {
-                    // u maps to qLen exactly on the centreline, which is where the plateau
-                    // bounds were measured.
-                    float qLen = Mathf.Lerp(u0, u1, (float)i / NU) * 2f - 1f;
-                    for (int j = 0; j <= NL; j++)
-                    {
-                        float qLat = Mathf.Lerp(-1f, 1f, (float)j / NL);
-                        int idx = i * (NL + 1) + j;
-                        verts[idx] = Deform(o, len, hgt, wid, qLat, 1f, qLen, out _, out _);
-                        uvs[idx] = new Vector2((float)j / NL, (float)i / NU);
-                    }
-                }
-
-                // a->c runs +Z and a->b runs +X, so (a, c, b) gives cross(+Z, +X) = +Y and
-                // the panel faces the sky rather than the cabin floor.
-                for (int i = 0; i < NU; i++)
-                    for (int j = 0; j < NL; j++)
-                    {
-                        int a = i * (NL + 1) + j, b = a + 1, c = a + NL + 1, d = c + 1;
-                        tris.Add(a); tris.Add(c); tris.Add(b);
-                        tris.Add(b); tris.Add(c); tris.Add(d);
-                    }
-
-                var m = new Mesh();
-                m.SetVertices(verts);
-                m.SetUVs(0, uvs);
-                m.SetTriangles(tris, 0);
-                m.RecalculateNormals();
-                m.RecalculateTangents();
-                m.RecalculateBounds();
-                return m;
-            });
 
         /// <summary>
         /// Segmented box deformed into a car shell. Vertices are welded across the cube's
@@ -253,7 +255,9 @@ namespace PN3D.Game.Art
                 // SegLen carries the wheel arches. An arch spans about 19% of the length,
                 // so at the old 28 it had five segments to round itself off with and came
                 // out visibly faceted; 48 gives it nine or ten.
-                const int SegLen = 48, SegY = 8, SegLat = 12;
+                int SegLen = o.SLen > 0 ? o.SLen : 48;
+                int SegY = o.SY > 0 ? o.SY : 8;
+                int SegLat = o.SLat > 0 ? o.SLat : 12;
                 var (cube, tris) = WeldedBox(SegLat, SegY, SegLen);
 
                 var verts = new Vector3[cube.Count];
@@ -269,6 +273,39 @@ namespace PN3D.Game.Art
                     // texture needs to land on correctly
                     uvs[i] = new Vector2(u, y01);
                 }
+
+                // The cutter runs per QUAD — six indices at a time — and not per triangle.
+                //
+                // Per triangle it tears. A quad's two triangles have different centroids, so
+                // along any boundary that crosses the grid at an angle one is kept and the
+                // other dropped, and the opening comes out with a sawtooth one quad deep and
+                // one quad wide. It is not subtle: at the header, where the cut runs across
+                // the roof and the chase camera looks straight at it, every archetype had a
+                // torn-paper edge along the top of its backlight. Deciding once per quad
+                // makes the worst case a clean staircase instead, and a staircase of this
+                // pitch disappears into the smooth normals.
+                //
+                // WeldedBox always emits a quad as two consecutive triangles, so the grouping
+                // is safe to assume; the union of their indices is the quad's four corners.
+                if (o.Keep != null)
+                {
+                    var kept = new List<int>(tris.Count);
+                    for (int q = 0; q + 5 < tris.Count; q += 6)
+                    {
+                        int a = tris[q], b = tris[q + 1], c = tris[q + 2], d = tris[q + 4];
+                        if (d == a || d == b || d == c) d = tris[q + 5];
+                        float u = (uvs[a].x + uvs[b].x + uvs[c].x + uvs[d].x) * 0.25f;
+                        var p = (verts[a] + verts[b] + verts[c] + verts[d]) * 0.25f;
+                        var qc = (cube[a] + cube[b] + cube[c] + cube[d]) * 0.5f;  // to [-1, 1]
+                        if (!o.Keep(u, p, qc)) continue;
+                        for (int k = 0; k < 6; k++) kept.Add(tris[q + k]);
+                    }
+                    tris = kept;
+                }
+
+                if (o.Invert)
+                    for (int t = 0; t < tris.Count; t += 3)
+                        (tris[t + 1], tris[t + 2]) = (tris[t + 2], tris[t + 1]);
 
                 var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
                 mesh.SetVertices(verts);
@@ -368,7 +405,8 @@ namespace PN3D.Game.Art
             float bodyH = st.BodyH, cabHeight = st.CabHeight, wheelR = st.WheelR;
             float cabLen = len * st.CabLenFrac, cabOff = len * st.CabOffFrac;
             float baseY = wheelR - 0.05f;
-            float cabW = wid * st.CabWidFrac;
+            // cabW is not set here any more; it is measured off the body's own shoulder
+            // once BODY() exists. See the note there.
             float half = len * 0.5f;
 
             var root = new GameObject("Car_" + key).transform;
@@ -432,9 +470,138 @@ namespace PN3D.Game.Art
             Vector3 BODY(float u, float qy, float side)
                 => shellPos + SurfaceAtU(bdOpts, len, bodyH, wid, u, qy, side);
 
-            // ---- glass canopy: the roofline that carries most of the silhouette ----
+            // ---- the cabin: painted structure with windows cut into it ----
             float canLen = cabLen + cabHeight * 0.55f;
             float canH = cabHeight * 0.92f;
+
+            // CABIN WIDTH, taken off the body instead of off the bounding box.
+            //
+            // It used to be wid * CabWidFrac, then scaled again by the lateral glass inset:
+            // 0.86 * 0.93 = 80% of full beam. But full beam is not what the cabin sits on.
+            // The body has its own tumblehome and its own cross-section superellipse, so by
+            // the time the flank reaches the deck it has already pulled in — and the cabin
+            // was then inset from a width the car never has. The result is the pod-on-a-
+            // flatbed look: 175 mm of bare deck down each side, which reads as a pickup with
+            // a canopy rather than as a car with a roof.
+            //
+            // A cabin's base is the body's shoulder. So ask the body where its shoulder is.
+            // Same rule as everything else on this model now: sample the surface, do not
+            // reconstruct it.
+            float shoulderHalf = Mathf.Abs(BODY(st.RoofPeak, 0.86f, 1f).x);
+            float cabW = 2f * Mathf.Max(0.2f, shoulderHalf - wid * 0.012f) * st.CabWidFrac;
+
+            // Plateau edges are where the roof stops being flat, which is exactly where the
+            // A and C pillars stand. The cutter needs them, so they are computed up here.
+            float uFront = Mathf.Clamp01(st.RoofPeak + st.RoofFlat * (1f - st.RoofPeak));
+            float uRear = Mathf.Clamp01(st.RoofPeak - st.RoofFlat * st.RoofPeak);
+
+            // THE GREENHOUSE, and why it is cut rather than framed.
+            //
+            // Every previous attempt built the cabin as one glass dome and then laid painted
+            // parts on top of it — a roof cap, then pillars, then cant rails, then headers.
+            // Each pass covered more of the dome and each pass left the car still wearing a
+            // black bubble, because the approach cannot win: whatever is not covered is
+            // glass, and a curved dome always shows more of itself than a set of bars can
+            // hide. The first device screenshot settled it. From the chase camera the whole
+            // upper half of the car was a void, on grass and on asphalt alike.
+            //
+            // A cabin is bodywork with holes in it, so cut holes in bodywork. Below is the
+            // window layout in the shell's own coordinates; the paint shell keeps its
+            // complement and the glass shell keeps it, so pillars, cant rail and beltline
+            // are all bodywork that was simply never removed — on the surface by
+            // construction, at no cost, and impossible to leave a gap.
+            // Angles around the section, in radians: 0 is the crown, pi/2 the waist. The
+            // cube's own corner — the shoulder — is at 45 degrees, so a cant rail just past
+            // it and a quarter-panel edge a little further round are what these are.
+            //
+            // Tuned by measuring glazed area per opening rather than by eye, because the
+            // eye is exactly what got this wrong for three passes. These give side glass
+            // 0.51 m², windscreen 0.42 and backlight 0.38 — side glass largest, which is
+            // the order a hatchback actually has. The first guess had it last, at 0.30
+            // against 0.94 of screens.
+            const float RailA = 0.88f;      // cant rail: side glass starts below this
+            const float QuartA = 1.00f;     // rear and front quarter panels start beyond it
+            const float PillarU = 0.042f;   // half-width of the A and C pillars, in u
+            const float BPillU = 0.032f;    // half-width of the B-pillar
+
+            // Headers and pillars are cut on the CUBE's z — not on the deformed z, and not
+            // on u. This is the last of the torn edges and the one that took longest to see.
+            //
+            // Measured, along one row of the roof grid the deformed z swings 120 mm and is
+            // NOT MONOTONE: the plan superellipse pulls qLen in as qLat grows, and the pull
+            // changes character where |qLat| overtakes |qLen|, so across a row the z falls,
+            // rises and falls again. A threshold against that crosses the same row three or
+            // four times, and the boundary comes out as needle-thin spikes rather than as a
+            // staircase — which is exactly what sat over every rear window. u is the same
+            // quantity rescaled, so switching between the two changed nothing at all, twice.
+            //
+            // The cube's z is monotone by construction and its iso-lines ARE the grid rows,
+            // so a cut on it is straight. On the centreline the superellipse is the identity,
+            // so these still land where uFront and uRear say; off the centreline the header
+            // sweeps very slightly forward, which is what a real one does anyway.
+            float peak = st.RoofPeak;
+            float qFront = uFront * 2f - 1f;
+            float qRear = uRear * 2f - 1f;
+            float qPeak = peak * 2f - 1f;
+            float qPillar = PillarU * 2f, qBPill = BPillU * 2f;
+
+            // Where the cabin sits. Declared here rather than next to its own Geo.Node
+            // because the cutter needs it: the beltline is a world height and the cutter
+            // works in the shell's local space, so one of them has to be converted, and
+            // recomputing this expression in two places is precisely how the greenhouse
+            // came adrift from the glass the last three times.
+            var canopyPos = new Vector3(0, baseY + bodyH + cabHeight * 0.46f - 0.08f,
+                                        cabOff - cabHeight * 0.1f);
+
+            // The beltline, measured up from the body's deck, which is the surface a real
+            // one is set above. Held as a height it does the right thing everywhere without
+            // being told to: where the roofline falls below it — the last few per cent at
+            // the nose and tail — the opening simply closes, so the screens end in bodywork
+            // instead of running off the end of the car.
+            float beltAboveDeck = Mathf.Clamp(cabHeight * 0.20f, 0.07f, 0.16f);
+            float beltLocal = baseY + bodyH + beltAboveDeck - canopyPos.y;
+
+            // ...but TESTED in cube space, by asking which cube height the beltline sits at
+            // for this station and comparing cube to cube.
+            //
+            // Comparing the deformed y directly is correct and looks wrong, for the same
+            // reason the header did: the deformed coordinate is not monotone along a grid
+            // row, so the boundary crosses a row several times and frays. Held this way the
+            // beltline is still a height — the roof profile is applied, so it still closes
+            // the opening wherever the roofline falls below it — but both sides of the
+            // comparison are now smooth functions of the grid, so the edge is a clean
+            // staircase. Above the roof the fraction exceeds 1, which no cube height can
+            // reach, and the opening shuts on its own.
+            var roofFn = st.Roof();
+            float BeltQy(float qz)
+            {
+                float t = Mathf.Max(1e-3f, roofFn(qz * 0.5f + 0.5f));
+                return ((beltLocal / canH + 0.5f) / t) * 2f - 1f;
+            }
+
+            bool IsWindow(Vector3 p, Vector3 q)
+            {
+                // How far around the section this quad sits. See HullOpts.Keep for why this
+                // and not the surface normal.
+                float around = Mathf.Atan2(Mathf.Abs(q.x), q.y);
+                // Below the beltline the cabin is door tops and rear quarter panel, and on
+                // most archetypes it is sunk into the body shell anyway.
+                if (q.y < BeltQy(q.z)) return false;
+                // Beyond the headers, a screen — but only the part of the end that is still
+                // near the crown. Given the whole end, the glass wrapped the cabin's rounded
+                // tail cap and came out as a black blister bulging over the boot: the tail
+                // does not taper to a point, it finishes low and rolls round, and the sides
+                // of that roll are quarter panel.
+                if (q.z > qFront + qPillar || q.z < qRear - qPillar) return around < QuartA;
+                // Between the headers: pillars and roof are paint, and what is left down the
+                // side is side glass. The cant rail is not a height — a height cut on a
+                // domed cabin carries the window over the crown and out as a stripe across
+                // the roof — it is a line around the section, which is where one is welded.
+                if (Mathf.Abs(q.z - qPeak) < qBPill) return false;
+                if (q.z > qFront - qPillar || q.z < qRear + qPillar) return false;
+                return around > RailA;
+            }
+
             var cnOpts = new HullOpts
             {
                 Key = $"cn_{st.Key}_{cabLen}_{cabHeight}_{cabW}",
@@ -445,68 +612,110 @@ namespace PN3D.Game.Art
                 // the glass surfaced outside the rear quarter as a dark lump stuck to the
                 // tailgate. The cabin must always be narrower than the body it sits on.
                 WNose = 0.88f, WTail = 0.86f,
-                Top = st.Roof(), Bot = _ => 0f,
+                Top = roofFn, Bot = _ => 0f,
+                // Density is set by the cuts, not by the shape, and it has to be spent on
+                // the faces the cuts actually cross. The header that bounds the top of the
+                // backlight does not cross the roof — it crosses the cabin's END CAP, which
+                // is gridded SLat by SY. At 16 by 20 against 96 down the flanks, each step
+                // of that staircase was 84 mm, an eighth of the opening's width, and the
+                // chase camera looks straight at it: every archetype had a torn-paper edge
+                // over its rear window. Spending 96 segments on the one face with no cut
+                // running across it was the whole mistake.
+                SLat = 28, SY = 24, SLen = 80,
             };
-            var canopy = Hull(canLen, canH, cabW, cnOpts);
+            string cutKey = $"_{uFront:0.000}_{uRear:0.000}_{peak:0.000}_{beltLocal:0.000}";
+            var cnPaint = cnOpts; cnPaint.Key += "_body" + cutKey;
+            // The paint shell also drops everything well below the body's deck. That part of
+            // the cabin is sunk inside the body and can never be seen, and at the density
+            // the cuts need it was a third of the shell's triangles. The interior liner
+            // keeps its floor, since that one is looked at through the windows.
+            float deckLocal = baseY + bodyH - canopyPos.y;
+            cnPaint.Keep = (_, p, q) => !IsWindow(p, q) && p.y > deckLocal - 0.03f;
+            var cnGlass = cnOpts; cnGlass.Key += "_glass" + cutKey;
+            cnGlass.Keep = (_, p, q) => IsWindow(p, q);
+            // The cabin's own inside. Without it a window is a hole you see the far side of
+            // the world through, which is worse than the bubble it replaced. An inverted
+            // copy of the same shell is the whole interior: you look through the near glass
+            // and see the far wall of the cabin, correctly shaded and at a real distance,
+            // for one cached mesh and no new geometry.
+            // Coarse on purpose: it is a dark shell seen through glass, it carries no cut
+            // edges, and at the cabin's own density it would double the car's triangle count
+            // to render detail nothing can resolve.
+            var cnIn = cnOpts; cnIn.Key += "_in";
+            cnIn.Invert = true;
+            cnIn.SLat = 10; cnIn.SY = 8; cnIn.SLen = 24;
             // Glass, not Textured. The canopy kept the pillar/seal detail map but was being
             // built at metallic 0, which is why it read as painted plastic rather than a
             // windscreen — see MatLib.Glass for why near-mirror beats alpha here.
-            // Lifted off near-black. Once the frame went in, the glass stopped being the
-            // whole cabin and became panels between pillars — and at that tint the panels
-            // read as holes punched through the car rather than windows. Real glazing seen
-            // from outside is dark but never void: it carries a sky reflection.
-            var glassMat = MatLib.Glass(new Color(0.135f, 0.150f, 0.175f), ProcTex.CanopySide());
-            // Inset on both axes, purely so the glass tips tuck inside the frame instead of
-            // surfacing past it — 0.95 in Z leaves the frame's outermost members (u
-            // 0.025..0.975) something to sit on, and the lateral inset gives the pillars a
-            // sliver of glass to overlap rather than butting against its raw edge.
             //
-            // The frame below anchors to this surface via SurfaceAtU, which runs the same
+            // NO DETAIL MAP, and this is what was actually making the glass black.
+            //
+            // CanopySide() paints pillars and window panes onto a texture: it is #0b0f14
+            // over most of its area with three dim gradient panes on it, and it existed
+            // because the canopy used to BE the whole cabin and the pillars had to be
+            // faked somewhere. URP multiplies base colour by base map, so every tint set
+            // here was being multiplied by near zero — which is why lifting the tint twice
+            // changed nothing, and why the openings read as holes cut through the car
+            // rather than as windows. The pillars are geometry now. The map is a leftover
+            // of the approach that has just been deleted, and it goes with it.
+            var glassMat = MatLib.Glass(new Color(0.185f, 0.205f, 0.240f));
+            // Inset on both axes, purely so the cabin tucks inside the body's shoulders
+            // rather than surfacing past them.
+            //
+            // Anything anchored to the cabin goes through GLASS() below, which runs the same
             // deformation the mesh did and then applies this same inset — so the two cannot
             // disagree. Anything that instead recomputes "where the glass is" by hand will
             // be wrong; see the note on Deform for the 15% that cost.
-            const float GlassInsetLat = 0.93f, GlassInsetZ = 0.95f;
-            var canopyPos = new Vector3(0, baseY + bodyH + cabHeight * 0.46f - 0.08f,
-                                        cabOff - cabHeight * 0.1f);
-            var glassScale = new Vector3(GlassInsetLat, 1f, GlassInsetZ);
-            Geo.Node("Canopy", body, canopy, glassMat, canopyPos,
-                     Quaternion.identity, glassScale);
+            // Both insets are gone. They existed to stop the cabin surfacing outside the
+            // body, which was the right worry and the wrong cure: an inset shrinks the whole
+            // cabin to fix an overhang at its widest point, and it was being applied on top
+            // of a width that was already a guess. cabW is now measured off the body's
+            // shoulder, so the cabin cannot overhang and does not need shrinking, and canLen
+            // means what it says instead of five per cent less.
+            var glassScale = Vector3.one;
 
             var dark = MatLib.Solid(new Color(0.063f, 0.071f, 0.086f), 0.35f);
+
+            // Interior first, so it is behind everything. Slightly shrunk as well as
+            // inverted: coincident with the paint shell it z-fights along every pillar.
+            // Not black. A car interior in daylight is a mid-dark grey — headlining, seat
+            // backs, a parcel shelf all catching sky through the glass — and at 0.085 the
+            // cabin read as an unlit hole rather than as somewhere with room in it.
+            Geo.Node("CabinIn", body, Hull(canLen, canH, cabW, cnIn),
+                     MatLib.Solid(new Color(0.165f, 0.162f, 0.172f), 0.14f), canopyPos,
+                     Quaternion.identity, Vector3.Scale(glassScale, new Vector3(0.965f, 0.97f, 0.975f)));
+
+            // The cabin's bodywork: roof, pillars, cant rail, beltline, rear quarters. One
+            // mesh, because they are one panel on a real car too.
+            Geo.Node("Cabin", body, Hull(canLen, canH, cabW, cnPaint), paint, canopyPos,
+                     Quaternion.identity, glassScale);
+
+            // The glazing, at EXACTLY the paint shell's scale.
+            //
+            // It was 0.6% proud, to read as glass set into an aperture. That was the source
+            // of the spiked edge over every rear window — the one defect left after the cant
+            // rail and the header had both been fixed, and the reason neither fix appeared
+            // to do anything. Paint and glass are complementary quads of one surface, so
+            // they cannot z-fight and they do not need separating; but scale them apart and
+            // near the roof, where the surface lies almost along the line of sight, a four
+            // millimetre radial offset walks the glass a long way up the roof in screen
+            // space, by an amount that varies quad to quad. Hence spikes rather than a
+            // staircase. Coincident, the two tile the surface exactly and the seam is a
+            // shared edge.
+            Geo.Node("Glazing", body, Hull(canLen, canH, cabW, cnGlass), glassMat, canopyPos,
+                     Quaternion.identity, glassScale);
             var chrome = MatLib.Chrome();
-            // PILLAR FINISH, arrived at by overcorrecting once in each direction.
-            //
-            // Painting the frame in the body's own gloss made every car a chrome roll cage:
-            // thin structure at a grazing angle reflects nearly pure sky whatever its hue,
-            // so each bar wore a blown-out white rim. Blacking the whole frame out killed
-            // that, and replaced it with a worse fault — black pillars against black glass
-            // leave the greenhouse one undifferentiated dark mass, which is exactly the
-            // "black bubble" this work started out trying to remove. It was invisible on the
-            // white coupe and unmissable on the red SUV.
-            //
-            // The culprit was gloss, not colour. Body colour at low smoothness has no rim to
-            // blow out, and it is also what a real car does: A-pillars, the cant rail and
-            // the screen surrounds are painted metal, while the B-pillar and the beltline
-            // are deliberately blacked-out trim. Splitting the frame that way gives the
-            // silhouette its shape back and is period-correct at the same time.
-            var pillarPaint = MatLib.CarPaint(
-                "mat_pillar" + ColorUtility.ToHtmlStringRGB(bodyC), bodyC, null, 0.04f, 0.34f);
+            // Blacked-out trim: window seals, the B-pillar strip, wiper arms. Kept as a
+            // material rather than as geometry now that the pillars are bodywork.
             var pillarMat = MatLib.Solid(new Color(0.045f, 0.048f, 0.055f), 0.30f, 0.05f);
 
-            // ---- greenhouse frame ----
-            // A cabin is not a glass dome. It is painted structure with windows cut into
-            // it, and modelling it as one shell is why every archetype wore a black bubble
-            // however the tint was tuned. Laying a cap on top could never fix that: the
-            // dome flares out below the cap's edge, so glass kept showing where bodywork
-            // belonged. There is no boolean cutter here, so instead of cutting holes in
-            // paint we build the frame around the glass — A, B and C pillars, a cant rail
-            // over the side glass, a beltline under it, and a roof across the plateau.
-            // What is left showing between them is a window, which is what a window is.
-            //
-            // Pillars lean inward as they rise because the glass does. Cabin tumblehome
-            // makes the roof narrower than the waist, so a pillar held at one width would
-            // peel off the glass by the time it reached the top.
-            float canLenGlass = canLen * GlassInsetZ;
+            // The greenhouse frame used to be built here: ten struts a side plus four cross
+            // members, laid over a glass dome in the hope of hiding enough of it. All of it
+            // is gone. Pillars, cant rail, header and beltline are now the paint shell's own
+            // triangles — the ones IsWindow declined to give to the glass — so they are on
+            // the surface by construction and cannot drift off it, which is the failure the
+            // struts kept reintroducing every time an archetype changed shape.
+            float canLenGlass = canLen;
             float roofZ = canopyPos.z;
 
             // Every anchor below comes from here. GLASS(u, qy, side) is the real surface:
@@ -522,80 +731,48 @@ namespace PN3D.Game.Art
             // than sitting on its glass.
             float ZAt(float u) => roofZ + (u - 0.5f) * canLenGlass;
 
-            // Plateau edges are where the roof stops being flat, which is exactly where the
-            // A and C pillars should meet it.
-            float uFront = Mathf.Clamp01(st.RoofPeak + st.RoofFlat * (1f - st.RoofPeak));
-            float uRear = Mathf.Clamp01(st.RoofPeak - st.RoofFlat * st.RoofPeak);
-            // The frame has to reach the ends of the glass. At 0.93/0.07 it stopped seven
-            // per cent short at each tip, and the unframed remainder surfaced as a dark
-            // stub past the C-pillar — very obvious on the estate, where RoofTail keeps the
-            // glass tall right to the tailgate.
-            const float UWind = 0.975f, UBack = 0.025f;
+            const float UWind = 0.975f;
 
             // Crown and roof-edge half-width, both read off the real surface rather than
-            // reconstructed. roofY drives the roof cap, rails, light bars and taxi signs.
+            // reconstructed. roofY drives the rails, light bars and taxi signs.
             float roofY = GLASS(st.RoofPeak, 1f, 0f).y;
             float latRoof = Mathf.Abs(GLASS(st.RoofPeak, 1f, 1f).x);
             // The canopy's floor is flat (Bot is identically zero), so the beltline is one
             // height for the whole cabin — mirrors and wipers hang off it.
             float beltY = canopyPos.y - canH * 0.5f;
-            // A touch heavier than before: now that they read as trim rather than chrome,
-            // they can afford the extra substance a real pillar has instead of a wire's.
             float pil = Mathf.Clamp(wid * 0.034f, 0.028f, 0.060f);
 
-            // Sit the bar's inner face on the glass instead of centring it there, so the
-            // pillar covers the seam rather than straddling it half-sunk.
-            Vector3 Proud(Vector3 p, float s, float t) => p + new Vector3(s * t * 0.42f, 0f, 0f);
-
+            // ---- interior fittings ----
+            // The inverted shell gives the cabin depth; these give it something to be. Two
+            // headrests and a dash are the whole of what is legible through a side window at
+            // any distance the game is ever played at, and without them a window reads as a
+            // dark panel rather than as somewhere a driver sits.
+            var trim = MatLib.Solid(new Color(0.115f, 0.112f, 0.125f), 0.20f);
+            float seatY = beltY + canH * 0.10f;
+            float seatX = cabW * 0.21f;
             foreach (float s in new[] { 1f, -1f })
             {
-                var aBot = Proud(GLASS(UWind, -1f, s), s, pil);
-                var aTop = Proud(GLASS(uFront, 1f, s), s, pil);
-                var cBot = Proud(GLASS(UBack, -1f, s), s, pil * 1.30f);
-                var cTop = Proud(GLASS(uRear, 1f, s), s, pil * 1.30f);
-                var bBot = Proud(GLASS(st.RoofPeak, -1f, s), s, pil * 0.85f);
-                var bTop = Proud(GLASS(st.RoofPeak, 1f, s), s, pil * 0.85f);
-
-                Strut(body, pillarPaint, aBot, aTop, pil);          // A-pillar, painted
-                Strut(body, pillarPaint, cBot, cTop, pil * 1.30f);  // C-pillar, the thick one
-                Strut(body, pillarMat, bBot, bTop, pil * 0.85f);    // B-pillar, blacked out
-                Strut(body, pillarPaint, aTop, cTop, pil * 0.85f);  // cant rail: roof edge
-                Strut(body, pillarMat, aBot, cBot, pil * 0.75f);    // beltline: window seal
+                // Backrest and headrest, at the front seats. The rear bench sits low enough
+                // that only its headrests would show, and on the short archetypes there is
+                // no room for one at all.
+                Geo.Box("SeatBack", body, new Vector3(cabW * 0.30f, canH * 0.42f, 0.07f),
+                        new Vector3(s * seatX, seatY + canH * 0.16f, ZAt(peak + 0.06f)), trim);
+                Geo.Box("Headrest", body, new Vector3(cabW * 0.20f, canH * 0.20f, 0.09f),
+                        new Vector3(s * seatX, seatY + canH * 0.44f, ZAt(peak + 0.05f)), trim);
             }
+            // Dash and parcel shelf: the two horizontals you see through the screens.
+            Geo.Box("Dash", body, new Vector3(cabW * 0.80f, canH * 0.13f, canLen * 0.10f),
+                    new Vector3(0, beltY + canH * 0.13f, ZAt(uFront + 0.02f)), trim);
+            Geo.Box("Shelf", body, new Vector3(cabW * 0.74f, canH * 0.06f, canLen * 0.09f),
+                    new Vector3(0, beltY + canH * 0.16f, ZAt(uRear - 0.02f)), trim);
 
-            // CROSS MEMBERS, and this is what the rear-quarter bulge actually was.
-            //
-            // The side frame gave every window a pillar fore and aft, but the windscreen
-            // and the backlight are not side windows: they span the full width, so their
-            // frame runs across the car, not along it. Without a header above and a rail
-            // below, the backlight was an unbounded sheet of near-black glass bounded only
-            // by the two C-pillars — which on the long-roof styles is a large area, and it
-            // read as a dark mass stuck to the rear quarter rather than as a tailgate
-            // window. Three earlier attempts at this treated it as the glass being too
-            // wide, too long, or outside the body. It was none of those: the geometry was
-            // in the right place and simply had no frame around it.
-            // Headers are painted roof structure; the lower rails are the screen seals.
-            Strut(body, pillarPaint, GLASS(uFront, 1f, 1f), GLASS(uFront, 1f, -1f), pil * 0.90f);
-            Strut(body, pillarPaint, GLASS(uRear, 1f, 1f), GLASS(uRear, 1f, -1f), pil * 0.90f);
-            Strut(body, pillarMat, GLASS(UWind, -1f, 1f), GLASS(UWind, -1f, -1f), pil * 0.80f);
-            Strut(body, pillarMat, GLASS(UBack, -1f, 1f), GLASS(UBack, -1f, -1f), pil * 0.80f);
+            // The separate roof cap is gone too. It was the last survivor of the lay-panels-
+            // over-a-dome approach, and it could only ever cover the plateau — everything
+            // fore and aft of it stayed glass, which is most of what the chase camera sees.
+            // The roof is now simply the part of the paint shell above the cant rail and
+            // between the two headers.
 
-            // Slightly longer than the plateau it caps. Cut exactly to uRear..uFront it
-            // ended flush with the headers, leaving a strip of bare glass crown just behind
-            // each one — the roof only starts falling gently there, so a little overhang
-            // still lands on the shell and closes the gap.
-            // The roof panel follows the cabin's own dome (see RoofPanel), so it covers at
-            // every archetype height instead of only where a flat cap happened to reach.
-            // A hair wider and a few millimetres up, which lifts it clear of z-fighting and
-            // tucks its edge under the cant rail.
-            var roofMesh = RoofPanel($"rp_{st.Key}_{canLen}_{canH}_{cabW}_{uRear}_{uFront}",
-                                     cnOpts, canLen, canH, cabW,
-                                     uRear - 0.045f, uFront + 0.045f);
-            Geo.Node("Roof", body, roofMesh, paint,
-                     canopyPos + new Vector3(0f, 0.007f, 0f), Quaternion.identity,
-                     new Vector3(GlassInsetLat * 1.016f, 1f, GlassInsetZ));
-
-            // Shark fin, sat on the rear of the roof panel. It used to be pinned to
+            // Shark fin, sat on the rear of the roof. It used to be pinned to
             // "baseY + bodyH + 0.8 * cabHeight", a height with no relationship to the roof,
             // and at the Z it was given — where the roofline has already begun to fall — it
             // hung in the air beside the cabin as a small black block.

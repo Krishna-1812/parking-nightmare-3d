@@ -41,7 +41,14 @@ namespace PN3D.Game.Art
         public float CabHeight = 0.55f;
         public float CabLenFrac = 0.50f;
         public float CabOffFrac = -0.06f;   // + is toward the nose
-        public float CabWidFrac = 0.86f;
+        /// <summary>
+        /// Cabin width as a fraction of the BODY'S SHOULDER, sampled — not of the bounding
+        /// box, which is a width the car does not have anywhere. Expect values near 1: this
+        /// is a trim, and the narrowing from beam to cabin is the body's own tumblehome
+        /// doing its job. Was 0.86 against full beam, and with the old lateral glass inset
+        /// on top of it the cabin came out at 80% of beam — a pod on a flatbed.
+        /// </summary>
+        public float CabWidFrac = 0.98f;
 
         // ---- painted shell shaping ----
         public float PCross = 3.4f, PPlan = 5.5f, Tumble = 0.10f;
@@ -144,7 +151,7 @@ namespace PN3D.Game.Art
         {
             Key = "exec", PaintMetallic = 0.30f, PaintSmooth = 0.88f, Label = "executive saloon",
             BodyH = 0.60f, WheelR = 0.335f, Spokes = 10,
-            CabHeight = 0.52f, CabLenFrac = 0.46f, CabOffFrac = -0.04f, CabWidFrac = 0.86f,
+            CabHeight = 0.52f, CabLenFrac = 0.46f, CabOffFrac = -0.04f, CabWidFrac = 0.98f,
             PCross = 3.6f, PPlan = 6.0f, Tumble = 0.13f, WNose = 0.88f, WTail = 0.90f,
             BonnetDrop = 0.20f, BootDrop = 0.08f,
             RoofPeak = 0.44f, RoofFlat = 0.36f, RoofNose = 0.08f, RoofTail = 0.12f,
@@ -155,7 +162,7 @@ namespace PN3D.Game.Art
         {
             Key = "coupe", PaintMetallic = 0.32f, PaintSmooth = 0.90f, Label = "fastback coupe",
             BodyH = 0.56f, WheelR = 0.35f, Spokes = 5, WheelWFrac = 0.78f,
-            CabHeight = 0.46f, CabLenFrac = 0.46f, CabOffFrac = -0.01f, CabWidFrac = 0.84f,
+            CabHeight = 0.46f, CabLenFrac = 0.46f, CabOffFrac = -0.01f, CabWidFrac = 0.96f,
             PCross = 3.0f, PPlan = 5.0f, Tumble = 0.20f, WNose = 0.84f, WTail = 0.87f,
             BonnetDrop = 0.24f, BootDrop = 0.12f,
             RoofPeak = 0.54f, RoofFlat = 0.15f, RoofNose = 0.10f, RoofTail = 0.02f,
@@ -178,7 +185,7 @@ namespace PN3D.Game.Art
         {
             Key = "suv", PaintMetallic = 0.24f, PaintSmooth = 0.78f, Label = "luxury SUV",
             BodyH = 0.86f, WheelR = 0.40f, Spokes = 6, WheelWFrac = 0.72f,
-            CabHeight = 0.62f, CabLenFrac = 0.54f, CabOffFrac = -0.04f, CabWidFrac = 0.88f,
+            CabHeight = 0.62f, CabLenFrac = 0.54f, CabOffFrac = -0.04f, CabWidFrac = 1.00f,
             PCross = 4.6f, PPlan = 7.0f, Tumble = 0.06f, WNose = 0.92f, WTail = 0.95f,
             BonnetDrop = 0.13f, BootDrop = 0.05f, SillFront = 0.05f, SillRear = 0.06f,
             RoofPeak = 0.44f, RoofFlat = 0.56f, RoofNose = 0.14f, RoofTail = 0.26f,
@@ -191,7 +198,7 @@ namespace PN3D.Game.Art
         {
             Key = "wagon", PaintMetallic = 0.24f, PaintSmooth = 0.80f, Label = "estate",
             BodyH = 0.62f, WheelR = 0.34f, Spokes = 5,
-            CabHeight = 0.56f, CabLenFrac = 0.60f, CabOffFrac = -0.10f, CabWidFrac = 0.87f,
+            CabHeight = 0.56f, CabLenFrac = 0.60f, CabOffFrac = -0.10f, CabWidFrac = 0.99f,
             PCross = 3.8f, PPlan = 6.0f, Tumble = 0.09f,
             BonnetDrop = 0.19f, BootDrop = 0.04f,
             RoofPeak = 0.38f, RoofFlat = 0.58f, RoofNose = 0.11f, RoofTail = 0.52f,
@@ -228,7 +235,7 @@ namespace PN3D.Game.Art
         {
             Key = "van", PaintMetallic = 0.10f, PaintSmooth = 0.52f, Label = "delivery van",
             BodyH = 1.55f, WheelR = 0.44f, Spokes = 6, WheelWFrac = 0.62f,
-            CabHeight = 0.55f, CabLenFrac = 0.30f, CabOffFrac = 0.28f, CabWidFrac = 0.90f,
+            CabHeight = 0.55f, CabLenFrac = 0.30f, CabOffFrac = 0.28f, CabWidFrac = 1.00f,
             PCross = 6.0f, PPlan = 8.0f, Tumble = 0.03f, WNose = 0.94f, WTail = 0.99f,
             BonnetDrop = 0.08f, BootDrop = 0.01f, SillFront = 0.04f, SillRear = 0.04f,
             RoofPeak = 0.40f, RoofFlat = 0.70f, RoofNose = 0.30f, RoofTail = 0.85f,
@@ -241,7 +248,7 @@ namespace PN3D.Game.Art
         {
             Key = "limo", PaintMetallic = 0.34f, PaintSmooth = 0.91f, Label = "stretch limousine",
             BodyH = 0.60f, WheelR = 0.34f, Spokes = 10,
-            CabHeight = 0.54f, CabLenFrac = 0.64f, CabOffFrac = -0.04f, CabWidFrac = 0.88f,
+            CabHeight = 0.54f, CabLenFrac = 0.64f, CabOffFrac = -0.04f, CabWidFrac = 1.00f,
             PCross = 4.0f, PPlan = 7.0f, Tumble = 0.08f, WNose = 0.92f, WTail = 0.94f,
             BonnetDrop = 0.17f, BootDrop = 0.07f,
             RoofPeak = 0.46f, RoofFlat = 0.66f, RoofNose = 0.10f, RoofTail = 0.14f,
@@ -253,7 +260,7 @@ namespace PN3D.Game.Art
         {
             Key = "pickup", PaintMetallic = 0.18f, PaintSmooth = 0.66f, Label = "lifted pickup",
             BodyH = 1.05f, WheelR = 0.60f, Spokes = 6, WheelWFrac = 0.85f,
-            CabHeight = 0.66f, CabLenFrac = 0.40f, CabOffFrac = 0.13f, CabWidFrac = 0.86f,
+            CabHeight = 0.66f, CabLenFrac = 0.40f, CabOffFrac = 0.13f, CabWidFrac = 0.98f,
             PCross = 5.0f, PPlan = 7.5f, Tumble = 0.05f, WNose = 0.93f, WTail = 0.97f,
             BonnetDrop = 0.16f, BootDrop = 0.03f, SillFront = 0.04f, SillRear = 0.04f,
             RoofPeak = 0.56f, RoofFlat = 0.40f, RoofNose = 0.16f, RoofTail = 0.30f,
