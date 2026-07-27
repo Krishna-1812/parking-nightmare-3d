@@ -155,8 +155,19 @@ namespace PN3D.Game.Art
         static void RoadWear(CompiledRoute route, RoadBuilder.Section sec, District d,
                              Rng rng, Transform root)
         {
-            var iron = MatLib.Solid(new Color(0.145f, 0.150f, 0.158f), 0.30f, 0.35f);
-            var patch = MatLib.Solid(new Color(0.105f, 0.107f, 0.115f), 0.14f);
+            var iron = MatLib.Solid(new Color(0.085f, 0.088f, 0.094f), 0.30f, 0.35f);
+
+            // The patch is the ROAD'S OWN MATERIAL tinted down, not a flat dark colour.
+            //
+            // A flat slab at a darker albedo than the tarmac still came out visibly LIGHTER
+            // than it — a pale rectangle sitting in the carriageway. The road is textured
+            // and normal-mapped, so at the grazing angle a chase camera sees it at, its
+            // aggregate self-shades and it renders far below its base colour. Nothing flat
+            // can match that by choosing a number; it has to shade the same way, so it gets
+            // the same texture and the same normal map and only the tint differs.
+            var patch = MatLib.Textured("mat_patch", ProcTex.PlainAsphalt(d.Night),
+                new Color(0.55f, 0.55f, 0.58f), new Vector2(0.8f, 0.8f),
+                smoothness: 0.13f, normal: ProcTex.AsphaltNormal(), normalScale: 0.6f);
 
             var (from, to) = Span(route, 12);
             for (double s = from; s < to; s += 26)
@@ -592,8 +603,10 @@ namespace PN3D.Game.Art
                     float f = i / (float)(tiers - 1);
                     float y = 1.25f + f * 3.3f;
                     float rad = Mathf.Lerp(1.25f, 0.28f, f) * (float)rng.Rand(0.9, 1.1);
-                    var col = Color.Lerp(new Color(0.13f, 0.30f, 0.17f),
-                                         new Color(0.29f, 0.58f, 0.30f), f * 0.85f + 0.1f);
+                    // Same quantisation as the broadleaf crown, and for the same reason:
+                    // a tint drawn from a continuum mints a material per tier.
+                    var col = LeafTones[Mathf.Clamp(
+                        Mathf.RoundToInt(f * (LeafTones.Length - 1)), 0, LeafTones.Length - 1)];
                     var tier = Geo.Node($"Tier{i}", g,
                                         Geo.Cylinder(rad, rad * 0.12f, 1.15f, 9, flat: true),
                                         MatLib.Solid(col, 0.05f), new Vector3(0, y, 0));
@@ -619,29 +632,85 @@ namespace PN3D.Game.Art
                     Mathf.Sin(a) * 34f, 0f, -Mathf.Cos(a) * 34f);
             }
 
-            float crownY = trunkH + (float)rng.Rand(1.0, 1.5);
-            float crownR = (float)rng.Rand(1.5, 2.1);
-            int blobs = 9 + (int)(rng.Next() * 5);
+            Canopy(g, rng, trunkH + (float)rng.Rand(1.0, 1.5), (float)rng.Rand(1.5, 2.1));
+        }
+
+        /// <summary>Four tones, quantised. See <see cref="Canopy"/> for why four and not free.</summary>
+        static readonly Color[] LeafTones =
+        {
+            new Color(0.125f, 0.255f, 0.135f), new Color(0.205f, 0.380f, 0.180f),
+            new Color(0.295f, 0.520f, 0.235f), new Color(0.395f, 0.655f, 0.295f),
+        };
+
+        /// <summary>
+        /// The crown, baked into one mesh of four submeshes.
+        ///
+        /// Two problems with building it as loose blobs, and the second is the serious one.
+        /// A dozen renderers per tree over a hundred-odd trees is fifteen hundred draw calls
+        /// of foliage; worse, tinting each blob freely meant MatLib minted a MATERIAL PER
+        /// BLOB, because it caches on colour and the colours were drawn from a continuum.
+        /// Fifteen hundred one-use materials defeats SRP batching entirely — the tinting
+        /// that made the canopy read was quietly making it the most expensive thing in the
+        /// world.
+        ///
+        /// Quantising to four tones fixes both: four shared materials for the whole game,
+        /// and the blobs collapse into one mesh per tree that is culled as a unit. The tone
+        /// still comes from height in the crown, which is what was doing the work — sunlit
+        /// on top, shadowed underneath — and four steps is plenty for foliage. Being able
+        /// to afford twice as many, smaller masses is what stops the crown reading as a
+        /// handful of distinct balls.
+        /// </summary>
+        static void Canopy(Transform g, Rng rng, float crownY, float crownR)
+        {
+            int tones = LeafTones.Length;
+            var verts = new List<Vector3>();
+            var subs = new List<int>[tones];
+            for (int i = 0; i < tones; i++) subs[i] = new List<int>();
+
+            int blobs = 16 + (int)(rng.Next() * 7);
             for (int i = 0; i < blobs; i++)
             {
                 // Spread through a squashed sphere, biased outward so the crown is a shell
                 // and not a solid ball — the inside is never seen and costs the same.
                 float a = (float)rng.Rand(0, Mathf.PI * 2);
-                float rr = Mathf.Sqrt((float)rng.Rand(0.15, 1.0)) * crownR;
+                float rr = Mathf.Sqrt((float)rng.Rand(0.25, 1.0)) * crownR;
                 float yy = (float)rng.Rand(-0.55, 0.75) * crownR;
                 var pos = new Vector3(Mathf.Cos(a) * rr, crownY + yy, Mathf.Sin(a) * rr);
 
-                // Height in the crown drives the tint: sunlit above, shadowed beneath.
                 float lit = Mathf.InverseLerp(-0.6f * crownR, 0.8f * crownR, yy);
-                var col = Color.Lerp(new Color(0.13f, 0.27f, 0.14f),
-                                     new Color(0.36f, 0.66f, 0.30f), lit)
-                        * (float)rng.Rand(0.9, 1.1);
-                float r = crownR * (float)rng.Rand(0.34, 0.55);
-                var blob = Geo.Node($"Leaf{i}", g, Geo.Blob(1 + i % 5), MatLib.Solid(col, 0.05f), pos);
-                blob.transform.localScale = new Vector3(r, r * (float)rng.Rand(0.75, 1.0), r);
-                blob.transform.localRotation = Quaternion.Euler(
-                    (float)rng.Rand(0, 360), (float)rng.Rand(0, 360), (float)rng.Rand(0, 360));
+                int tone = Mathf.Clamp(Mathf.RoundToInt(lit * (tones - 1)
+                                                        + (float)rng.Rand(-0.45, 0.45)),
+                                       0, tones - 1);
+
+                float r = crownR * (float)rng.Rand(0.26, 0.42);
+                var trs = Matrix4x4.TRS(pos,
+                    Quaternion.Euler((float)rng.Rand(0, 360), (float)rng.Rand(0, 360),
+                                     (float)rng.Rand(0, 360)),
+                    new Vector3(r, r * (float)rng.Rand(0.75, 1.0), r));
+
+                var src = Geo.Blob(1 + i % 5);
+                var sv = src.vertices;
+                var st = src.triangles;
+                int b0 = verts.Count;
+                for (int v = 0; v < sv.Length; v++) verts.Add(trs.MultiplyPoint3x4(sv[v]));
+                for (int t = 0; t < st.Length; t++) subs[tone].Add(b0 + st[t]);
             }
+
+            var mesh = new Mesh
+            {
+                name = "canopy",
+                indexFormat = UnityEngine.Rendering.IndexFormat.UInt32,
+                subMeshCount = tones,
+            };
+            mesh.SetVertices(verts);
+            for (int i = 0; i < tones; i++) mesh.SetTriangles(subs[i], i);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+
+            var mats = new Material[tones];
+            for (int i = 0; i < tones; i++) mats[i] = MatLib.Solid(LeafTones[i], 0.05f);
+            var node = Geo.Node("Canopy", g, mesh, mats[0]);
+            node.GetComponent<MeshRenderer>().sharedMaterials = mats;
         }
 
         static void Shrub(Transform root, CompiledRoute route, Terrain ground, Rng rng,
@@ -653,8 +722,7 @@ namespace PN3D.Game.Art
             for (int i = 0; i < n; i++)
             {
                 float r = (float)rng.Rand(0.32, 0.62);
-                var col = Color.Lerp(new Color(0.17f, 0.34f, 0.17f),
-                                     new Color(0.33f, 0.56f, 0.26f), (float)rng.Next());
+                var col = LeafTones[1 + (int)(rng.Next() * 2)];
                 var b = Geo.Node($"B{i}", go.transform, Geo.Blob(2 + i % 4),
                                  MatLib.Solid(col, 0.05f),
                                  new Vector3((float)rng.Rand(-0.4, 0.4), r * 0.8f,
