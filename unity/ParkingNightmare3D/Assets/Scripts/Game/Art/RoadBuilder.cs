@@ -160,8 +160,13 @@ namespace PN3D.Game.Art
                 normal: ProcTex.AsphaltNormal(), normalScale: 0.6f);
             var curbMat = MatLib.Textured("mat_curb", ProcTex.Curb(d.Night),
                 Color.white, Vector2.one, smoothness: 0.08f);
+            // The footway fills the bottom third of every ground-level shot. Flat, it is
+            // four metres of blank paper: the tonal variation baked into the map does
+            // nothing at midday, when the sun is behind the camera and nothing on a level
+            // surface can shade itself. The joints have to be real relief to read.
             var walkMat = MatLib.Textured("mat_walk", ProcTex.Sidewalk(d.Night),
-                Color.white, Vector2.one, smoothness: 0.06f);
+                Color.white, Vector2.one, smoothness: 0.06f,
+                normal: ProcTex.SidewalkNormal(), normalScale: 0.9f);
 
             // ---- carriageway: one strip, UV u spans the full width, v repeats per 24 m
             Piece("Road", parent,

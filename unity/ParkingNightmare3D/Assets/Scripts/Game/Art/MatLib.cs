@@ -214,14 +214,22 @@ namespace PN3D.Game.Art
         /// angles. Tinted near-black plus a bright sky reflection is exactly how glass
         /// photographs from outside.
         /// </summary>
-        public static Material Glass(Color tint, Texture2D map = null)
-            => Get("glass" + ColorUtility.ToHtmlStringRGB(tint) + (map != null ? "_m" : ""), () =>
+        /// <remarks>
+        /// <paramref name="metallic"/> is how hard the pane mirrors. The car wants 0.22:
+        /// enough to catch the sky over a curved screen without the tint disappearing. A
+        /// house window wants far more, because a flat pane seen from across the street is
+        /// almost entirely a reflection of whatever is behind you — at 0.22 they render as
+        /// black rectangles, which is exactly how the first pass of these houses looked.
+        /// </remarks>
+        public static Material Glass(Color tint, Texture2D map = null, float metallic = 0.22f)
+            => Get("glass" + ColorUtility.ToHtmlStringRGB(tint) + (map != null ? "_m" : "")
+                   + $"_{metallic:0.00}", () =>
         {
             var m = new Material(Lit);
             SetBase(m, tint);
             if (map != null) m.SetTexture("_BaseMap", map);
             m.SetFloat("_Smoothness", 0.94f);
-            m.SetFloat("_Metallic", 0.22f);
+            m.SetFloat("_Metallic", metallic);
             m.SetFloat("_SpecularHighlights", 1f);
             m.SetFloat("_EnvironmentReflections", 1f);
             return m;

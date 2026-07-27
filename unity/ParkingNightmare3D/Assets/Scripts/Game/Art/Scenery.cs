@@ -502,7 +502,12 @@ namespace PN3D.Game.Art
                                              normal: ProcTex.ShingleNormal(), normalScale: 0.9f);
             var gableMat = MatLib.Solid(gableC, 0.05f);
             var doorMat = MatLib.Solid(new Color(0.42f, 0.29f, 0.18f), 0.2f);
-            var glassMat = MatLib.Glass(new Color(0.10f, 0.14f, 0.17f));
+            // Metal takes its reflection tint from the base colour, so a near-black pane at
+            // high metallic reflects a near-black sky — the first attempt at fixing these
+            // made them blacker, not brighter. What a window looks like from outside is
+            // almost entirely the sky behind you, so the base has to be the colour that
+            // reflection should be, not the colour of the room behind the glass.
+            var glassMat = MatLib.Glass(new Color(0.30f, 0.355f, 0.435f), metallic: 0.80f);
             var shutterMat = MatLib.Solid(new Color(0.216f, 0.259f, 0.227f), 0.1f);
             var gutterMat = MatLib.Solid(new Color(0.86f, 0.85f, 0.82f), 0.22f);
 
@@ -674,25 +679,7 @@ namespace PN3D.Game.Art
 
             if (rng.Chance(0.24))
             {
-                // conifer: tapered trunk, tiers all the way up rather than three big cones
-                Geo.Node("Trunk", g, Geo.Cylinder(0.19f, 0.07f, 4.6f, 7), bark,
-                         new Vector3(0, 2.3f, 0));
-                int tiers = 5 + (int)(rng.Next() * 3);
-                for (int i = 0; i < tiers; i++)
-                {
-                    float f = i / (float)(tiers - 1);
-                    float y = 1.25f + f * 3.3f;
-                    float rad = Mathf.Lerp(1.25f, 0.28f, f) * (float)rng.Rand(0.9, 1.1);
-                    // Same quantisation as the broadleaf crown, and for the same reason:
-                    // a tint drawn from a continuum mints a material per tier.
-                    var col = LeafTones[Mathf.Clamp(
-                        Mathf.RoundToInt(f * (LeafTones.Length - 1)), 0, LeafTones.Length - 1)];
-                    var tier = Geo.Node($"Tier{i}", g,
-                                        Geo.Cylinder(rad, rad * 0.12f, 1.15f, 9, flat: true),
-                                        MatLib.Solid(col, 0.05f), new Vector3(0, y, 0));
-                    tier.transform.localRotation = Quaternion.Euler(
-                        (float)rng.Rand(-4, 4), (float)rng.Rand(0, 360), (float)rng.Rand(-4, 4));
-                }
+                Conifer(g, rng, bark);
                 return;
             }
 
@@ -713,6 +700,69 @@ namespace PN3D.Game.Art
             }
 
             Canopy(g, rng, trunkH + (float)rng.Rand(1.0, 1.5), (float)rng.Rand(1.5, 2.1));
+        }
+
+        /// <summary>
+        /// A fir, baked into one mesh the same way the broadleaf crown is.
+        ///
+        /// It used to be six or seven separate cone renderers stacked up the trunk, which
+        /// read as a toy: the silhouette was a stack of smooth arcs with a hard rim at
+        /// every tier. Two changes fix it and both are free. The tiers get the same
+        /// per-vertex raggedness the broadleaf blobs get, so each skirt of branches ends in
+        /// a spiky edge rather than a turned circle; and every tier is the SAME unit cone,
+        /// scaled by its matrix, which also closes a quiet leak — Geo.Cylinder caches on
+        /// its arguments, and the old code passed a radius off a continuum, so it was
+        /// minting a cached mesh per tier of every conifer in the world.
+        /// </summary>
+        static void Conifer(Transform g, Rng rng, Material bark)
+        {
+            Geo.Node("Trunk", g, Geo.Cylinder(0.19f, 0.07f, 4.6f, 7), bark, new Vector3(0, 2.3f, 0));
+
+            int tones = LeafTones.Length;
+            var verts = new List<Vector3>();
+            var subs = new List<int>[tones];
+            for (int i = 0; i < tones; i++) subs[i] = new List<int>();
+
+            var cone = Geo.Cylinder(1f, 0.12f, 1f, 9, flat: true);
+            var cv = cone.vertices;
+            var ct = cone.triangles;
+
+            int tiers = 7 + (int)(rng.Next() * 4);
+            for (int i = 0; i < tiers; i++)
+            {
+                float f = i / (float)(tiers - 1);
+                float y = 1.15f + f * 3.5f;
+                float rad = Mathf.Lerp(1.30f, 0.26f, f * f * 0.55f + f * 0.45f)
+                          * (float)rng.Rand(0.88, 1.12);
+                var trs = Matrix4x4.TRS(new Vector3(0, y, 0),
+                    Quaternion.Euler((float)rng.Rand(-5, 5), (float)rng.Rand(0, 360),
+                                     (float)rng.Rand(-5, 5)),
+                    new Vector3(rad, 1.25f, rad));
+
+                // dark underneath, sunlit at the crown — the same reason the broadleaf
+                // tones come from height
+                int tone = Mathf.Clamp(Mathf.RoundToInt(f * (tones - 1)), 0, tones - 1);
+                int b0 = verts.Count;
+                for (int v = 0; v < cv.Length; v++)
+                    verts.Add(trs.MultiplyPoint3x4(Ragged(cv[v])));
+                for (int t = 0; t < ct.Length; t++) subs[tone].Add(b0 + ct[t]);
+            }
+
+            var mesh = new Mesh
+            {
+                name = "conifer",
+                indexFormat = UnityEngine.Rendering.IndexFormat.UInt32,
+                subMeshCount = tones,
+            };
+            mesh.SetVertices(verts);
+            for (int i = 0; i < tones; i++) mesh.SetTriangles(subs[i], i);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+
+            var mats = new Material[tones];
+            for (int i = 0; i < tones; i++) mats[i] = MatLib.Solid(LeafTones[i], 0.05f);
+            var node = Geo.Node("Fir", g, mesh, mats[0]);
+            node.GetComponent<MeshRenderer>().sharedMaterials = mats;
         }
 
         /// <summary>Four tones, quantised. See <see cref="Canopy"/> for why four and not free.</summary>
@@ -747,32 +797,50 @@ namespace PN3D.Game.Art
             var subs = new List<int>[tones];
             for (int i = 0; i < tones; i++) subs[i] = new List<int>();
 
-            int blobs = 16 + (int)(rng.Next() * 7);
+            // Lobes, not one ball. A broadleaf crown is two or three masses on separate
+            // limbs that have grown into each other, and the gap between them is most of
+            // what reads as a tree rather than a bush on a stick. Scattering every blob
+            // through one squashed sphere can only ever produce a sphere.
+            int lobes = 2 + (int)(rng.Next() * 2);
+            var centres = new Vector3[lobes];
+            for (int l = 0; l < lobes; l++)
+            {
+                float la = (float)(l * 2.0 * Mathf.PI / lobes + rng.Rand(-0.5, 0.5));
+                float lr = crownR * (float)rng.Rand(0.28, 0.52);
+                centres[l] = new Vector3(Mathf.Cos(la) * lr,
+                                         crownY + (float)rng.Rand(-0.25, 0.35) * crownR,
+                                         Mathf.Sin(la) * lr);
+            }
+
+            int blobs = 20 + (int)(rng.Next() * 7);
             for (int i = 0; i < blobs; i++)
             {
-                // Spread through a squashed sphere, biased outward so the crown is a shell
-                // and not a solid ball — the inside is never seen and costs the same.
+                // Spread through a squashed sphere about one lobe, biased outward so the
+                // crown is a shell and not a solid ball — the inside is never seen and
+                // costs the same.
+                var c0 = centres[i % lobes];
                 float a = (float)rng.Rand(0, Mathf.PI * 2);
-                float rr = Mathf.Sqrt((float)rng.Rand(0.25, 1.0)) * crownR;
-                float yy = (float)rng.Rand(-0.55, 0.75) * crownR;
-                var pos = new Vector3(Mathf.Cos(a) * rr, crownY + yy, Mathf.Sin(a) * rr);
+                float rr = Mathf.Sqrt((float)rng.Rand(0.20, 1.0)) * crownR * 0.72f;
+                float yy = (float)rng.Rand(-0.48, 0.62) * crownR;
+                var pos = new Vector3(c0.x + Mathf.Cos(a) * rr, c0.y + yy, c0.z + Mathf.Sin(a) * rr);
 
-                float lit = Mathf.InverseLerp(-0.6f * crownR, 0.8f * crownR, yy);
+                float lit = Mathf.InverseLerp(crownY - 0.7f * crownR, crownY + 0.9f * crownR, pos.y);
                 int tone = Mathf.Clamp(Mathf.RoundToInt(lit * (tones - 1)
                                                         + (float)rng.Rand(-0.45, 0.45)),
                                        0, tones - 1);
 
-                float r = crownR * (float)rng.Rand(0.26, 0.42);
+                float r = crownR * (float)rng.Rand(0.21, 0.34);
                 var trs = Matrix4x4.TRS(pos,
                     Quaternion.Euler((float)rng.Rand(0, 360), (float)rng.Rand(0, 360),
                                      (float)rng.Rand(0, 360)),
-                    new Vector3(r, r * (float)rng.Rand(0.75, 1.0), r));
+                    new Vector3(r, r * (float)rng.Rand(0.72, 1.0), r));
 
                 var src = Geo.Blob(1 + i % 5);
                 var sv = src.vertices;
                 var st = src.triangles;
                 int b0 = verts.Count;
-                for (int v = 0; v < sv.Length; v++) verts.Add(trs.MultiplyPoint3x4(sv[v]));
+                for (int v = 0; v < sv.Length; v++)
+                    verts.Add(trs.MultiplyPoint3x4(Ragged(sv[v])));
                 for (int t = 0; t < st.Length; t++) subs[tone].Add(b0 + st[t]);
             }
 
@@ -791,6 +859,35 @@ namespace PN3D.Game.Art
             for (int i = 0; i < tones; i++) mats[i] = MatLib.Solid(LeafTones[i], 0.05f);
             var node = Geo.Node("Canopy", g, mesh, mats[0]);
             node.GetComponent<MeshRenderer>().sharedMaterials = mats;
+        }
+
+        /// <summary>
+        /// Push a blob vertex in or out along its own radius, by an amount that depends
+        /// only on where the vertex is.
+        ///
+        /// A blob is a subdivided icosahedron, so its silhouette is a smooth arc — and a
+        /// crown made of smooth arcs reads as a pile of balls no matter how many of them
+        /// there are. What separates foliage from a ball is that its edge is ragged at
+        /// every scale. This costs no triangles, only the arithmetic, and it happens once
+        /// at build time.
+        ///
+        /// The displacement has to be a pure function of position, not of vertex index.
+        /// Geo.Blob is flat-shaded, so every corner exists three or four times over; if
+        /// each copy moved independently the mesh would tear open along every edge.
+        /// </summary>
+        static Vector3 Ragged(Vector3 v)
+        {
+            // quantised so the duplicated copies of one corner hash identically
+            int hx = Mathf.RoundToInt(v.x * 512f);
+            int hy = Mathf.RoundToInt(v.y * 512f);
+            int hz = Mathf.RoundToInt(v.z * 512f);
+            unchecked
+            {
+                uint h = (uint)(hx * 374761393 + hy * 668265263 + hz * 2147483647);
+                h = (h ^ (h >> 13)) * 1274126177u;
+                float n = ((h ^ (h >> 16)) & 0xFFFF) / 65535f;      // 0..1
+                return v * (0.84f + n * 0.32f);
+            }
         }
 
         static void Shrub(Transform root, CompiledRoute route, Terrain ground, Rng rng,
@@ -926,7 +1023,13 @@ namespace PN3D.Game.Art
                               Transform root, Terrain ground)
         {
             const double Spacing = 32.0;
-            var poleMat = MatLib.Solid(new Color(0.36f, 0.28f, 0.22f), 0.08f);
+            // A creosoted pole is the tallest thing on the street and it was a flat brown
+            // stick. It gets the bark grain too — the same map, tinted grey and stretched
+            // out, because a pole is a debarked trunk and its checking runs the same way.
+            var poleMat = MatLib.Textured("mat_pole", ProcTex.Bark(),
+                                          new Color(0.42f, 0.35f, 0.30f), new Vector2(1.0f, 4.0f),
+                                          smoothness: 0.07f, normal: ProcTex.BarkNormal(),
+                                          normalScale: 0.5f);
             var wireMat = MatLib.Solid(new Color(0.09f, 0.09f, 0.10f), 0.2f);
             double t = sec.WalkOuter - 0.9;
 

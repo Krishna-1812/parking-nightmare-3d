@@ -273,7 +273,10 @@ namespace PN3D.Game.Art
             var c = new Raster(512, 512);
             var r = Seed("swalk" + night);
             int W = c.W, H = c.H;
-            c.Clear(RG.Hex(night ? "#5c5f6b" : "#aaa69d"));
+            // Concrete is not white. At #aaa69d in full sun with the hemisphere ambient on
+            // top it clipped, and a clipped surface has no texture at all no matter what
+            // is painted on it — which is why the tonal work below was invisible.
+            c.Clear(RG.Hex(night ? "#545762" : "#9e9a8f"));
 
             // The footway is four metres of the frame in every ground-level shot and it was
             // reading as blank paper. Paving is cast in batches, laid by different gangs and
@@ -333,6 +336,44 @@ namespace PN3D.Game.Art
                 Squiggle(c, r, 4, RG.Rgba(0, 0, 0, .2f), (float)r.Rand(0.8, 1.4), 14, 10, 26);
 
             return c.ToTexture("sidewalk");
+        });
+
+        /// <summary>
+        /// Relief for <see cref="Sidewalk"/>: the joints between slabs, the trowelled
+        /// camber of each slab, and the exposed aggregate. Same 128 px slab grid, so the
+        /// grooves land exactly on the painted joints.
+        /// </summary>
+        public static Texture2D SidewalkNormal() => Get("swalkNrm", () =>
+        {
+            var c = new Raster(512, 512);
+            var r = Seed("swalkNrm");
+            int W = c.W, H = c.H;
+            const int slab = 128;
+            c.Clear(RG.Rgb(150, 150, 150));
+
+            // each slab crowns very slightly toward its middle, as a floated slab does
+            for (int sy = 0; sy < H; sy += slab)
+                for (int sx = 0; sx < W; sx += slab)
+                {
+                    var dome = new Raster.RadialGrad(sx + slab / 2f, sy + slab / 2f, 2, slab * 0.72f)
+                        .Stop(0, RG.Rgb(168, 168, 168))
+                        .Stop(1, RG.Rgba(150, 150, 150, 0f));
+                    c.FillRect(sx, sy, slab, slab, dome);
+                }
+
+            for (int i = 0; i < 5200; i++)
+            {
+                float v = (float)r.Rand(120, 182);
+                c.FillEllipse((float)r.Rand(0, W), (float)r.Rand(0, H),
+                              (float)r.Rand(1, 3), (float)r.Rand(1, 2.5),
+                              new Raster.Solid(RG.Rgba(v, v, v, (float)r.Rand(0.2, 0.5))));
+            }
+
+            // the joints themselves, cut last so nothing fills them back in
+            for (int y = 0; y <= H; y += slab) c.FillRect(0, y - 2f, W, 4f, RG.Rgb(52, 52, 52));
+            for (int x = 0; x <= W; x += slab) c.FillRect(x - 2f, 0, 4f, H, RG.Rgb(52, 52, 52));
+
+            return c.ToNormalMap("sidewalkNormal", 1.6f);
         });
 
         /// <summary>Verge and lawn: patchy growth, mow bands, blades, clover.</summary>
