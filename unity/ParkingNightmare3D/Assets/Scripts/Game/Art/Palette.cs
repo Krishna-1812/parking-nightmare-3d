@@ -28,9 +28,19 @@ namespace PN3D.Game.Art
             new Color(0.259f, 0.169f, 0.129f),
         };
 
+        /// <summary>
+        /// Hair. The darkest entry is deliberately not as dark as hair measures.
+        ///
+        /// A dielectric reflects about 4% of the sky whatever its albedo, so at a true
+        /// black-hair albedo of 0.06 the sky reflection is roughly half of what leaves the
+        /// surface — and a bright blue sky over a near-black diffuse renders as navy. It is
+        /// physically right and it looks wrong, because real black hair is also carrying a
+        /// strong warm specular from the sun that one broad lobe does not reproduce.
+        /// Lifting the diffuse is the cheap end of that trade.
+        /// </summary>
         public static readonly Color[] Hairs =
         {
-            new Color(0.075f, 0.067f, 0.063f), new Color(0.180f, 0.122f, 0.086f),
+            new Color(0.118f, 0.100f, 0.086f), new Color(0.180f, 0.122f, 0.086f),
             new Color(0.322f, 0.216f, 0.129f), new Color(0.596f, 0.475f, 0.278f),
             new Color(0.541f, 0.537f, 0.545f), new Color(0.404f, 0.180f, 0.106f),
         };

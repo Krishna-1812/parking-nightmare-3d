@@ -949,30 +949,40 @@ namespace PN3D.Game.Art
             var r = Seed($"face{skinIdx}{stubble}");
             c.Clear(RG.Rgb(255, 255, 255));
 
-            // v runs bottom (chin) to top (crown) but the raster's y runs downward, so
-            // everything is placed through these and the numbers below read the right way
-            // up. The v values are NOT fractions of head height: the loft's UV runs one
-            // step per ring, and the rings are not evenly spaced, so a feature's v is where
-            // its ring is in the list. Eye line lands on 0.48, not on 0.5.
+            // v is now the fraction of head height — 0 at the underside of the chin, 1 at
+            // the crown — because Human's head loft writes it from the same profile table.
+            // It used to be one step per ring, which meant every feature's position was a
+            // function of how many cross-sections the head happened to have. Changing
+            // either of those without the other moves the face off the face.
             float X(float u) => u * W;
             float Y(float v) => (1f - v) * H;
 
-            var hairRG = RG.FromColor(hair);
-            const float EyeU = 0.058f;      // half the interpupillary distance, in u
+            // The map is stretched, and by a lot. 512 px spans 470 mm of head arc across
+            // the face and 224 mm of head height up it, so a millimetre is 1.09 px wide and
+            // 2.29 px tall. Everything below is therefore placed in MILLIMETRES: drawing an
+            // eye the wide almond shape it looks like on a face puts a letterbox slot on
+            // the model, and drawing a round iris makes an oval one. In this bitmap an
+            // anatomically correct eye is very nearly circular. That is not a mistake.
+            float Mx(float mm) => mm * (W / 470f);
+            float My(float mm) => mm * (H / 224f);
+            float Um(float mm) => mm / 470f;
 
-            // Cheeks and ears carry more blood than the rest.
-            foreach (var (u, v, rad, col, a) in new[]
+            var hairRG = RG.FromColor(hair);
+            float EyeU = Um(31.5f);         // half of a 63 mm interpupillary distance
+
+            // Cheeks and lips carry more blood than the rest; the forehead and the bridge
+            // of the nose carry less, and are where the oil sits.
+            foreach (var (u, v, rx, ry, col, a) in new[]
                      {
-                         (0.500f, 0.28f, 70f, RG.Rgb(222, 132, 116), 0.16f),  // mouth region
-                         (0.410f, 0.40f, 58f, RG.Rgb(226, 140, 120), 0.15f),  // cheek
-                         (0.590f, 0.40f, 58f, RG.Rgb(226, 140, 120), 0.15f),
-                         (0.500f, 0.42f, 40f, RG.Rgb(228, 150, 128), 0.10f),  // nose
-                         (0.500f, 0.64f, 88f, RG.Rgb(236, 214, 196), 0.12f),  // forehead
+                         (0.500f, 0.215f, Mx(46f), My(24f), RG.Rgb(222, 132, 116), 0.16f),
+                         (0.500f - Um(38f), 0.360f, Mx(40f), My(30f), RG.Rgb(226, 140, 120), 0.15f),
+                         (0.500f + Um(38f), 0.360f, Mx(40f), My(30f), RG.Rgb(226, 140, 120), 0.15f),
+                         (0.500f, 0.680f, Mx(58f), My(34f), RG.Rgb(236, 214, 196), 0.12f),
                      })
             {
-                var g = new Raster.RadialGrad(X(u), Y(v), 2, rad)
+                var g = new Raster.RadialGrad(X(u), Y(v), 2, Mathf.Max(rx, ry))
                     .Stop(0, col.WithA(a)).Stop(1, RG.Rgba(255, 255, 255, 0));
-                c.FillRect(X(u) - rad, Y(v) - rad, rad * 2, rad * 2, g);
+                c.FillRect(X(u) - rx, Y(v) - ry, rx * 2, ry * 2, g);
             }
 
             // ---- eyes ----
@@ -980,79 +990,107 @@ namespace PN3D.Game.Art
             // couple of millimetres proud, they read as ping-pong balls stuck to a face:
             // an eye only works when it sits in a socket that shades it, and a socket is
             // three pixels of gradient. Painting it also means it cannot be geometrically
-            // wrong, which the modelled attempt very much was.
+            // wrong, which the modelled attempt very much was. The nose went the other way
+            // — see Human — because a nose is a 22 mm projection and paint cannot project.
             var eyeRG = RG.FromColor(eye);
+            float eyeW = Mx(15f), eyeH = My(6f);        // a 30 x 12 mm palpebral fissure
+            float irisW = Mx(5.5f), irisH = My(5.5f);   // an 11 mm iris
             foreach (float side in new[] { -1f, 1f })
             {
-                float ex = X(0.5f + side * EyeU), ey = Y(0.48f);
+                float ex = X(0.5f + side * EyeU), ey = Y(0.490f);
 
-                var socket = new Raster.RadialGrad(ex, ey + 2f, 2, 34f)
-                    .Stop(0, RG.Rgba(96, 62, 52, .32f)).Stop(1, RG.Rgba(255, 255, 255, 0));
-                c.FillRect(ex - 34, ey - 32, 68, 68, socket);
+                // The socket. Deeper above than below, and set slightly toward the nose,
+                // because that is where the brow overhangs.
+                float sw = Mx(26f), sh = My(20f);
+                var socket = new Raster.RadialGrad(ex - side * Mx(2f), ey - My(2f), 2,
+                                                   Mathf.Max(sw, sh))
+                    .Stop(0, RG.Rgba(96, 62, 52, .34f)).Stop(1, RG.Rgba(255, 255, 255, 0));
+                c.FillRect(ex - sw, ey - sh, sw * 2, sh * 2, socket);
 
-                c.FillEllipse(ex, ey, 15.5f, 8.5f, new Raster.Solid(RG.Rgb(232, 230, 226)));
+                c.FillEllipse(ex, ey, eyeW, eyeH, new Raster.Solid(RG.Rgb(232, 230, 226)));
                 // corners are pinker and darker than the middle of the white
-                c.FillEllipse(ex - 12f, ey, 5f, 5f, new Raster.Solid(RG.Rgba(196, 158, 150, .55f)));
-                c.FillEllipse(ex + 12f, ey, 5f, 5f, new Raster.Solid(RG.Rgba(196, 158, 150, .55f)));
+                c.FillEllipse(ex - eyeW * 0.78f, ey, Mx(5f), My(2.4f),
+                              new Raster.Solid(RG.Rgba(196, 158, 150, .55f)));
+                c.FillEllipse(ex + eyeW * 0.78f, ey, Mx(5f), My(2.4f),
+                              new Raster.Solid(RG.Rgba(196, 158, 150, .55f)));
 
-                c.FillCircle(ex, ey, 7.6f, new Raster.Solid(eyeRG));
-                c.FillCircle(ex, ey, 7.6f, new Raster.Solid(RG.Rgba(0, 0, 0, .0f)));
+                c.FillEllipse(ex, ey, irisW, irisH, new Raster.Solid(eyeRG));
                 // limbal ring: the dark edge round an iris, and the single detail that
                 // most separates a drawn eye from a coloured dot
-                for (float k = 7.6f; k > 6.2f; k -= 0.5f)
-                    c.FillCircle(ex, ey, k, new Raster.Solid(RG.Rgba(18, 12, 10, .30f)));
-                c.FillCircle(ex, ey, 3.4f, new Raster.Solid(RG.Rgb(12, 10, 10)));
+                for (float k = 1f; k > 0.82f; k -= 0.06f)
+                    c.FillEllipse(ex, ey, irisW * k, irisH * k,
+                                  new Raster.Solid(RG.Rgba(18, 12, 10, .30f)));
+                c.FillEllipse(ex, ey, Mx(2f), My(2f), new Raster.Solid(RG.Rgb(12, 10, 10)));
                 // the wet highlight
-                c.FillCircle(ex - 2.6f, ey - 2.6f, 2.2f, new Raster.Solid(RG.Rgba(255, 255, 255, .92f)));
+                c.FillEllipse(ex - Mx(2.4f), ey - My(2.4f), Mx(1.3f), My(1.3f),
+                              new Raster.Solid(RG.Rgba(255, 255, 255, .92f)));
 
-                // upper lid shadow and lash line
-                c.FillEllipse(ex, ey - 7.5f, 16f, 4.5f, new Raster.Solid(RG.Rgba(58, 38, 32, .50f)));
-                c.FillEllipse(ex, ey + 8.5f, 14f, 2.4f, new Raster.Solid(RG.Rgba(120, 82, 70, .30f)));
+                // The upper lid covers the top of the iris — it always does, and an eye
+                // with the whole disc showing is the look of alarm. Lash line under it.
+                c.FillEllipse(ex, ey - eyeH * 0.92f, eyeW * 1.04f, My(3.2f),
+                              new Raster.Solid(RG.Rgba(58, 38, 32, .52f)));
+                c.FillEllipse(ex, ey + eyeH * 1.05f, eyeW * 0.92f, My(1.6f),
+                              new Raster.Solid(RG.Rgba(120, 82, 70, .30f)));
             }
 
-            // Eyebrows. Hair-coloured, thin, angled, drawn as strokes — a solid bar over
-            // each eye reads as one black band across a face.
+            // Eyebrows, 18 mm above the eye line. Hair-coloured, thin, angled, drawn as
+            // strokes — a solid bar over each eye reads as one black band across a face.
             foreach (float side in new[] { -1f, 1f })
             {
-                float bx0 = X(0.5f + side * EyeU);
-                for (int i = 0; i < 26; i++)
+                float bx0 = X(0.5f + side * EyeU), by0 = Y(0.490f) - My(18f);
+                for (int i = 0; i < 30; i++)
                 {
-                    float t = i / 25f;
-                    float bx = bx0 + side * (t - 0.5f) * 46f;
-                    float by = Y(0.552f) - Mathf.Sin(t * Mathf.PI) * 6f;
+                    float t = i / 29f;
+                    float bx = bx0 + side * (t - 0.45f) * Mx(44f);
+                    float by = by0 - Mathf.Sin(t * Mathf.PI) * My(2.6f);
                     c.StrokeSegment(bx, by + (float)r.Rand(-1.2, 1.2),
-                                    bx + side * 3f, by - 4.5f + (float)r.Rand(-1.2, 1.2),
+                                    bx + side * 3f, by - My(1.8f) + (float)r.Rand(-1.2, 1.2),
                                     (float)r.Rand(1.5, 2.8),
                                     hairRG.WithA((float)r.Rand(0.45, 0.8)));
                 }
             }
 
-            // Nostrils and the shadow under the tip.
-            foreach (float nu in new[] { 0.482f, 0.518f })
-                c.FillEllipse(X(nu), Y(0.372f), 5.0f, 3.2f,
-                              new Raster.Solid(RG.Rgba(64, 40, 34, .55f)));
-            c.FillEllipse(X(0.5f), Y(0.364f), 17f, 4.5f,
-                          new Raster.Solid(RG.Rgba(120, 74, 62, .18f)));
+            // ---- the nose band ----
+            // v 0.368..0.440 at u 0.415..0.585 is not the face: it is the strip Human's
+            // nose loft samples, wrapped round 44 mm of geometry that stands in front of
+            // everything painted behind it. So it gets its own treatment — a warmer tip,
+            // and nostrils placed where the alar ring lands rather than where a nose looks
+            // like it is on a flat drawing.
+            {
+                var warm = new Raster.RadialGrad(X(0.5f), Y(0.390f), 2, 34f)
+                    .Stop(0, RG.Rgba(228, 148, 126, .16f)).Stop(1, RG.Rgba(255, 255, 255, 0));
+                c.FillRect(X(0.5f) - 34, Y(0.390f) - 20, 68, 40, warm);
+                foreach (float nu in new[] { 0.4881f, 0.5119f })
+                    c.FillEllipse(X(nu), Y(0.3755f), 5.2f, 3.0f,
+                                  new Raster.Solid(RG.Rgba(64, 40, 34, .60f)));
+            }
 
-            // Lips. Upper darker than lower, because the lower one faces the sky.
-            c.FillEllipse(X(0.5f), Y(0.298f), 26f, 8f,
+            // Philtrum, then lips at the stomion — 48 mm above the chin. Upper darker than
+            // lower, because the lower one faces the sky.
+            c.FillEllipse(X(0.5f), Y(0.252f), Mx(4.5f), My(7f),
+                          new Raster.Solid(RG.Rgba(150, 96, 82, .16f)));
+            c.FillEllipse(X(0.5f), Y(0.222f), Mx(25f), My(4.6f),
                           new Raster.Solid(RG.Rgba(178, 96, 88, .55f)));
-            c.FillEllipse(X(0.5f), Y(0.286f), 23f, 7f,
+            c.FillEllipse(X(0.5f), Y(0.205f), Mx(22f), My(4.2f),
                           new Raster.Solid(RG.Rgba(206, 122, 110, .50f)));
-            c.FillRect(X(0.5f) - 25f, Y(0.294f), 50f, 2.0f, RG.Rgba(86, 48, 44, .55f));
+            c.FillRect(X(0.5f) - Mx(24f), Y(0.215f), Mx(48f), 2.0f, RG.Rgba(86, 48, 44, .55f));
+            // The crease under the lower lip, which is what gives a chin its ledge.
+            c.FillEllipse(X(0.5f), Y(0.170f), Mx(16f), My(3.2f),
+                          new Raster.Solid(RG.Rgba(120, 76, 64, .20f)));
 
             // A little shadow under the jaw, so the head has form before the light gets
-            // to it.
-            var jaw = new Raster.LinearGrad(0, Y(0.20f), 0, Y(0.02f))
+            // to it. The vertex occlusion in Human does the same job in three dimensions;
+            // this catches the part of it that is a gradient rather than a crease.
+            var jaw = new Raster.LinearGrad(0, Y(0.145f), 0, Y(0.015f))
                 .Stop(0, RG.Rgba(255, 255, 255, 0)).Stop(1, RG.Rgba(92, 62, 54, .34f));
-            c.FillRect(0, Y(0.20f), W, Y(0.02f) - Y(0.20f), jaw);
+            c.FillRect(0, Y(0.145f), W, Y(0.015f) - Y(0.145f), jaw);
 
             if (stubble)
                 for (int i = 0; i < 5200; i++)
                 {
                     // only on the jaw and chin, and only on the front half of the head
-                    float u = (float)r.Rand(0.30, 0.70), v = (float)r.Rand(0.12, 0.36);
-                    float fade = Mathf.Min(1f, (0.36f - v) * 4f);
+                    float u = (float)r.Rand(0.28, 0.72), v = (float)r.Rand(0.06, 0.30);
+                    float fade = Mathf.Min(1f, (0.30f - v) * 5f);
                     if (r.Next() > fade) continue;
                     c.FillCircle(X(u), Y(v), (float)r.Rand(0.6, 1.5),
                                  new Raster.Solid(hairRG.WithA((float)r.Rand(0.10, 0.28))));
@@ -1064,6 +1102,34 @@ namespace PN3D.Game.Art
                              new Raster.Solid(RG.Rgba(150, 108, 92, (float)r.Rand(0.03, 0.10))));
 
             return c.ToTexture("face", wrap: TextureWrapMode.Clamp);
+        });
+
+        /// <summary>
+        /// Hair, as relief. A head of hair has no albedo detail worth painting at this
+        /// distance — what you actually see is one soft band of light lying across the
+        /// strands, and it is the strands that split it into the streak that reads as hair
+        /// rather than as a moulded shell.
+        /// </summary>
+        public static Texture2D HairStrand() => Get("hairNrm", () =>
+        {
+            var c = new Raster(128, 128);
+            var r = Seed("hairNrm");
+            int W = c.W, H = c.H;
+            c.Clear(RG.Rgb(128, 128, 128));
+            // Strands run down the map. Varying widths and depths, because a comb's worth
+            // of identical grooves is corduroy.
+            for (int i = 0; i < 140; i++)
+            {
+                float x = (float)r.Rand(0, W), w = (float)r.Rand(0.8, 3.2);
+                float a = (float)r.Rand(0.25, 0.75);
+                float v = r.Chance(0.5) ? 176f : 78f;
+                c.FillRect(x, 0, w, H, RG.Rgba(v, v, v, a));
+            }
+            // A few partings and locks that cross the flow, so it is a head of hair and
+            // not a bundle of wire.
+            for (int i = 0; i < 9; i++)
+                Squiggle(c, r, 5, RG.Rgba(96, 96, 96, .30f), (float)r.Rand(2, 5), 30, 2, 9);
+            return c.ToNormalMap("hairNormal", 1.6f);
         });
 
         /// <summary>Woven cloth. Subtle: at two metres a shirt is a value, not a weave.</summary>

@@ -186,8 +186,52 @@ namespace PN3D.Game.Art
                 m.SetFloat("_Smoothness", 0.06f);
                 m.SetFloat("_Metallic", 0f);
                 m.SetTexture("_BumpMap", ProcTex.ClothNormal());
-                m.SetTextureScale("_BumpMap", new Vector2(7f, 7f));
+                // Tiling goes on _BaseMap even though there is no base map, and that is not
+                // a typo. URP/Lit carries ONE set of UVs, transformed once in the vertex
+                // stage by _BaseMap_ST; _BumpMap_ST is declared in the CBUFFER and never
+                // read. Setting the scale on _BumpMap therefore does exactly nothing, which
+                // cost two rounds of tuning a number the shader was not looking at while
+                // the weave stayed stretched across the whole shirt at 1:1.
+                //
+                // The two axes are in different units, which is the other half. The torso's
+                // u wraps 0..1 around 0.9 m of chest; its v is arc length in METRES and
+                // runs to about 0.35 over the whole trunk. Square texels want u tiled by
+                // the circumference and v by one, both times the repeats per metre.
+                m.SetTextureScale("_BaseMap", new Vector2(11f, 12f));
                 m.SetFloat("_BumpScale", 0.55f);
+                m.EnableKeyword("_NORMALMAP");
+                return m;
+            });
+
+        /// <summary>
+        /// Hair.
+        ///
+        /// Not <see cref="Solid"/>: a smooth dielectric over a dome is a bicycle helmet.
+        /// What reads as hair at this distance is a soft anisotropic band of light running
+        /// across the strand direction, and the cheapest honest approximation of that is a
+        /// finely streaked normal map with enough gloss to catch the sun — the streaks
+        /// break the single highlight into many, which is the whole effect.
+        ///
+        /// The tiling is deliberately lopsided. The hair loft's u wraps the skull and its v
+        /// runs up the head, so strands run along v; tiling hard across u and barely at all
+        /// along v is what makes them strands rather than a plaid.
+        /// </summary>
+        public static Material Hair(Color tint)
+            => Get("hair" + ColorUtility.ToHtmlStringRGB(tint), () =>
+            {
+                var m = new Material(Lit);
+                SetBase(m, tint);
+                // Gloss is what makes hair hair, but near-black hair at high smoothness
+                // takes its whole colour from the sky reflection and comes out navy.
+                m.SetFloat("_Smoothness", 0.26f);
+                m.SetFloat("_Metallic", 0f);
+                m.SetTexture("_BumpMap", ProcTex.HairStrand());
+                // _BaseMap, not _BumpMap — see the note in Cloth. The hair loft's u wraps
+                // 540 mm of skull and its v runs 0..1 over 224 mm of head, so 14 by 2 puts
+                // the strands 38 mm apart across and stretches them 112 mm along, which is
+                // the direction hair actually lies in.
+                m.SetTextureScale("_BaseMap", new Vector2(14f, 2f));
+                m.SetFloat("_BumpScale", 1.15f);
                 m.EnableKeyword("_NORMALMAP");
                 return m;
             });

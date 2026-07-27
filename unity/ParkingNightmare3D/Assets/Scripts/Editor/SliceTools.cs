@@ -230,7 +230,14 @@ namespace PN3D.EditorTools
                         // And the same head from directly behind. Two views settle in one
                         // render what guessing at one view cannot: whether a blank face is
                         // a mapping bug or just the back of a head.
-                        cam.transform.position = eye - who.forward * 0.34f;
+                        //
+                        // 0.58, for the reason given four lines up — which this shot did
+                        // not take on board and then spent a debugging round proving. At
+                        // 0.34 the near plane sits inside the skull, so the back of the
+                        // head is clipped away and the render is the inside of the face
+                        // with the street showing through it. It looks exactly like a hole
+                        // in the mesh, and it is a hole in the camera.
+                        cam.transform.position = eye - who.forward * 0.58f;
                         cam.transform.rotation = Quaternion.LookRotation(
                             eye - cam.transform.position, Vector3.up);
                         Shot(cam, outDir, "02e_back", width, height);

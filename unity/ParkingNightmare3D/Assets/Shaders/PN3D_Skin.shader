@@ -78,6 +78,11 @@ Shader "PN3D/Skin"
                 float3 normalOS   : NORMAL;
                 float4 tangentOS  : TANGENT;
                 float2 uv         : TEXCOORD0;
+                // Baked occlusion, grey. See Human.Ring.Crease: the crease under a jaw,
+                // the socket behind an ear and the shadow inside a cuff are all far too
+                // small for SSAO to resolve at the size a pedestrian occupies on screen,
+                // and they are exactly the cues that say a head is a solid.
+                half4  color      : COLOR;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
             struct Varyings
@@ -88,6 +93,7 @@ Shader "PN3D/Skin"
                 float4 tangentWS  : TEXCOORD2;
                 float2 uv         : TEXCOORD3;
                 float  fogFactor  : TEXCOORD4;
+                half   bakedAO    : TEXCOORD5;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
                 UNITY_VERTEX_OUTPUT_STEREO
             };
@@ -107,6 +113,7 @@ Shader "PN3D/Skin"
                 o.tangentWS = float4(nrm.tangentWS, IN.tangentOS.w * GetOddNegativeScale());
                 o.uv = TRANSFORM_TEX(IN.uv, _BaseMap);
                 o.fogFactor = ComputeFogFactor(p.positionCS.z);
+                o.bakedAO = IN.color.r;
                 return o;
             }
 
@@ -162,6 +169,13 @@ Shader "PN3D/Skin"
                         GetScreenSpaceAmbientOcclusion(GetNormalizedScreenSpaceUV(IN.positionCS));
                     ambient *= ao.indirectAmbientOcclusion;
                 #endif
+
+                // Baked occlusion takes the whole of the sky term and only part of the
+                // sun: a crease under the jaw is shut off from the hemisphere but still
+                // catches a bounce, and applying it at full strength to both turns every
+                // fold into a black line.
+                ambient *= IN.bakedAO;
+                lit *= lerp(1.0h, IN.bakedAO, 0.55h);
 
                 half3 col = lit + ambient;
                 col = MixFog(col, IN.fogFactor);

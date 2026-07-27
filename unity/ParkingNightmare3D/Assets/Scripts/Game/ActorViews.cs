@@ -63,11 +63,19 @@ namespace PN3D.Game
 
         sealed class PedView
         {
-            public Transform Root, Torso, Head, LegL, LegR, ArmL, ArmR, Phone;
+            public Transform Root, Hips, Torso, Head, LegL, LegR, ArmL, ArmR, Phone;
             /// <summary>Second joint in each limb. A straight tube limb is a mannequin.</summary>
-            public Transform KneeL, KneeR, ElbowL, ElbowR;
+            public Transform KneeL, KneeR, ElbowL, ElbowR, FootL, FootR;
             /// <summary>Total height in metres, so the bob and the stride scale with the person.</summary>
             public float Height;
+            /// <summary>
+            /// Which way this one is put together. Nobody is symmetrical and nobody stands
+            /// square, so every constant below that could be mirrored is multiplied by this
+            /// and offset by <see cref="Drift"/> — a crowd where everyone shares a stance is
+            /// a rack of mannequins however well each one is modelled.
+            /// </summary>
+            public float Lean;
+            public float Drift;
         }
 
         /// <summary>
@@ -93,13 +101,17 @@ namespace PN3D.Game
             var v = new PedView
             {
                 Root = rig.Root,
+                Hips = rig.Hips,
                 Torso = rig.Chest,
                 Head = rig.Head,
                 LegL = rig.LegL, LegR = rig.LegR,
                 KneeL = rig.ShinL, KneeR = rig.ShinR,
+                FootL = rig.FootL, FootR = rig.FootR,
                 ArmL = rig.ArmL, ArmR = rig.ArmR,
                 ElbowL = rig.ForeArmL, ElbowR = rig.ForeArmR,
                 Height = rig.Height,
+                Lean = (index * 2654435761u % 2u) == 0 ? 1f : -1f,
+                Drift = (index * 40503u % 997u) / 997f * 6.2831853f,
             };
 
             // The phone hangs off the hand bone, so it follows the whole arm chain — the
@@ -150,14 +162,23 @@ namespace PN3D.Game
         {
             bool diving = ped.State == PedState.Dive;
             float p = (float)ped.Phase;
+
+            // How much of this is a walk and how much is a stand. Filming and waiting
+            // pedestrians were being driven through a full stride on the spot, which is
+            // the single most artificial thing a crowd can do: a person who is not going
+            // anywhere does not march, they put their weight on one leg and fidget.
+            float gait = diving ? 1f : Mathf.Clamp01((float)ped.Speed / 0.75f);
+            float t = Time.time + v.Drift;
+
             // The bob scales with the person, so a child does not bounce like an adult.
-            float bob = Mathf.Abs(Mathf.Sin(p)) * 0.032f * (v.Height / 1.72f);
+            float bob = Mathf.Abs(Mathf.Sin(p)) * 0.032f * gait * (v.Height / 1.72f)
+                      + Mathf.Sin(t * 1.15f) * 0.004f * (1f - gait);   // breathing
             v.Root.position = WorldBuilder.ToWorld(x, y, RoadBuilder.CurbY + bob + (diving ? 0.30f : 0f));
             v.Root.rotation = WorldBuilder.ToRotation(ped.Face)
                             * Quaternion.Euler(diving ? 62f : 0f, 0, 0);
 
             // walk cycle: opposed legs and arms, amplitude scaled by how fast they move
-            float amp = ped.State == PedState.Cross ? 40f : 26f;
+            float amp = (ped.State == PedState.Cross ? 40f : 26f) * gait;
             float swing = diving ? 0f : Mathf.Sin(p) * amp;
 
             // Knees, which is the thing a pendulum leg cannot do. The knee flexes hard
@@ -170,10 +191,36 @@ namespace PN3D.Game
             float kneeL = diving ? 62f : Mathf.Max(0f, Mathf.Sin(p - 0.5f)) * flex + 4f;
             float kneeR = diving ? 62f : Mathf.Max(0f, Mathf.Sin(p + Mathf.PI - 0.5f)) * flex + 4f;
 
-            v.LegL.localRotation = Quaternion.Euler(swing, 0, 0);
-            v.LegR.localRotation = Quaternion.Euler(-swing, 0, 0);
-            v.KneeL.localRotation = Quaternion.Euler(kneeL, 0, 0);
-            v.KneeR.localRotation = Quaternion.Euler(kneeR, 0, 0);
+            // Contrapposto. Standing still, the weight goes on one leg: that hip rides up,
+            // the free knee softens and turns out, and the shoulders tilt back the other
+            // way to keep the head over the feet. It is the difference between a person
+            // waiting and a figure placed upright, and it is four rotations.
+            float stand = 1f - gait;
+            float lean = v.Lean * stand;
+            float sway = Mathf.Sin(t * 0.62f) * 1.4f * stand;          // nobody stands still
+            float freeL = v.Lean > 0f ? 1f : 0f;                       // which leg is idle
+
+            v.Hips.localRotation = Quaternion.Euler(0, 0, lean * 4.5f + sway * 0.4f);
+            v.LegL.localRotation = Quaternion.Euler(swing - freeL * stand * 4f,
+                                                    -freeL * stand * 9f, 0);
+            v.LegR.localRotation = Quaternion.Euler(-swing - (1f - freeL) * stand * 4f,
+                                                    (1f - freeL) * stand * 9f, 0);
+            v.KneeL.localRotation = Quaternion.Euler(kneeL + freeL * stand * 11f, 0, 0);
+            v.KneeR.localRotation = Quaternion.Euler(kneeR + (1f - freeL) * stand * 11f, 0, 0);
+            // Feet turn out about eight degrees. Parallel feet are a toy soldier.
+            v.FootL.localRotation = Quaternion.Euler(0, -8f - freeL * stand * 7f, 0);
+            v.FootR.localRotation = Quaternion.Euler(0, 8f + (1f - freeL) * stand * 7f, 0);
+
+            // The chest counter-rotates against the hips — a walking person's shoulders
+            // swing opposite their pelvis — and the head then counter-rotates against the
+            // chest, because the one thing a walker holds steady is where they are
+            // looking. Leaving both rigid is why the old walk was all legs.
+            float twist = Mathf.Sin(p) * 7f * gait;
+            v.Torso.localRotation = Quaternion.Euler(2.5f + 3f * gait, twist,
+                                                     -lean * 6f - sway * 0.6f);
+            v.Head.localRotation = Quaternion.Euler(-1.5f - 2f * gait,
+                                                    -twist * 0.7f + Mathf.Sin(t * 0.41f) * 5f * stand,
+                                                    lean * 2.5f);
 
             bool filming = ped.State == PedState.Film || ped.Filmed;
             if (filming)
@@ -195,12 +242,20 @@ namespace PN3D.Game
             }
             else
             {
-                v.ArmL.localRotation = Quaternion.Euler(-swing * 0.65f, 0, 0);
-                v.ArmR.localRotation = Quaternion.Euler(swing * 0.65f, 0, 0);
+                // Arms hang clear of the hips rather than clipping into them, and the two
+                // sides are never quite the same.
+                // The sign is the whole of it: a +Z roll on the LEFT arm maps its hanging
+                // direction toward +X, which is inboard, and puts the hand inside the hip.
+                // Away from the body is -Z on the left and +Z on the right.
+                float outL = 5f + stand * 3f, outR = 6f + stand * 2f;
+                v.ArmL.localRotation = Quaternion.Euler(-swing * 0.65f + lean * 2f, 0, -outL);
+                v.ArmR.localRotation = Quaternion.Euler(swing * 0.65f - lean * 2f, 0, outR);
                 // An arm is never straight, even at rest. A locked elbow is the other half
                 // of the mannequin look and it costs one constant to fix.
-                v.ElbowL.localRotation = Quaternion.Euler(-13f - Mathf.Max(0f, swing) * 0.5f, 0, 0);
-                v.ElbowR.localRotation = Quaternion.Euler(-13f - Mathf.Max(0f, -swing) * 0.5f, 0, 0);
+                v.ElbowL.localRotation =
+                    Quaternion.Euler(-13f - Mathf.Max(0f, swing) * 0.5f - stand * 6f, 0, 0);
+                v.ElbowR.localRotation =
+                    Quaternion.Euler(-16f - Mathf.Max(0f, -swing) * 0.5f - stand * 4f, 0, 0);
             }
             v.Phone.gameObject.SetActive(filming);
         }
