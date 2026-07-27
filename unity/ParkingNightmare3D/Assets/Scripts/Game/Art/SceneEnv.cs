@@ -15,16 +15,23 @@ namespace PN3D.Game.Art
         /// <summary>Radius of the horizon ring. Comfortably past any district's fogFar.</summary>
         public const float HorizonRadius = 640f;
 
+        /// <summary>
+        /// Order matters here and it is not the obvious one. The sky needs the sun's
+        /// direction to place the disc and light the clouds, so the sun is built first;
+        /// the ambient probe is baked from the sky, so it comes after; and the horizon
+        /// ring is geometry, so it goes last and occludes the sun when the sun is low.
+        /// </summary>
         public static Light Build(District d, Vector3 worldCentre, Transform parent = null)
         {
-            ApplySky(d);
             ApplyFog(d);
+            var sun = BuildSun(d, parent);
+            ApplySky(d, -sun.transform.forward);
             ApplyAmbient(d);
             BuildHorizon(d, worldCentre, parent);
-            return BuildSun(d, parent);
+            return sun;
         }
 
-        static void ApplySky(District d)
+        static void ApplySky(District d, Vector3 toSun)
         {
             var sh = Shader.Find("PN3D/SkyGradient");
             if (sh == null)
@@ -38,8 +45,40 @@ namespace PN3D.Game.Art
             m.SetColor("_Top", d.SkyTop);
             m.SetColor("_Mid", d.SkyMid);
             m.SetColor("_Horizon", d.SkyHorizon);
-            m.SetFloat("_MidHeight", 0.24f);
-            m.SetFloat("_Exponent", 1.15f);
+            // The gradient was authored for a camera that looks at the sky. This one does
+            // not: the chase view puts the top of the frame around nine degrees up, so at
+            // the old mid height of 0.24 the zenith blue was never on screen and every
+            // shot had a washed-out pale band for a sky. Pulling the mid stop down to
+            // about five degrees puts the warm haze where haze actually is and lets the
+            // blue start where the player can see it.
+            m.SetFloat("_MidHeight", 0.085f);
+            m.SetFloat("_Exponent", 0.72f);
+
+            m.SetTexture("_Clouds", ProcTex.CloudDeck());
+            m.SetVector("_SunDir", toSun);
+
+            // A cloud is not white and its shaded side is not grey — both are the sky it
+            // sits in, one lit by the sun and one lit only by the rest of the sky. Taking
+            // them from the district palette is what keeps the deck from looking pasted on
+            // in the dusk and night districts, where a white cloud would be the brightest
+            // thing in a frame lit by streetlamps.
+            var lit = Color.Lerp(Color.white, d.SunColor, 0.35f)
+                    * (d.Night ? 0.30f : 1.0f);
+            var dark = Color.Lerp(d.SkyMid, new Color(0.34f, 0.39f, 0.50f), 0.74f)
+                     * (d.Night ? 0.42f : 0.95f);
+            m.SetColor("_CloudLit", lit);
+            m.SetColor("_CloudDark", dark);
+            m.SetColor("_SunTint", d.SunColor);
+            m.SetFloat("_CloudAmount", d.Night ? 0.55f : 1f);
+            m.SetFloat("_CloudScale", 0.20f);
+            // The sun disc is drawn at roughly a degree and a half rather than the half a
+            // degree it really subtends. At the real size it is two pixels on a phone and
+            // reads as a stuck sub-pixel; the aureole around it is what the eye actually
+            // uses to locate the sun anyway.
+            m.SetFloat("_SunSize", 0.99955f);
+            m.SetFloat("_SunGlow", d.Night ? 900f : 150f);
+            m.SetVector("_Drift", new Vector4(0.00085f, 0.00040f, 0.00036f, 0.00018f));
+
             RenderSettings.skybox = m;
         }
 
@@ -48,8 +87,19 @@ namespace PN3D.Game.Art
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = d.Fog;
-            RenderSettings.fogStartDistance = 40f;      // src/n3_d.js:660
-            RenderSettings.fogEndDistance = d.FogFar;
+
+            // The reference fogs from 40 m to the district's fogFar (src/n3_d.js:660), and
+            // that is deliberately more aggressive than air: it exists to hide the end of
+            // the web build's world, which is a short strip. This world reaches the horizon
+            // ring at 640 m and has hills and a treeline out there worth seeing, so the
+            // same curve just turns the middle distance milky — at 150 m the old numbers
+            // were already 42% fog, which is why every house past the second lot looked
+            // bleached.
+            //
+            // Pushed out, not switched off. The ring still lands at essentially full fog,
+            // so the world still ends in haze rather than at an edge.
+            RenderSettings.fogStartDistance = 85f;
+            RenderSettings.fogEndDistance = Mathf.Max(d.FogFar, 520f);
         }
 
         static void ApplyAmbient(District d)
@@ -94,8 +144,11 @@ namespace PN3D.Game.Art
             l.intensity = d.SunIntensity * 0.72f;
             l.shadows = LightShadows.Soft;
             l.shadowStrength = 0.78f;
-            l.shadowBias = 0.03f;
-            l.shadowNormalBias = 0.35f;
+            // Bias is NOT set here. URP reads it from the render pipeline asset unless the
+            // light's UniversalAdditionalLightData turns usePipelineSettings off, so the
+            // shadowBias and shadowNormalBias this used to assign were dead code — the
+            // values actually in force were the 1.0 / 1.0 in Mobile_RPAsset, which is what
+            // was detaching every shadow from the thing casting it. Tune them there.
 
             // The web build positions the sun at (x, y, z) in its own axes; the direction
             // it points is from there toward the origin, mapped through the same handedness
@@ -125,7 +178,9 @@ namespace PN3D.Game.Art
 
             var m = new Material(sh) { name = "PN3D_Horizon" };
             m.SetTexture("_BaseMap", ProcTex.HillsSkyline(d.Fog));
-            m.SetTextureScale("_BaseMap", new Vector2(3f, 1f));
+            // Once round, not three times. The skyline carries landmarks now, and a
+            // landmark you can see three copies of at once is worse than none.
+            m.SetTextureScale("_BaseMap", Vector2.one);
             mr.sharedMaterial = m;
         }
 

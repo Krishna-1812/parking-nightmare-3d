@@ -143,6 +143,7 @@ namespace PN3D.Game.Art
             float half = span * 0.5f;
             var verts = new Vector3[N * N];
             var uvs = new Vector2[N * N];
+            var cols = new Color32[N * N];
             var tris = new int[(N - 1) * (N - 1) * 6];
 
             var axis = new float[N];
@@ -167,6 +168,7 @@ namespace PN3D.Game.Art
                     float wu = Fbm(wx * 0.0031f, wz * 0.0031f, 2) * 0.45f;
                     float wv = Fbm(wx * 0.0029f + 55f, wz * 0.0033f - 21f, 2) * 0.45f;
                     uvs[j * N + i] = new Vector2(wx / TileM + wu, wz / TileM + wv);
+                    cols[j * N + i] = t.Cover(wx, wz);
                 }
 
             int k = 0;
@@ -181,6 +183,7 @@ namespace PN3D.Game.Art
             var mesh = new Mesh { name = "ground", indexFormat = IndexFormat.UInt32 };
             mesh.SetVertices(verts);
             mesh.SetUVs(0, uvs);
+            mesh.SetColors(cols);
             mesh.SetTriangles(tris, 0);
             mesh.RecalculateNormals();
             mesh.RecalculateTangents();
@@ -188,9 +191,7 @@ namespace PN3D.Game.Art
 
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = MatLib.Textured("mat_ground",
-                ProcTex.Grass(d.GroundAHex, d.GroundBHex), Color.white, Vector2.one,
-                smoothness: 0.04f);
+            mr.sharedMaterial = GroundMat(d);
             // Casting from the ground would only ever self-shadow its own swells at grazing
             // sun, which on a 650 m mesh costs a shadow map full of nothing.
             mr.shadowCastingMode = ShadowCastingMode.Off;
@@ -198,6 +199,64 @@ namespace PN3D.Game.Art
 
             return t;
         }
+
+        // ------------------------------------------------------------------ cover
+
+        /// <summary>
+        /// What is growing at a point, baked into the mesh as a vertex colour.
+        ///
+        /// <c>r</c> is lushness and <c>g</c> is bare earth. Both are large-scale — the
+        /// lushness field turns over about every eighty metres and the worn patches about
+        /// every thirty — because the point of them is the variation the *texture* cannot
+        /// have. A 26 m tile can only repeat; a field that changes over eighty metres
+        /// cannot be a tile at all, and it is the absence of that scale of change that
+        /// made six hundred metres of lawn read as one painted carpet.
+        ///
+        /// Worn earth is pushed away from the road corridor deliberately. Bare patches
+        /// look like desire lines and mud, which belong out in the paddocks, not on the
+        /// mown verge the player is parking against.
+        /// </summary>
+        Color32 Cover(float x, float z)
+        {
+            float lush = Mathf.Clamp01(Fbm(x * 0.0128f + 4.2f, z * 0.0128f - 7.7f, 3) * 0.5f + 0.5f);
+            lush = Smooth01(Mathf.InverseLerp(0.24f, 0.78f, lush));
+
+            float worn = Fbm(x * 0.0335f - 19.3f, z * 0.0335f + 2.6f, 2) * 0.5f + 0.5f;
+            worn = Smooth01(Mathf.InverseLerp(0.70f, 0.90f, worn)) * 0.55f;
+            worn *= Smooth01(Mathf.InverseLerp(FlatTo + 6f, FlatTo + 40f, DistToRoad(x, z)));
+
+            return new Color32((byte)(lush * 255f), (byte)(worn * 255f), 0, 255);
+        }
+
+        /// <summary>
+        /// The ground material. Not <see cref="MatLib.Textured"/>, because the grass wants
+        /// vertex colour and a second sampling rate that URP/Lit has no way to give it —
+        /// see the header of <c>PN3D_Ground.shader</c>.
+        /// </summary>
+        static Material GroundMat(District d) => MatLib.Get("mat_ground" + d.GroundAHex, () =>
+        {
+            var sh = Shader.Find("PN3D/Ground");
+            if (sh == null)
+                throw new System.InvalidOperationException(
+                    "Shader 'PN3D/Ground' is not in this build. It is created at runtime like " +
+                    "every other material here, so add it to Always Included Shaders in " +
+                    "ProjectSettings/GraphicsSettings.asset.");
+
+            var m = new Material(sh);
+            m.SetTexture("_BaseMap", ProcTex.Grass(d.GroundAHex, d.GroundBHex));
+            m.SetColor("_BaseColor", Color.white);
+            m.SetFloat("_MacroScale", 0.21f);
+            m.SetFloat("_MacroDepth", 0.62f);
+            // Gains, not colours — they multiply the grass map, and their midpoint sits at
+            // white so the field keeps the district's own green. Dry runs warm and a shade
+            // brighter, lush runs darker and greener; both pull blue down, which is what
+            // takes the milkiness out of a fogged field.
+            m.SetColor("_DryColor", new Color(1.22f, 1.12f, 0.80f));
+            m.SetColor("_LushColor", new Color(0.78f, 0.94f, 0.66f));
+            m.SetColor("_WornColor", new Color(0.40f, 0.34f, 0.25f));
+            m.SetFloat("_Smoothness", 0.04f);
+            return m;
+        });
 
         /// <summary>
         /// The road centreline in world XZ, sampled about every four metres over the whole

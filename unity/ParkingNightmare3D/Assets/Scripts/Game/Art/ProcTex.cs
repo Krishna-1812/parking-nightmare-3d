@@ -457,8 +457,9 @@ namespace PN3D.Game.Art
         });
 
         /// <summary>
-        /// Horizontal lap siding. Painted white and tinted by the material's base colour,
-        /// so one texture serves the whole <c>bWall</c> palette.
+        /// Horizontal lap siding, one board per 14 px and one repeat per 2.2 m. Painted
+        /// white and tinted by the material's base colour, so one texture serves the whole
+        /// <c>bWall</c> palette.
         /// </summary>
         public static Texture2D Siding() => Get("siding", () =>
         {
@@ -466,16 +467,278 @@ namespace PN3D.Game.Art
             var r = Seed("siding");
             int W = c.W, H = c.H;
             c.Clear(RG.Rgb(255, 255, 255));
-            for (int y = 0; y < H; y += 14)
+
+            for (int y = 0; y < H; y += Board)
             {
-                c.FillRect(0, y + 11, W, 3, RG.Rgba(0, 0, 0, .16f));
-                c.FillRect(0, y, W, 1.5f, RG.Rgba(255, 255, 255, .5f));
+                // Each board is a shallow wedge: thin at the top where it tucks under the
+                // one above, thick at the bottom where it stands proud and throws a line
+                // of shadow. That shadow is the whole reason lap siding is legible from
+                // across a street, so it gets a gradient rather than a hard bar.
+                var face = new Raster.LinearGrad(0, y, 0, y + Board)
+                    .Stop(0f, RG.Rgba(0, 0, 0, .10f))
+                    .Stop(0.35f, RG.Rgba(255, 255, 255, .05f))
+                    .Stop(1f, RG.Rgba(0, 0, 0, .04f));
+                c.FillRect(0, y, W, Board, face);
+                c.FillRect(0, y + Board - 3f, W, 2.6f, RG.Rgba(0, 0, 0, .22f));
+                c.FillRect(0, y + Board - 0.4f, W, 1.2f, RG.Rgba(255, 255, 255, .45f));
             }
-            for (int i = 0; i < 160; i++)
+
+            // butt joints between board lengths, and the nail line above each one
+            for (int i = 0; i < 7; i++)
+            {
+                float x = (float)r.Rand(0, W);
+                int row = (int)r.Rand(0, H / Board);
+                c.FillRect(x, row * Board + 1, 1.2f, Board - 3, RG.Rgba(0, 0, 0, .16f));
+            }
+
+            // grain and weathering: streaks run along the board, never across it
+            for (int i = 0; i < 220; i++)
                 c.FillRect((float)r.Rand(0, W), (float)r.Rand(0, H),
-                           (float)r.Rand(1, 4), (float)r.Rand(1, 2),
-                           RG.Rgba(0, 0, 0, (float)r.Rand(0.01, 0.05)));
+                           (float)r.Rand(3, 14), 1,
+                           RG.Rgba(0, 0, 0, (float)r.Rand(0.01, 0.045)));
+            for (int i = 0; i < 26; i++)
+                c.FillRect((float)r.Rand(0, W), (float)r.Rand(0, H),
+                           (float)r.Rand(6, 30), (float)r.Rand(2, 7),
+                           RG.Rgba(255, 255, 255, (float)r.Rand(0.02, 0.06)));
+
             return c.ToTexture("siding");
+        });
+
+        const int Board = 14;
+
+        /// <summary>The relief that goes with <see cref="Siding"/>: the same wedge, as height.</summary>
+        public static Texture2D SidingNormal() => Get("sidingNrm", () =>
+        {
+            var c = new Raster(128, 128);
+            var r = Seed("sidingNrm");
+            int W = c.W, H = c.H;
+            c.Clear(RG.Rgb(128, 128, 128));
+            for (int y = 0; y < H; y += Board)
+            {
+                var wedge = new Raster.LinearGrad(0, y, 0, y + Board - 1)
+                    .Stop(0f, RG.Rgb(96, 96, 96))
+                    .Stop(1f, RG.Rgb(196, 196, 196));
+                c.FillRect(0, y, W, Board - 1, wedge);
+                c.FillRect(0, y + Board - 1, W, 1.4f, RG.Rgb(40, 40, 40));
+            }
+            for (int i = 0; i < 300; i++)
+            {
+                float v = (float)r.Rand(100, 156);
+                c.FillRect((float)r.Rand(0, W), (float)r.Rand(0, H), (float)r.Rand(4, 16), 1,
+                           RG.Rgba(v, v, v, 0.5f));
+            }
+            return c.ToNormalMap("sidingNormal", 1.7f);
+        });
+
+        /// <summary>
+        /// Troweled render. Painted white so the wall palette tints it, like the siding.
+        /// The look is entirely in the relief — flat stucco is just a coloured rectangle —
+        /// so the albedo stays nearly uniform and <see cref="StuccoNormal"/> does the work.
+        /// </summary>
+        public static Texture2D Stucco() => Get("stucco", () =>
+        {
+            var c = new Raster(256, 256);
+            var r = Seed("stucco");
+            int W = c.W, H = c.H;
+            c.Clear(RG.Rgb(255, 255, 255));
+            // Render is *painted*. Whatever texture it has lives in the light, not in the
+            // pigment — so the albedo barely moves and every mark here is a couple of
+            // percent. The first attempt used 2600 marks at five percent each; they
+            // accumulated, dragged the wall to grey, and turned a painted house into a
+            // gravel driveway stood on end.
+            for (int i = 0; i < 1500; i++)
+            {
+                bool light = r.Chance(0.5);
+                c.FillEllipse((float)r.Rand(0, W), (float)r.Rand(0, H),
+                              (float)r.Rand(1.5, 5), (float)r.Rand(1.5, 4),
+                              new Raster.Solid(light ? RG.Rgba(255, 255, 255, .028f)
+                                                     : RG.Rgba(0, 0, 0, .022f)));
+            }
+            // rain streaking below where the gutters overflow
+            for (int i = 0; i < 12; i++)
+                c.FillRect((float)r.Rand(0, W), 0, (float)r.Rand(2, 9), H,
+                           RG.Rgba(0, 0, 0, (float)r.Rand(0.01, 0.03)));
+            return c.ToTexture("stucco");
+        });
+
+        public static Texture2D StuccoNormal() => Get("stuccoNrm", () =>
+        {
+            var c = new Raster(256, 256);
+            var r = Seed("stuccoNrm");
+            int W = c.W, H = c.H;
+            c.Clear(RG.Rgb(128, 128, 128));
+            for (int i = 0; i < 2400; i++)
+            {
+                float v = (float)r.Rand(96, 164);
+                c.FillEllipse((float)r.Rand(0, W), (float)r.Rand(0, H),
+                              (float)r.Rand(1.5, 5), (float)r.Rand(1.5, 4),
+                              new Raster.Solid(RG.Rgba(v, v, v, (float)r.Rand(0.15, 0.35))));
+            }
+            return c.ToNormalMap("stuccoNormal", 1.0f);
+        });
+
+        /// <summary>
+        /// Brick in running bond, one repeat per 2.2 m — so a course is about 75 mm, which
+        /// is a brick. Unlike the siding and the stucco this carries its own colour: a
+        /// brick wall tinted mint green is not a house, it is a mistake.
+        /// </summary>
+        public static Texture2D Brick(string baseHex) => Get("brick" + baseHex, () =>
+        {
+            var c = new Raster(256, 256);
+            var r = Seed("brick" + baseHex);
+            int W = c.W, H = c.H;
+            var bc = RG.Hex(baseHex);
+            var mortar = RG.Rgb(196, 192, 182);
+            c.Clear(mortar);
+
+            const float courseH = 256f / 29f;   // 29 courses over 2.2 m
+            const float brickW = 256f / 9f;
+            const float joint = 1.6f;
+            int course = 0;
+            for (float y = 0; y < H; y += courseH, course++)
+            {
+                float off = (course % 2) * (brickW * 0.5f);
+                for (float x = -brickW; x < W + brickW; x += brickW)
+                {
+                    // Every brick fired slightly differently. The spread is wide on
+                    // purpose — a wall of identical bricks reads as printed paper.
+                    var col = bc.Scale(1f + (float)r.Rand(-0.15, 0.17))
+                                .Lerp(RG.Rgb(70, 52, 46), (float)r.Rand(0, 0.10));
+                    c.FillRect(x + off + joint, y + joint,
+                               brickW - joint * 2f, courseH - joint * 2f, col);
+                    // the face is not flat: light catches the top arris
+                    c.FillRect(x + off + joint, y + joint, brickW - joint * 2f, 1.1f,
+                               RG.Rgba(255, 255, 255, .09f));
+                    c.FillRect(x + off + joint, y + courseH - joint - 1.1f,
+                               brickW - joint * 2f, 1.1f, RG.Rgba(0, 0, 0, .13f));
+                }
+            }
+
+            // efflorescence and soot, both of which run downwards
+            for (int i = 0; i < 12; i++)
+                c.FillRect((float)r.Rand(0, W), (float)r.Rand(0, H),
+                           (float)r.Rand(6, 26), (float)r.Rand(20, 90),
+                           r.Chance(0.5) ? RG.Rgba(255, 255, 255, .05f) : RG.Rgba(0, 0, 0, .06f));
+
+            return c.ToTexture("brick");
+        });
+
+        public static Texture2D BrickNormal() => Get("brickNrm", () =>
+        {
+            var c = new Raster(256, 256);
+            var r = Seed("brickNrm");
+            int W = c.W, H = c.H;
+            c.Clear(RG.Rgb(74, 74, 74));            // the mortar sits back
+            const float courseH = 256f / 29f;
+            const float brickW = 256f / 9f;
+            const float joint = 1.6f;
+            int course = 0;
+            for (float y = 0; y < H; y += courseH, course++)
+            {
+                float off = (course % 2) * (brickW * 0.5f);
+                for (float x = -brickW; x < W + brickW; x += brickW)
+                {
+                    float v = (float)r.Rand(178, 208);
+                    c.FillRect(x + off + joint, y + joint,
+                               brickW - joint * 2f, courseH - joint * 2f, RG.Rgb(v, v, v));
+                }
+            }
+            for (int i = 0; i < 2400; i++)
+            {
+                float v = (float)r.Rand(150, 220);
+                c.FillRect((float)r.Rand(0, W), (float)r.Rand(0, H), 2, 2,
+                           RG.Rgba(v, v, v, 0.35f));
+            }
+            return c.ToNormalMap("brickNormal", 2.6f);
+        });
+
+        /// <summary>Tab relief for <see cref="Shingle"/>: each course steps down over the next.</summary>
+        public static Texture2D ShingleNormal() => Get("shingNrm", () =>
+        {
+            var c = new Raster(256, 256);
+            var r = Seed("shingNrm");
+            int W = c.W, H = c.H;
+            c.Clear(RG.Rgb(128, 128, 128));
+            const float rowH = 22, tabW = 30;
+            int row = 0;
+            for (float y = 0; y < H + rowH; y += rowH, row++)
+            {
+                float off = (row % 2) * (tabW / 2);
+                var step = new Raster.LinearGrad(0, y, 0, y + rowH)
+                    .Stop(0f, RG.Rgb(112, 112, 112))
+                    .Stop(0.8f, RG.Rgb(186, 186, 186))
+                    .Stop(1f, RG.Rgb(52, 52, 52));
+                c.FillRect(0, y, W, rowH, step);
+                for (float x = -tabW; x < W + tabW; x += tabW)
+                    c.FillRect(x + off - 0.7f, y, 1.4f, rowH - 2, RG.Rgb(88, 88, 88));
+            }
+            for (int i = 0; i < 1800; i++)
+            {
+                float v = (float)r.Rand(105, 155);
+                c.FillRect((float)r.Rand(0, W), (float)r.Rand(0, H), 2, 2, RG.Rgba(v, v, v, 0.4f));
+            }
+            return c.ToNormalMap("shingleNormal", 1.5f);
+        });
+
+        /// <summary>
+        /// Bark. White-ish so the trunk colour tints it, with the fissures running up the
+        /// trunk — which is the direction that matters, because a trunk is a cylinder and
+        /// every horizontal feature on it would read as a growth ring seen from the side.
+        /// </summary>
+        public static Texture2D Bark() => Get("bark", () =>
+        {
+            var c = new Raster(128, 256);
+            var r = Seed("bark");
+            int W = c.W, H = c.H;
+            c.Clear(RG.Rgb(255, 255, 255));
+
+            for (int i = 0; i < 190; i++)
+            {
+                float x = (float)r.Rand(0, W);
+                float wdt = (float)r.Rand(1.5, 6);
+                bool dark = r.Chance(0.62);
+                // Held low deliberately. Bark's contrast in life is nearly all shading —
+                // the fissures are dark because they are in shadow, and the normal map
+                // already does that. Painting the shadow in as well gives a striped pole.
+                float a = (float)r.Rand(0.03, 0.14);
+                // a fissure wanders as it climbs
+                float y = 0;
+                while (y < H)
+                {
+                    float seg = (float)r.Rand(8, 26);
+                    c.FillRect(x, y, wdt, seg, dark ? RG.Rgba(0, 0, 0, a) : RG.Rgba(255, 255, 255, a * 0.9f));
+                    x += (float)r.Rand(-1.6, 1.6);
+                    y += seg;
+                }
+            }
+            for (int i = 0; i < 500; i++)
+                c.FillRect((float)r.Rand(0, W), (float)r.Rand(0, H),
+                           (float)r.Rand(1, 3), (float)r.Rand(2, 8),
+                           RG.Rgba(0, 0, 0, (float)r.Rand(0.012, 0.045)));
+            return c.ToTexture("bark");
+        });
+
+        public static Texture2D BarkNormal() => Get("barkNrm", () =>
+        {
+            var c = new Raster(128, 256);
+            var r = Seed("barkNrm");
+            int W = c.W, H = c.H;
+            c.Clear(RG.Rgb(128, 128, 128));
+            for (int i = 0; i < 240; i++)
+            {
+                float x = (float)r.Rand(0, W);
+                float wdt = (float)r.Rand(1.5, 6);
+                float v = (float)r.Rand(55, 205);
+                float y = 0;
+                while (y < H)
+                {
+                    float seg = (float)r.Rand(8, 26);
+                    c.FillRect(x, y, wdt, seg, RG.Rgba(v, v, v, 0.55f));
+                    x += (float)r.Rand(-1.6, 1.6);
+                    y += seg;
+                }
+            }
+            return c.ToNormalMap("barkNormal", 1.5f);
         });
 
         /// <summary>
@@ -603,56 +866,236 @@ namespace PN3D.Game.Art
             return c.ToNormalMap("asphaltNormal", 2.2f);
         });
 
-        // ------------------------------------------------------------ horizon
+        // ------------------------------------------------------------ tiling noise
 
         /// <summary>
-        /// The distant horizon silhouette, wrapped round a cylinder past the fog distance.
-        /// Two layers of rolling hills with ridge trees and a water tower, tinted toward
-        /// the fog colour so the ring dissolves into the sky instead of ending at an edge.
+        /// Value noise that repeats exactly every <paramref name="period"/> cells.
+        ///
+        /// The ordinary hash noise used by <see cref="Terrain"/> cannot be used for a
+        /// texture: a texture that does not wrap shows its edge as a seam, and the cloud
+        /// deck is sampled over hundreds of repeats across one sky. Folding the lattice
+        /// coordinate into the period before hashing is what makes the field periodic —
+        /// the interpolation then wraps with it for free.
         /// </summary>
-        public static Texture2D HillsSkyline(Color fog) => Get("skyhills" + ColorUtility.ToHtmlStringRGB(fog), () =>
+        /// <summary>Tiling value noise with independent periods across and along.</summary>
+        static float PNoise2(float u, float v, int px, int py, uint seed)
         {
-            const int W = 2048, H = 256;
-            var c = new Raster(W, H);
-            c.ClearTransparent();
+            float x = u * px, y = v * py;
+            int xi = Mathf.FloorToInt(x), yi = Mathf.FloorToInt(y);
+            float xf = x - xi, yf = y - yi;
+            float a = xf * xf * (3f - 2f * xf), b = yf * yf * (3f - 2f * yf);
+            float h00 = PHash2(xi, yi, px, py, seed), h10 = PHash2(xi + 1, yi, px, py, seed);
+            float h01 = PHash2(xi, yi + 1, px, py, seed), h11 = PHash2(xi + 1, yi + 1, px, py, seed);
+            return Mathf.Lerp(Mathf.Lerp(h00, h10, a), Mathf.Lerp(h01, h11, a), b);
+        }
 
-            var fc = RG.FromColor(fog);
-            RG Shade(float mix, float alpha) => fc.Lerp(RG.Rgb(26, 32, 48), mix).WithA(alpha);
-
-            // The reference uses frequencies 0.006 and 0.017 rad/px. Those do not complete
-            // a whole number of cycles across the canvas, and the ring wraps the texture
-            // three times — so each seam becomes a vertical cliff in the ridge that reads
-            // as a mesa on the horizon. Snapped to the nearest exactly-periodic
-            // frequencies, which is visually identical and seamless.
-            const float TwoPi = Mathf.PI * 2f;
-            float K1 = Mathf.Round(0.006f * W / TwoPi) * TwoPi / W;
-            float K2 = Mathf.Round(0.017f * W / TwoPi) * TwoPi / W;
-
-            float Ridge(float x, float baseY, float amp, float mix)
-                => baseY - Mathf.Sin(x * K1 + mix * 40f) * amp
-                         - Mathf.Sin(x * K2 + mix * 9f) * amp * 0.4f;
-
-            foreach (var (mix, baseY, amp, alpha) in new[]
-                     { (0.18f, 150f, 34f, 0.85f), (0.38f, 190f, 26f, 0.95f) })
+        static float PHash2(int x, int y, int px, int py, uint seed)
+        {
+            x = ((x % px) + px) % px;
+            y = ((y % py) + py) % py;
+            unchecked
             {
-                var col = Shade(mix, alpha);
-                var poly = new List<Vector2> { new Vector2(0, H) };
-                for (int x = 0; x <= W; x += 16) poly.Add(new Vector2(x, Ridge(x, baseY, amp, mix)));
-                poly.Add(new Vector2(W, H));
-                c.FillPolygon(poly, col);
+                uint h = (uint)(x * 374761393) + (uint)(y * 668265263) + seed;
+                h = (h ^ (h >> 13)) * 1274126177u;
+                return ((h ^ (h >> 16)) & 0xFFFFFF) / 16777215f;
+            }
+        }
 
-                for (int x = 30; x < W; x += 90 + (x % 70))
+        // ------------------------------------------------------------ sky
+
+        /// <summary>
+        /// The cloud deck, as one tiling sheet the sky shader projects onto a flat ceiling.
+        ///
+        /// Four channels, none of them a colour:
+        /// <list type="bullet">
+        /// <item>A — cumulus coverage, the alpha the deck is composited with.</item>
+        /// <item>R — how brightly that cumulus is lit. Thin edges are near 1 and dense cores
+        /// near 0, because a cloud seen from below is bright where you can nearly see
+        /// through it and grey where you cannot. Baking it means the shader gets internal
+        /// form for one fetch instead of marching a density field.</item>
+        /// <item>G — cirrus coverage, stretched eight to one so it reads as wind-drawn
+        /// streaks rather than a second layer of the same puffs.</item>
+        /// <item>B — cirrus brightness.</item>
+        /// </list>
+        ///
+        /// A large-scale mask modulates the cumulus threshold, so the puffs gather into
+        /// fronts with clear sky between them. Without it the coverage is uniform and the
+        /// sky reads as wallpaper — the giveaway being that no part of it is empty.
+        /// </summary>
+        public static Texture2D CloudDeck() => Get("clouddeck", () =>
+        {
+            const int N = 512;
+            var px = new Color32[N * N];
+
+            for (int y = 0; y < N; y++)
+            {
+                float v = y / (float)N;
+                for (int x = 0; x < N; x++)
                 {
-                    float y = Ridge(x, baseY, amp, mix);
-                    c.FillCircle(x, y - 5, 6, new Raster.Solid(col));
-                    c.FillRect(x - 1, y - 4, 2, 6, col);
+                    float u = x / (float)N;
+
+                    // where the weather is: slow, large, and the only thing that decides
+                    // whether this part of the sky has cloud in it at all
+                    float front = PFbmA(u, v, 2, 2, 1201u);
+                    float cover = Mathf.Lerp(0.66f, 0.34f, Smooth01(Mathf.InverseLerp(0.35f, 0.72f, front)));
+
+                    float d = PFbmA(u, v, 4, 6, 77u);
+                    float a = Smooth01(Mathf.InverseLerp(cover, cover + 0.20f, d));
+                    // dense cores are the part you cannot see through
+                    float lit = 1f - Smooth01(Mathf.InverseLerp(cover + 0.10f, cover + 0.42f, d));
+                    // a little high-frequency billow so the interior is not a flat wash
+                    lit = Mathf.Clamp01(lit * 0.82f + PFbmA(u, v, 24, 3, 913u) * 0.30f);
+
+                    float w = PFbmB(u, v, 3, 24, 5, 4441u);
+                    float wa = Smooth01(Mathf.InverseLerp(0.52f, 0.78f, w)) * 0.75f;
+
+                    px[y * N + x] = new Color32(
+                        (byte)(Mathf.Clamp01(lit) * 255f),
+                        (byte)(Mathf.Clamp01(wa) * 255f),
+                        (byte)(Mathf.Clamp01(w) * 255f),
+                        (byte)(Mathf.Clamp01(a) * 255f));
                 }
             }
 
-            var tower = Shade(0.45f, 0.95f);
-            c.FillRect(600, 128, 5, 46, tower);
-            c.FillRect(636, 128, 5, 46, tower);
-            c.FillEllipse(620, 122, 26, 16, new Raster.Solid(tower));
+            var t = new Texture2D(N, N, TextureFormat.RGBA32, true, true)
+            {
+                name = "cloudDeck",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 4,
+            };
+            t.SetPixels32(px);
+            t.Apply(true, false);
+            return t;
+        });
+
+        static float Smooth01(float t) => t * t * (3f - 2f * t);
+
+        /// <summary>Isotropic tiling fbm.</summary>
+        static float PFbmA(float u, float v, int basePeriod, int octaves, uint seed)
+        {
+            float sum = 0f, amp = 1f, norm = 0f;
+            int p = basePeriod;
+            for (int i = 0; i < octaves; i++)
+            {
+                sum += PNoise2(u, v, p, p, seed + (uint)i * 7919u) * amp;
+                norm += amp;
+                amp *= 0.5f;
+                p *= 2;
+            }
+            return sum / norm;
+        }
+
+        /// <summary>Tiling fbm with independent periods, for wind-stretched streaks.</summary>
+        static float PFbmB(float u, float v, int px0, int py0, int octaves, uint seed)
+        {
+            float sum = 0f, amp = 1f, norm = 0f;
+            int px = px0, py = py0;
+            for (int i = 0; i < octaves; i++)
+            {
+                sum += PNoise2(u, v, px, py, seed + (uint)i * 6151u) * amp;
+                norm += amp;
+                amp *= 0.5f;
+                px *= 2; py *= 2;
+            }
+            return sum / norm;
+        }
+
+        // ------------------------------------------------------------ horizon
+
+        /// <summary>
+        /// The distant horizon silhouette, wrapped once round a cylinder past the fog
+        /// distance.
+        ///
+        /// Three things were wrong with the version this replaces, and all three came from
+        /// forgetting how big a pixel of this texture is once it is 640 m away and 150 m
+        /// tall. The ridge trees were 6 px circles on 2 px stalks, which is a seven-metre
+        /// ball on a two-metre stick, spaced ninety metres apart — the mushrooms. The water
+        /// tower was 46 px across, so forty-six metres wide. And the texture wrapped three
+        /// times, so there were three of it.
+        ///
+        /// This draws the ridges as columns rather than as filled polygons, which is what
+        /// buys the thing that actually makes distant hills read as distant: aerial
+        /// perspective *within* each ridge. Haze pools in the low ground, so a hill is
+        /// closest to its own colour along the crest and closest to the fog colour at its
+        /// foot. A flat silhouette has no such gradient, which is why flat silhouettes look
+        /// like cardboard.
+        /// </summary>
+        public static Texture2D HillsSkyline(Color fog) => Get("skyhills" + ColorUtility.ToHtmlStringRGB(fog), () =>
+        {
+            // One repeat around the whole ring: 4021 m of circumference over 4096 px is
+            // very nearly a metre per pixel across, and 150 m over 128 px is 1.2 m up.
+            const int W = 4096, H = 128;
+            var c = new Raster(W, H);
+            var r = Seed("skyline");
+            c.ClearTransparent();
+
+            var fc = RG.FromColor(fog);
+            RG Shade(float mix) => fc.Lerp(RG.Rgb(24, 34, 46), mix);
+
+            // Every frequency has to complete a whole number of cycles across the canvas
+            // or the wrap point is a cliff in the ridge.
+            const float TwoPi = Mathf.PI * 2f;
+            float K(float cycles) => cycles * TwoPi / W;
+
+            // (mix, crest, amp, treeline, fade)
+            foreach (var (mix, baseY, amp, trees, fade) in new[]
+                     {
+                         (0.10f, 60f, 15f, 0.0f, 34f),
+                         (0.24f, 78f, 12f, 1.6f, 26f),
+                         (0.46f, 96f,  9f, 2.6f, 20f),
+                     })
+            {
+                var crestCol = Shade(mix);
+                var footCol = Shade(mix * 0.30f);
+                float phase = mix * 37f;
+
+                float Ridge(float x)
+                    => baseY - Mathf.Sin(x * K(3) + phase) * amp
+                             - Mathf.Sin(x * K(7) + phase * 2.3f) * amp * 0.42f
+                             - Mathf.Sin(x * K(17) + phase * 0.7f) * amp * 0.16f
+                             - PNoise2(x / W, 0.37f, 41, 1, (uint)(mix * 1000f)) * amp * 0.5f;
+
+                for (int x = 0; x < W; x++)
+                {
+                    float y = Ridge(x);
+
+                    // The treeline. A forested crest is a continuous serration a few
+                    // metres deep, not a row of lollipops — so the bumps are two to four
+                    // pixels and they overlap.
+                    if (trees > 0f)
+                        y -= trees * (0.45f + 0.55f * PNoise2(x / (float)W, 0.11f, 900, 1, 7u));
+
+                    var grad = new Raster.LinearGrad(0, y, 0, y + fade)
+                        .Stop(0, crestCol)
+                        .Stop(1, footCol);
+                    c.FillRect(x, y, 1, H - y, grad);
+                }
+            }
+
+            // One landmark, once, at a believable size: a water tower about ten metres
+            // across and twenty tall, standing on the nearest ridge.
+            var tower = Shade(0.52f);
+            float tx = 2380f, ty = 84f;
+            c.FillRect(tx - 4, ty, 1.6f, 14, tower);
+            c.FillRect(tx + 4, ty, 1.6f, 14, tower);
+            c.FillEllipse(tx, ty - 1, 5.5f, 3.5f, new Raster.Solid(tower));
+
+            // A couple of far grain silos, small enough to be scenery rather than a subject
+            foreach (float sx in new[] { 700f, 3310f })
+            {
+                var silo = Shade(0.34f);
+                c.FillRect(sx, 70, 2.2f, 9, silo);
+                c.FillRect(sx + 3.4f, 72, 2.2f, 7, silo);
+            }
+
+            // The last hundred metres of air between here and the ring: everything low in
+            // the frame washes out, which is what stops the ring's base being a hard line
+            // laid across the field.
+            var haze = new Raster.LinearGrad(0, H * 0.52f, 0, H)
+                .Stop(0, fc.WithA(0f))
+                .Stop(1, fc.WithA(0.92f));
+            c.FillRect(0, H * 0.52f, W, H * 0.48f, haze);
 
             return c.ToTexture("skyline", wrap: TextureWrapMode.Repeat);
         });

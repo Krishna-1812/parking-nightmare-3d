@@ -49,6 +49,54 @@ namespace PN3D.Game.Art
                                      Material mat, bool shadows = true)
             => Node(name, parent, UnitCube, mat, pos, Quaternion.identity, size, shadows);
 
+        /// <summary>
+        /// A box whose texture runs at a fixed number of metres per repeat, however big
+        /// the box is.
+        ///
+        /// <see cref="Box"/> cannot do this. Its UVs are 0..1 on every face, so the tiling
+        /// has to come from the material — and a material is shared, so the first house
+        /// built decides the brick size for every later house of that colour. Putting the
+        /// scale in the mesh instead keeps one material per cladding (which is what the
+        /// SRP batcher wants) and still gives a garage and a two-storey wall the same size
+        /// bricks. Meshes are cached on the size rounded to a quarter metre.
+        /// </summary>
+        public static GameObject BoxClad(string name, Transform parent, Vector3 size, Vector3 pos,
+                                         Material mat, float metresPerRepeat, bool shadows = true)
+            => Node(name, parent, CladCube(size, metresPerRepeat), mat, pos,
+                    Quaternion.identity, size, shadows);
+
+        static Mesh CladCube(Vector3 size, float repeat)
+        {
+            float q = 0.25f;
+            float sx = Mathf.Round(size.x / q) * q;
+            float sy = Mathf.Round(size.y / q) * q;
+            float sz = Mathf.Round(size.z / q) * q;
+            return Get($"clad{sx}_{sy}_{sz}_{repeat:0.00}", () =>
+            {
+                var src = UnitCube;
+                var mesh = Object.Instantiate(src);
+                mesh.name = "cladCube";
+                var uv = mesh.uv;
+                // faces come out of UnitCube in this order, four verts each:
+                // +Z, -Z, +X, -X, +Y, -Y
+                var spans = new[]
+                {
+                    new Vector2(sx, sy), new Vector2(sx, sy),
+                    new Vector2(sz, sy), new Vector2(sz, sy),
+                    new Vector2(sx, sz), new Vector2(sx, sz),
+                };
+                for (int f = 0; f < 6; f++)
+                    for (int k = 0; k < 4; k++)
+                    {
+                        int i = f * 4 + k;
+                        uv[i] = new Vector2(uv[i].x * spans[f].x / repeat,
+                                            uv[i].y * spans[f].y / repeat);
+                    }
+                mesh.uv = uv;
+                return mesh;
+            });
+        }
+
         // ------------------------------------------------------------------ shapes
 
         public static Mesh UnitCube => Get("cube", () =>

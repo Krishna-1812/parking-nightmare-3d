@@ -31,8 +31,22 @@ namespace PN3D.Game.Art
     {
         static readonly string[] ShingleHex = { "#7a4438", "#5c4632", "#43507a", "#4c6244", "#585450" };
 
+        /// <summary>Fired clay, in the five or six colours a brickworks actually sells.</summary>
+        static readonly string[] BrickHex = { "#9c5a44", "#8a4c3c", "#b06a4e", "#7d4436", "#a8705a", "#8e7f70" };
+
         /// <summary>House plans. The roofline is what reads from a car, so it leads.</summary>
         enum Plan { Gable, Hip, Wing, Garage, TwoStorey }
+
+        /// <summary>What the walls are made of. Not a palette choice — each one tiles differently.</summary>
+        enum Clad { Board, Stucco, Brick }
+
+        static Clad Cladding(Rng rng)
+        {
+            double r = rng.Next();
+            if (r < 0.46) return Clad.Board;
+            if (r < 0.72) return Clad.Stucco;
+            return Clad.Brick;
+        }
 
         public static void Build(CompiledRoute route, int lanes, District d, uint seed,
                                  Transform parent, Terrain ground)
@@ -417,25 +431,83 @@ namespace PN3D.Game.Art
         static void BuildHouse(Transform g, District d, Rng rng, float wide, float depth,
                                Plan plan, float garageSide)
         {
-            string wallHex = d.WallHex[(int)(rng.Next() * d.WallHex.Length)];
+            int wallIdx = (int)(rng.Next() * d.WallHex.Length);
+            string wallHex = d.WallHex[wallIdx];
             var wallC = ColorUtility.TryParseHtmlString(wallHex, out var wc) ? wc : Color.white;
+
+            // The bWall palette is five pastels. Under a bright sun, through fog, five
+            // pastels are one colour: the first render of this street was a row of white
+            // houses no matter which one each of them drew. So each house also draws a
+            // tone, and one in four is painted in a deep version of its own hue — the
+            // saturated accent that real streets have two or three of. Both are quantised
+            // into the material key, because a colour off a continuum mints a material per
+            // house and there is no batching left after that.
+            int toneStep = (int)(rng.Next() * 3);
+            bool accent = rng.Chance(0.24);
+            if (accent)
+            {
+                Color.RGBToHSV(wallC, out float wh, out float ws, out float wv);
+                wallC = Color.HSVToRGB(wh, Mathf.Clamp01(ws * 2.2f + 0.10f), wv * 0.70f);
+            }
+            wallC *= 0.90f + 0.08f * toneStep;
+            string paintKey = $"{wallIdx}{toneStep}{(accent ? "a" : "")}";
+
             float storey = (float)rng.Rand(3.2, 4.2);
             float bodyH = plan == Plan.TwoStorey ? storey + (float)rng.Rand(2.5, 3.0) : storey;
             string shingHex = ShingleHex[(int)(rng.Next() * ShingleHex.Length)];
             var shingC = ColorUtility.TryParseHtmlString(shingHex, out var shc) ? shc : Color.grey;
 
-            var siding = MatLib.Textured("mat_siding" + wallHex, ProcTex.Siding(), wallC,
-                                         new Vector2(wide / 2.2f, bodyH / 2.2f), smoothness: 0.05f);
+            // Cladding. All three carry a normal map, which is the difference between a
+            // wall and a coloured rectangle: none of this geometry has any relief, so
+            // every board edge, trowel mark and mortar joint that catches the sun has to
+            // come out of the surface.
+            var clad = Cladding(rng);
+            Material wallMat;
+            float repeat;
+            Color gableC;
+            switch (clad)
+            {
+                case Clad.Stucco:
+                    wallMat = MatLib.Textured("mat_stucco" + paintKey, ProcTex.Stucco(), wallC,
+                                              Vector2.one, smoothness: 0.045f,
+                                              normal: ProcTex.StuccoNormal(), normalScale: 0.85f);
+                    repeat = 3.0f;
+                    gableC = wallC * 0.94f;
+                    break;
+
+                case Clad.Brick:
+                    // Brick keeps its own colour. A brick wall tinted mint green is not a
+                    // house, and the bWall palette has a mint green in it.
+                    string bh = BrickHex[(int)(rng.Next() * BrickHex.Length)];
+                    wallMat = MatLib.Textured("mat_brick" + bh, ProcTex.Brick(bh), Color.white,
+                                              Vector2.one, smoothness: 0.07f,
+                                              normal: ProcTex.BrickNormal(), normalScale: 1.15f);
+                    repeat = 2.2f;
+                    // gable ends over brick are almost always boarded and painted pale
+                    gableC = new Color(0.90f, 0.88f, 0.83f);
+                    break;
+
+                default:
+                    wallMat = MatLib.Textured("mat_board" + paintKey, ProcTex.Siding(), wallC,
+                                              Vector2.one, smoothness: 0.055f,
+                                              normal: ProcTex.SidingNormal(), normalScale: 1.0f);
+                    repeat = 2.2f;
+                    gableC = wallC * 0.92f;
+                    break;
+            }
+
             var trim = MatLib.Solid(new Color(0.949f, 0.937f, 0.902f), 0.12f);
             var shingleMat = MatLib.Textured("mat_shing" + shingHex, ProcTex.Shingle(shingHex),
-                                             Color.white, new Vector2(1, 1), smoothness: 0.05f);
-            var gableMat = MatLib.Solid(wallC * 0.92f, 0.05f);
+                                             Color.white, new Vector2(1, 1), smoothness: 0.05f,
+                                             normal: ProcTex.ShingleNormal(), normalScale: 0.9f);
+            var gableMat = MatLib.Solid(gableC, 0.05f);
             var doorMat = MatLib.Solid(new Color(0.42f, 0.29f, 0.18f), 0.2f);
             var glassMat = MatLib.Glass(new Color(0.10f, 0.14f, 0.17f));
             var shutterMat = MatLib.Solid(new Color(0.216f, 0.259f, 0.227f), 0.1f);
             var gutterMat = MatLib.Solid(new Color(0.86f, 0.85f, 0.82f), 0.22f);
 
-            Geo.Box("Body", g, new Vector3(wide, bodyH, depth), new Vector3(0, bodyH / 2f, 0), siding);
+            Geo.BoxClad("Body", g, new Vector3(wide, bodyH, depth), new Vector3(0, bodyH / 2f, 0),
+                        wallMat, repeat);
             Geo.Box("Foundation", g, new Vector3(wide + 0.12f, 0.42f, depth + 0.12f),
                     new Vector3(0, 0.21f, 0), MatLib.Solid(new Color(0.604f, 0.588f, 0.549f)));
 
@@ -478,8 +550,8 @@ namespace PN3D.Game.Art
                 float ww = wide * 0.40f, wd = depth * 0.55f;
                 float wz = depth * 0.5f + wd * 0.5f - 0.4f;
                 float wh = storey * 0.92f;
-                Geo.Box("Wing", g, new Vector3(ww, wh, wd),
-                        new Vector3(garageSide * wide * 0.28f, wh / 2f, wz), siding);
+                Geo.BoxClad("Wing", g, new Vector3(ww, wh, wd),
+                            new Vector3(garageSide * wide * 0.28f, wh / 2f, wz), wallMat, repeat);
                 float wr = wd * 0.34f;
                 var wroof = Geo.Node("WingRoof", g, Geo.GableRoof(ww + 0.5f, wd + 0.5f, wr), shingleMat,
                                      new Vector3(garageSide * wide * 0.28f, wh - 0.02f, wz));
@@ -493,7 +565,8 @@ namespace PN3D.Game.Art
                 float gw = 3.4f, gd = depth * 0.78f, gh = storey * 0.74f;
                 float gx = garageSide * (wide * 0.5f + gw * 0.5f - 0.15f);
                 float gz = depth * 0.5f - gd * 0.5f + 0.6f;
-                Geo.Box("Garage", g, new Vector3(gw, gh, gd), new Vector3(gx, gh / 2f, gz), siding);
+                Geo.BoxClad("Garage", g, new Vector3(gw, gh, gd), new Vector3(gx, gh / 2f, gz),
+                            wallMat, repeat);
                 var groof = Geo.Node("GarageRoof", g, Geo.GableRoof(gw + 0.5f, gd + 0.5f, gd * 0.24f),
                                      shingleMat, new Vector3(gx, gh - 0.02f, gz));
                 groof.GetComponent<MeshRenderer>().sharedMaterials = new[] { shingleMat, gableMat };
@@ -590,7 +663,14 @@ namespace PN3D.Game.Art
         /// </summary>
         static void BuildTree(Transform g, Rng rng, float scale)
         {
-            var bark = MatLib.Solid(new Color(0.353f, 0.243f, 0.161f), 0.06f);
+            // Bark, not brown. A flat-coloured trunk is a brown pipe: it has no shading
+            // of its own, so the only thing separating it from the crown above is hue. The
+            // fissures run up the trunk because the trunk is a cylinder — anything
+            // horizontal on it reads as a hoop.
+            var bark = MatLib.Textured("mat_bark", ProcTex.Bark(),
+                                       new Color(0.455f, 0.335f, 0.235f), new Vector2(1.6f, 2.6f),
+                                       smoothness: 0.05f, normal: ProcTex.BarkNormal(),
+                                       normalScale: 0.7f);
 
             if (rng.Chance(0.24))
             {
